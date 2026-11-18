@@ -1020,7 +1020,8 @@ async function viewWidgetEditor(id) {
   const orig = await api('GET', `/widgets/${id}`);
   const w = clone(orig);
   // ค่าเริ่มต้นของตัวเลือกสไลด์ (ส่วนแสดงผลที่สร้างก่อนมีตัวเลือกเหล่านี้)
-  const dflt = { ratioW: 16, ratioH: 9, carWMode: 'auto', carW: 1200, carWPct: 100, carAlign: 'center', carHMode: w.ratio === 'auto' ? 'auto' : 'ratio', carH: 400, carHM: 0, imgPos: 'center', transEffect: 'slide', transMs: 600, transEase: 'smooth', pauseHover: true, carBg: '' };
+  const dflt = { ratioW: 16, ratioH: 9, carWMode: 'auto', carW: 1200, carWPct: 100, carAlign: 'center', carHMode: w.ratio === 'auto' ? 'auto' : 'ratio', carH: 400, carHM: 0, imgPos: 'center', transEffect: 'slide', transMs: 600, transEase: 'smooth', pauseHover: true, carBg: '',
+    boxWMode: 'auto', boxW: 1000, boxWPct: 100, boxAlign: 'center', boxHMode: 'auto', boxH: 300, boxHM: 0, boxVAlign: 'top' };
   for (const k in dflt) if (w[k] === undefined) w[k] = dflt[k];
   let tab = 'items', device = 'desktop', previewFull = false, designer = null, rightMode = 'design';
   const markDirty = () => {
@@ -1080,7 +1081,7 @@ async function viewWidgetEditor(id) {
     device = d;
     $('#pvWrap').style.width = { desktop: '100%', tablet: '768px', phone: '390px' }[d];
     $$('#devSeg button').forEach(b => b.classList.toggle('on', b.dataset.dev === d));
-    if (w.layout === 'carousel') setTimeout(measureCar, 450);
+    setTimeout(() => { measureBox(); if (w.layout === 'carousel') measureCar(); }, 450);
   };
   $$('#devSeg button').forEach(b => b.onclick = () => setDevice(b.dataset.dev));
   $('#pvFull').onchange = e => { previewFull = e.target.checked; refresh(); };
@@ -1187,6 +1188,18 @@ async function viewWidgetEditor(id) {
         ${lay('canvas', 'ผืนผ้าใบอิสระ', 'ลากวางปุ่มบนเส้นตาราง', '<svg viewBox="0 0 60 36" class="w-full h-full"><g stroke="currentColor" stroke-width=".4" opacity=".3">' + [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11].map(i => `<line x1="${i * 5}" y1="0" x2="${i * 5}" y2="36"/>`).join('') + [1, 2, 3, 4, 5, 6].map(i => `<line x1="0" y1="${i * 5}" x2="60" y2="${i * 5}"/>`).join('') + '</g><rect x="5" y="5" width="20" height="10" rx="2" fill="currentColor" opacity=".85"/><rect x="30" y="5" width="25" height="20" rx="2" fill="currentColor" opacity=".55"/><rect x="5" y="20" width="20" height="10" rx="5" fill="currentColor" opacity=".85"/></svg>')}
         ${lay('tabs', 'แท็บ', 'รวมหลายส่วน จัดซ้าย–ขวา', '<svg viewBox="0 0 60 36" class="w-full h-full"><rect x="2" y="1" width="56" height="8" rx="4" fill="currentColor" opacity=".15"/><rect x="3" y="2" width="27" height="6" rx="3" fill="currentColor" opacity=".85"/><rect x="2" y="12" width="22" height="22" rx="2" fill="currentColor" opacity=".55"/><g fill="currentColor" opacity=".3"><rect x="27" y="12" width="9" height="10" rx="1.5"/><rect x="38" y="12" width="9" height="10" rx="1.5"/><rect x="49" y="12" width="9" height="10" rx="1.5"/><rect x="27" y="24" width="9" height="10" rx="1.5"/><rect x="38" y="24" width="9" height="10" rx="1.5"/><rect x="49" y="24" width="9" height="10" rx="1.5"/></g></svg>')}
       </div>`)}
+      ${isC ? '' : sec('ขนาดพื้นที่แสดงผล', `<div class="space-y-3">
+        <div id="boxMeasure" class="p-2.5 rounded-lg bg-navy-50 border border-navy-100 text-xs text-slate-700 font-mono">กำลังวัดขนาด...</div>
+        <div><label class="lbl">ความกว้าง</label>${wseg('boxWMode', [['auto', 'อัตโนมัติ (เต็มช่อง)'], ['px', 'กำหนด px'], ['%', 'เปอร์เซ็นต์']])}
+          ${w.boxWMode === 'px' ? `<div class="mt-2">${num('boxW', 'กว้างสูงสุด', 100, 3840, 'px')}<p class="text-xs text-slate-500 mt-1">ช่องที่วางแคบกว่านี้ จะย่อให้พอดีอัตโนมัติ</p></div>` : ''}
+          ${w.boxWMode === '%' ? `<div class="mt-2">${rng('boxWPct', 'กว้าง (เทียบกับช่องที่วาง)', 10, 100, '%')}</div>` : ''}
+          ${w.boxWMode !== 'auto' ? `<div class="mt-2"><label class="lbl">ตำแหน่ง</label>${wseg('boxAlign', [['left', 'ชิดซ้าย'], ['center', 'กึ่งกลาง'], ['right', 'ชิดขวา']])}</div>` : ''}</div>
+        <div><label class="lbl">ความสูง</label>${wseg('boxHMode', [['auto', 'อัตโนมัติ (ตามเนื้อหา)'], ['min', 'สูงอย่างน้อย'], ['fixed', 'สูงคงที่']])}
+          ${w.boxHMode !== 'auto' ? `<div class="mt-2 grid grid-cols-2 gap-3">${num('boxH', 'สูง (จอใหญ่)', 20, 3000, 'px')}${num('boxHM', 'บนมือถือ (0 = เท่ากัน)', 0, 3000, 'px')}</div>
+            <div class="mt-2">${rng('boxH', 'ปรับความสูงละเอียด', 20, 1000, 'px')}</div>
+            <div class="mt-2"><label class="lbl">วางเนื้อหาในแนวตั้ง</label>${wseg('boxVAlign', [['top', 'ชิดบน'], ['middle', 'กึ่งกลาง'], ['bottom', 'ชิดล่าง']])}</div>
+            ${w.boxHMode === 'fixed' ? '<p class="text-xs text-amber-700 mt-1">สูงคงที่: เนื้อหาที่ยาวเกินจะถูกตัด — ถ้าไม่แน่ใจให้ใช้ “สูงอย่างน้อย”</p>' : ''}` : '<p class="text-xs text-slate-500 mt-1">สูงเท่ากับเนื้อหา ไม่มีพื้นที่ว่างเกิน</p>'}</div>
+        <p class="text-xs text-slate-500">${isCar ? 'ขนาดของภาพในสไลด์ ปรับได้อีกชั้นที่หัวข้อ “ขนาดการแสดงผลสไลด์” ด้านล่าง' : 'ความกว้างของแต่ละรายการ ปรับได้ที่จำนวนคอลัมน์และระยะห่าง'}</p></div>`)}
       ${sec('หัวข้อ', `${tg('showTitle', 'แสดงหัวข้อด้านบน', true)}${w.showTitle ? `<input class="inp mt-2" data-k="title" value="${esc(w.title)}" placeholder="หัวข้อที่แสดง">
         <div class="mt-2"><label class="lbl">รูปแบบหัวข้อ</label>${wseg('titleStyle', [['bar', '▍ แถบซ้าย'], ['pill', '⬭ แคปซูลกลาง'], ['center', 'กึ่งกลาง+ขีด'], ['plain', 'ข้อความ']])}</div>` : ''}`)}
       ${isT ? sec('แถบแท็บ', `<div class="space-y-3"><div><label class="lbl">รูปแบบแถบ</label>${wseg('tabStyle', [['pill', 'กล่องแคปซูล'], ['button', 'ปุ่มแยก'], ['underline', 'ขีดเส้นใต้']])}</div>
@@ -1266,6 +1279,8 @@ async function viewWidgetEditor(id) {
     const bgT = $('#bgT'); if (bgT) bgT.onclick = () => { w.bg = w.bg === 'transparent' ? '#ffffff' : 'transparent'; markDirty(); drawPanel(); };
     const pp = $('#pickPage'); if (pp) pp.onclick = async () => { const s = await choosePage(); if (s) { w.moreLink = `/p/${s}`; markDirty(); drawPanel(); } };
     bind(P);
+    if (!isCar) $$('[data-k]', P).forEach(el => el.addEventListener('input', () => $$(`[data-k="${el.dataset.k}"]`, P).forEach(o => { if (o !== el && o.type !== 'checkbox') o.value = el.value; })));
+    measureBox();
     if (isCar) carHelpers(P);
     $$('[data-cbg]', P).forEach(b => b.onclick = () => { w.carBg = b.dataset.cbg; markDirty(); drawPanel(); });
     const cbc = $('#cbgColor', P); if (cbc) cbc.onchange = () => { w.carBg = cbc.value; markDirty(); drawPanel(); };
@@ -1302,7 +1317,16 @@ async function viewWidgetEditor(id) {
       ${m ? `<div class="font-mono text-[13px]">พื้นที่ภาพ: <b>${Math.round(m.width)} × ${Math.round(m.height)}</b> px</div>` : ''}
       <div class="text-slate-500 mt-1">ขนาดจริงบนเว็บขึ้นกับความกว้างของช่องที่นำไปวาง สลับดูจอใหญ่ / แท็บเล็ต / มือถือ ได้ที่แถบด้านบนตัวอย่าง</div>`;
   }
-  pv.addEventListener('load', () => { if (w.layout === 'carousel') { measureCar(); setTimeout(measureCar, 600); setTimeout(measureCar, 1500); } });
+  function measureBox() {
+    const box = $('#boxMeasure'); if (!box) return;
+    let d; try { d = pv.contentDocument; } catch { d = null; }
+    const u = d && d.querySelector('.uw'); if (!u) return;
+    const r = u.getBoundingClientRect();
+    box.innerHTML = `ขนาดในตัวอย่าง (${{ desktop: 'จอใหญ่', tablet: 'แท็บเล็ต', phone: 'มือถือ' }[device]}): <b>${Math.round(r.width)} × ${Math.round(r.height)}</b> px`;
+  }
+  pv.addEventListener('load', () => {
+    [0, 600, 1500].forEach(t => setTimeout(() => { measureBox(); if (w.layout === 'carousel') measureCar(); }, t));
+  });
 
   let widgetCache = null;
   async function drawTabsEditor(P) {

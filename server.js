@@ -413,6 +413,15 @@ const LAYOUTS = ['grid', 'carousel', 'list', 'canvas', 'tabs'];
 const safeFa = c => /^[a-z0-9\- ]{3,80}$/i.test(String(c || '')) ? String(c).trim() : '';
 const RATIOS = ['auto', '16/9', '16/6', '21/9', '4/3', '3/2', '1/1', '3/4', '2/3', 'custom'];
 const EASES = { smooth: 'cubic-bezier(.4,0,.2,1)', ease: 'ease', linear: 'linear', 'ease-in-out': 'ease-in-out', bounce: 'cubic-bezier(.34,1.4,.64,1)' };
+/** ขนาดพื้นที่แสดงผลทั้งชุด (ใช้ได้ทุกรูปแบบ ยกเว้นผืนผ้าใบที่มีขนาดของตัวเอง) */
+function boxCfg(w) {
+  return {
+    wMode: ['auto', 'px', '%'].includes(w.boxWMode) ? w.boxWMode : 'auto', w: clamp(w.boxW, 100, 3840, 1000), wPct: clamp(w.boxWPct, 10, 100, 100),
+    align: ['left', 'center', 'right'].includes(w.boxAlign) ? w.boxAlign : 'center',
+    hMode: ['auto', 'min', 'fixed'].includes(w.boxHMode) ? w.boxHMode : 'auto', h: clamp(w.boxH, 20, 3000, 300), hM: clamp(w.boxHM, 0, 3000, 0),
+    vAlign: ['top', 'middle', 'bottom'].includes(w.boxVAlign) ? w.boxVAlign : 'top',
+  };
+}
 /** สัดส่วนภาพที่ใช้จริง (รองรับกำหนดเอง กว้าง:สูง) */
 function ratioVal(w) {
   if (w.ratio === 'custom') return `${clamp(w.ratioW, 1, 10000, 16)}/${clamp(w.ratioH, 1, 10000, 9)}`;
@@ -469,6 +478,7 @@ function normWidget(w, existing) {
     captionAlign: w.captionAlign === 'center' ? 'center' : 'left', capColor: color(w.capColor, '#1e293b'),
     imgPad: clamp(w.imgPad, 0, 60, 0), panelRadius: clamp(w.panelRadius, 0, 40, 0), btnMinH: clamp(w.btnMinH, 0, 600, 0),
     lightbox: !!w.lightbox, link2Color: color(w.link2Color, '#c2410c'),
+    ...(b => ({ boxWMode: b.wMode, boxW: b.w, boxWPct: b.wPct, boxAlign: b.align, boxHMode: b.hMode, boxH: b.h, boxHM: b.hM, boxVAlign: b.vAlign }))(boxCfg(w)),
     ...(c => ({ carWMode: c.wMode, carW: c.w, carWPct: c.wPct, carAlign: c.align, carHMode: c.hMode, carH: c.h, carHM: c.hM,
       imgPos: c.pos, transEffect: c.fx, transMs: c.ms, transEase: c.ease, pauseHover: c.pauseHover, carBg: c.bg }))(carCfg(w)),
     tabStyle: ['pill', 'underline', 'button'].includes(w.tabStyle) ? w.tabStyle : 'pill', tabEqual: w.tabEqual !== false,
@@ -610,6 +620,8 @@ a.uw-row:hover{border-color:var(--accent);background:#f8fafc}
 .uc.stack .ub{min-height:54px;font-size:16px!important;padding:12px 16px!important;border-radius:min(var(--r),14px)}
 .uc.stack .ub .ui{font-size:20px!important}.uc.stack .ub.pos-top .ui{font-size:28px!important}}
 .uw{border-radius:var(--prad,0)}
+.uw.bh{display:flex;flex-direction:column;justify-content:var(--bva)}.uw.bh>*{flex:none}.uw.bh-min{min-height:var(--bh)}.uw.bh-fixed{height:var(--bh);overflow:hidden}
+@media(max-width:639px){.uw.bh-min{min-height:var(--bhm)}.uw.bh-fixed{height:var(--bhm)}}
 .uw-bw{min-height:var(--bminh,52px)}
 .uw.capc .uw-cap{text-align:center}.uw-cap b{color:var(--capc,inherit)}
 .uw-media.pad{padding:var(--imgpad);background:#fff}.uw-media.pad img{object-fit:contain}
@@ -737,7 +749,13 @@ function renderWidgetInner(w, { full = false } = {}) {
   } else body = `<div class="uw-grid">${items.map(i => cardHtml(i, w)).join('')}</div>`;
   const more = (!full && w.moreLink && (w.limit === 0 || total > 0)) ? `<div class="uw-more"><a href="${esc(w.moreLink)}" target="_top">${esc(w.moreLabel || 'ดูทั้งหมด')} ${ARROW}</a></div>` : '';
   const title = w.showTitle && w.title ? `<h2 class="uw-title ts-${w.titleStyle || 'bar'}"><span>${esc(w.title)}</span></h2>` : '';
-  return `<div class="uw${w.shadow ? ' shadow' : ''}${w.captionAlign === 'center' ? ' capc' : ''}" style="${vars}">${title}${body}${more}</div>`;
+  const bx = boxCfg(w);
+  let bstyle = '', bcls = '';
+  if (w.layout !== 'canvas') {
+    if (bx.wMode !== 'auto') bstyle += `;max-width:${bx.wMode === 'px' ? bx.w + 'px' : bx.wPct + '%'};margin:${bx.align === 'left' ? '0 auto 0 0' : bx.align === 'right' ? '0 0 0 auto' : '0 auto'}`;
+    if (bx.hMode !== 'auto') { bcls = ` bh bh-${bx.hMode}`; bstyle += `;--bh:${bx.h}px;--bhm:${bx.hM || bx.h}px;--bva:${bx.vAlign === 'middle' ? 'center' : bx.vAlign === 'bottom' ? 'flex-end' : 'flex-start'}`; }
+  }
+  return `<div class="uw${w.shadow ? ' shadow' : ''}${w.captionAlign === 'center' ? ' capc' : ''}${bcls}" style="${vars}${bstyle}">${title}${body}${more}</div>`;
 }
 
 const LIGHTBOX_FN = `function(src,t){var o=document.createElement('div');o.setAttribute('role','dialog');
@@ -788,7 +806,7 @@ function runtimeJs(rootExpr, embed) {
     if(window.parent!==window&&${embed ? 'true' : 'false'}){if(hostLB)parent.postMessage({type:'uw-lightbox',src:a.href,title:t},'*');else window.open(a.href,'_blank');return;}
     showLB(a.href,t);});
   ${embed ? `addEventListener('message',function(e){if(e.data&&e.data.type==='uw-host')hostLB=true;});
-  function post(){try{parent.postMessage({type:'uw-resize',height:Math.ceil(document.documentElement.scrollHeight)},'*');}catch(e){}}
+  function post(){try{var b=document.body,h=Math.ceil(b.getBoundingClientRect().height);if(!h)h=b.scrollHeight;parent.postMessage({type:'uw-resize',height:h},'*');}catch(e){}}
   addEventListener('load',post);addEventListener('resize',post);
   if(window.ResizeObserver)new ResizeObserver(post).observe(document.body);
   [].forEach.call(document.querySelectorAll('img'),function(im){im.addEventListener('load',post);});
