@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ระบบจัดการส่วนแสดงผล | หลังบ้าน</title>
+<link rel="icon" href="/assets/logo.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+tailwind.config = {
+  theme: { extend: {
+    fontFamily: { sans: ['Sarabun', 'system-ui', 'sans-serif'] },
+    colors: { navy: { 50:'#f2f6fa',100:'#e1e9f2',200:'#c3d3e5',300:'#94b0cf',400:'#5f86b3',500:'#3e6797',600:'#2f527d',700:'#274466',800:'#1e3a5f',900:'#172c47',950:'#0f1d30' },
+              gold: { 400:'#d4a64a', 500:'#b8862b', 600:'#9a6e1f' } }
+  } }
+}
+</script>
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+<style>
+  body{font-family:'Sarabun',system-ui,sans-serif}
+  .swal2-popup{font-family:'Sarabun',system-ui,sans-serif!important;border-radius:14px!important}
+  .swal2-styled.swal2-confirm{background:#1e3a5f!important}
+  .inp{width:100%;border:1px solid #cbd5e1;border-radius:.5rem;padding:.5rem .75rem;font-size:.925rem;background:#fff;transition:border-color .15s,box-shadow .15s}
+  .inp:focus{outline:none;border-color:#3e6797;box-shadow:0 0 0 3px rgba(62,103,151,.15)}
+  .lbl{display:block;font-size:.82rem;font-weight:600;color:#475569;margin-bottom:.3rem}
+  .btn{display:inline-flex;align-items:center;justify-content:center;gap:.45rem;padding:.5rem 1rem;border-radius:.5rem;font-size:.9rem;font-weight:600;transition:all .15s;white-space:nowrap}
+  .btn-primary{background:#1e3a5f;color:#fff}.btn-primary:hover{background:#274466}
+  .btn-gold{background:#b8862b;color:#fff}.btn-gold:hover{background:#9a6e1f}
+  .btn-light{background:#fff;color:#334155;border:1px solid #cbd5e1}.btn-light:hover{background:#f8fafc;border-color:#94a3b8}
+  .btn-ghost{color:#475569}.btn-ghost:hover{background:#f1f5f9}
+  .btn-danger{background:#fff;color:#be123c;border:1px solid #fecdd3}.btn-danger:hover{background:#fff1f2}
+  .btn-sm{padding:.3rem .65rem;font-size:.82rem}
+  .card{background:#fff;border:1px solid #e2e8f0;border-radius:.85rem}
+  .nav-a{display:flex;align-items:center;gap:.75rem;padding:.6rem .85rem;border-radius:.6rem;color:#cbd5e1;font-size:.95rem;transition:all .15s}
+  .nav-a:hover{background:rgba(255,255,255,.06);color:#fff}
+  .nav-a.on{background:rgba(255,255,255,.1);color:#fff;box-shadow:inset 3px 0 0 #d4a64a}
+  .tgl{position:relative;width:38px;height:22px;flex:none;appearance:none;background:#cbd5e1;border-radius:99px;cursor:pointer;transition:.2s}
+  .tgl:checked{background:#1e3a5f}.tgl:after{content:'';position:absolute;top:3px;left:3px;width:16px;height:16px;background:#fff;border-radius:99px;transition:.2s;box-shadow:0 1px 2px rgba(0,0,0,.2)}
+  .tgl:checked:after{left:19px}
+  .seg{display:flex;background:#f1f5f9;border-radius:.6rem;padding:3px;gap:2px}
+  .seg button{flex:1;padding:.4rem .5rem;border-radius:.45rem;font-size:.85rem;color:#475569;font-weight:500}
+  .seg button.on{background:#fff;color:#1e3a5f;box-shadow:0 1px 3px rgba(0,0,0,.1);font-weight:600}
+  .drag-over{outline:2px dashed #3e6797;outline-offset:2px}
+  .dragging{opacity:.4}
+  .scroll-thin::-webkit-scrollbar{width:8px;height:8px}.scroll-thin::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:8px}
+  [x-cloak]{display:none}
+  .chk-pattern{background-image:linear-gradient(45deg,#f1f5f9 25%,transparent 25%),linear-gradient(-45deg,#f1f5f9 25%,transparent 25%),linear-gradient(45deg,transparent 75%,#f1f5f9 75%),linear-gradient(-45deg,transparent 75%,#f1f5f9 75%);background-size:20px 20px;background-position:0 0,0 10px,10px -10px,-10px 0}
+</style>
+</head>
+<body class="bg-slate-100 text-slate-800 antialiased">
+<div id="app"></div>
+<div id="modals"></div>
+<script src="/assets/ub-render.js"></script>
+<script src="/admin/admin.js"></script>
+</body>
+</html>
