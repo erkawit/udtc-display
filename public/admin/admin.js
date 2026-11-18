@@ -1378,10 +1378,11 @@ async function viewWidgetEditor(id) {
     P.innerHTML = `
       <div class="grid grid-cols-2 gap-2 mb-3">
         <label class="btn btn-primary cursor-pointer">${icon('upload')} อัปโหลดหลายภาพ<input type="file" accept="image/*" multiple class="hidden" id="bulkUp"></label>
-        <div class="relative"><button class="btn btn-light w-full" id="addBtn">${icon('plus')} เพิ่มรายการ</button>
-          <div id="addMenu" class="hidden absolute right-0 left-0 mt-1 bg-white rounded-xl shadow-lg border border-slate-200 py-1 z-10">
-            ${Object.entries(TYPE_META).map(([k, m]) => `<button data-add="${k}" class="w-full flex items-center gap-2.5 px-3 py-2 text-sm hover:bg-slate-50"><span class="w-7 h-7 rounded-lg grid place-items-center ${m.cls}">${icon(m.ic, 'w-3.5 h-3.5')}</span>${m.name}</button>`).join('')}
-          </div></div>
+        <button class="btn btn-light w-full" id="addBtn">${icon('plus')} เพิ่มรายการ</button>
+      </div>
+      <div id="addMenu" class="hidden mb-3 p-2 rounded-xl border border-navy-200 bg-navy-50/60">
+        <div class="flex items-center justify-between px-1 mb-1.5"><span class="text-xs font-semibold text-slate-600">เลือกประเภทรายการที่จะเพิ่ม</span><button class="text-slate-400 hover:text-slate-700" id="addClose" title="ปิด">${icon('x', 'w-4 h-4')}</button></div>
+        <div class="grid grid-cols-3 sm:grid-cols-4 gap-1.5">${Object.entries(TYPE_META).map(([k, m]) => `<button data-add="${k}" class="flex flex-col items-center gap-1 p-2 rounded-lg bg-white border border-slate-200 hover:border-navy-400 hover:shadow-sm text-xs font-medium text-slate-700"><span class="w-8 h-8 rounded-lg grid place-items-center ${m.cls}">${icon(m.ic, 'w-4 h-4')}</span>${m.name}</button>`).join('')}</div>
       </div>
       <div class="flex items-center justify-between text-xs text-slate-500 mb-2 px-1"><span>${items.length} รายการ · ลากเพื่อจัดลำดับ</span>${w.limit ? `<span class="text-amber-700">แสดงจริง ${w.limit} รายการแรก</span>` : ''}</div>
       <div id="itemList" class="space-y-2">${items.map((it, idx) => {
@@ -1400,8 +1401,8 @@ async function viewWidgetEditor(id) {
         </div>`;
     }).join('') || `<div class="text-center py-10 text-slate-400 text-sm border-2 border-dashed border-slate-200 rounded-xl">ยังไม่มีรายการ<br>เริ่มจากอัปโหลดภาพ หรือกด “เพิ่มรายการ”</div>`}</div>`;
 
-    $('#addBtn').onclick = e => { e.stopPropagation(); $('#addMenu').classList.toggle('hidden'); };
-    document.addEventListener('click', () => $('#addMenu') && $('#addMenu').classList.add('hidden'), { once: true });
+    $('#addBtn').onclick = () => $('#addMenu').classList.toggle('hidden');
+    $('#addClose').onclick = () => $('#addMenu').classList.add('hidden');
     $$('[data-add]', P).forEach(b => b.onclick = () => editItem({ id: rid(), type: b.dataset.add, title: '', subtitle: '', src: '', link: '', newTab: true, icon: '', btnStyle: 'primary', html: '', active: true, start: '', end: '', ...(TEXTY.includes(b.dataset.add) ? { ts: UB.normText(b.dataset.add === 'text' ? { ...UB.TPRESETS.find(p => p.id === 'h2').s, content: 'หัวข้อ / ข้อความ' } : b.dataset.add === 'divider' ? { color: '#cbd5e1' } : {}) } : {}) }, true));
     $('#bulkUp').onchange = async e => {
       const files = [...e.target.files]; e.target.value = '';
