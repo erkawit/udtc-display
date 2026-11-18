@@ -935,7 +935,7 @@ async function viewWidgetEditor(id) {
   const orig = await api('GET', `/widgets/${id}`);
   const w = clone(orig);
   // ค่าเริ่มต้นของตัวเลือกสไลด์ (ส่วนแสดงผลที่สร้างก่อนมีตัวเลือกเหล่านี้)
-  const dflt = { ratioW: 16, ratioH: 9, carWMode: 'auto', carW: 1200, carWPct: 100, carAlign: 'center', carHMode: w.ratio === 'auto' ? 'auto' : 'ratio', carH: 400, carHM: 0, imgPos: 'center', transEffect: 'slide', transMs: 600, transEase: 'smooth', pauseHover: true };
+  const dflt = { ratioW: 16, ratioH: 9, carWMode: 'auto', carW: 1200, carWPct: 100, carAlign: 'center', carHMode: w.ratio === 'auto' ? 'auto' : 'ratio', carH: 400, carHM: 0, imgPos: 'center', transEffect: 'slide', transMs: 600, transEase: 'smooth', pauseHover: true, carBg: '' };
   for (const k in dflt) if (w[k] === undefined) w[k] = dflt[k];
   let tab = 'items', device = 'desktop', previewFull = false, designer = null, rightMode = 'design';
   const markDirty = () => {
@@ -1127,6 +1127,10 @@ async function viewWidgetEditor(id) {
         ${w.carHMode !== 'auto' ? `<div class="grid grid-cols-2 gap-3">
           <div><label class="lbl">การปรับภาพในกรอบ</label><select class="inp" data-k="fit"><option value="cover" ${w.fit === 'cover' ? 'selected' : ''}>เต็มกรอบ (ครอป)</option><option value="contain" ${w.fit === 'contain' ? 'selected' : ''}>แสดงครบทั้งภาพ</option></select></div>
           <div><label class="lbl">จุดยึดภาพ (เมื่อครอป)</label>${wseg('imgPos', [['top', 'บน'], ['center', 'กลาง'], ['bottom', 'ล่าง']])}</div></div>` : ''}
+        <div><label class="lbl">พื้นหลังสไลด์ (เห็นเมื่อภาพไม่เต็มกรอบ / ภาพโปร่งใส)</label>
+          <div class="flex gap-2"><button class="btn btn-light btn-sm flex-1 ${!w.carBg ? '!border-navy-700 !text-navy-800' : ''}" data-cbg="">ค่าเริ่มต้น (เทาอ่อน)</button><button class="btn btn-light btn-sm flex-1 ${w.carBg === 'transparent' ? '!border-navy-700 !text-navy-800' : ''}" data-cbg="transparent">โปร่งใส</button>
+          <input type="color" class="h-9 w-11 rounded border border-slate-300 cursor-pointer flex-none" id="cbgColor" title="เลือกสี" value="${/^#[0-9a-f]{6}$/i.test(w.carBg || '') ? w.carBg : '#ffffff'}"></div>
+          ${w.carBg === 'transparent' ? '<p class="text-xs text-slate-500 mt-1">โหมดโปร่งใสจะปิดเงาของสไลด์ให้อัตโนมัติ ถ้าต้องการให้ทั้งส่วนโปร่งใส ให้ตั้ง “สีพื้นหลัง → โปร่งใส” ที่หัวข้อระยะห่างและความสวยงามด้านล่างด้วย</p>' : ''}</div>
         <div id="natSizes" class="text-xs text-slate-500"></div></div>`) : ''}
       ${!isC && isCar ? sec('การเปลี่ยนภาพ', `<div class="space-y-3">
         <div><label class="lbl">เอฟเฟกต์</label>${wseg('transEffect', [['slide', 'เลื่อน'], ['fade', 'จางซ้อน'], ['none', 'ตัดทันที']])}</div>
@@ -1170,6 +1174,8 @@ async function viewWidgetEditor(id) {
     const pp = $('#pickPage'); if (pp) pp.onclick = async () => { const s = await choosePage(); if (s) { w.moreLink = `/p/${s}`; markDirty(); drawPanel(); } };
     bind(P);
     if (isCar) carHelpers(P);
+    $$('[data-cbg]', P).forEach(b => b.onclick = () => { w.carBg = b.dataset.cbg; markDirty(); drawPanel(); });
+    const cbc = $('#cbgColor', P); if (cbc) cbc.onchange = () => { w.carBg = cbc.value; markDirty(); drawPanel(); };
     $$('[data-k="accent"]', P).forEach(c => c.addEventListener('input', () => { const m = $('[data-mirror="accent"]', P); if (m) m.value = c.value; }));
     $$('[data-k="bg"]', P).forEach(c => c.addEventListener('input', () => { w.bg = c.value; }));
   }

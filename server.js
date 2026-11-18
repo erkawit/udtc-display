@@ -430,6 +430,7 @@ function carCfg(w) {
     fx: ['slide', 'fade', 'none'].includes(w.transEffect) ? w.transEffect : 'slide',
     ms: clamp(w.transMs, 0, 5000, 600), ease: EASES[w.transEase] ? w.transEase : 'smooth',
     pauseHover: w.pauseHover !== false,
+    bg: w.carBg === 'transparent' ? 'transparent' : color(w.carBg, ''),
   };
 }
 function normItem(i) {
@@ -468,7 +469,7 @@ function normWidget(w, existing) {
     imgPad: clamp(w.imgPad, 0, 60, 0), panelRadius: clamp(w.panelRadius, 0, 40, 0), btnMinH: clamp(w.btnMinH, 0, 600, 0),
     lightbox: !!w.lightbox, link2Color: color(w.link2Color, '#c2410c'),
     ...(c => ({ carWMode: c.wMode, carW: c.w, carWPct: c.wPct, carAlign: c.align, carHMode: c.hMode, carH: c.h, carHM: c.hM,
-      imgPos: c.pos, transEffect: c.fx, transMs: c.ms, transEase: c.ease, pauseHover: c.pauseHover }))(carCfg(w)),
+      imgPos: c.pos, transEffect: c.fx, transMs: c.ms, transEase: c.ease, pauseHover: c.pauseHover, carBg: c.bg }))(carCfg(w)),
     tabStyle: ['pill', 'underline', 'button'].includes(w.tabStyle) ? w.tabStyle : 'pill', tabEqual: w.tabEqual !== false,
     tabs: Array.isArray(w.tabs) ? w.tabs.slice(0, 12).map(t => ({
       id: t.id || uid(), label: String(t.label || 'แท็บ').slice(0, 80), iconFa: safeFa(t.iconFa), active: t.active !== false,
@@ -575,6 +576,7 @@ a.uw-row:hover{border-color:var(--accent);background:#f8fafc}
 .uw.shadow .uw-car{box-shadow:0 1px 3px rgba(15,23,42,.08),0 4px 14px rgba(15,23,42,.06)}
 .uw-track{display:flex;transition:transform var(--tms,.6s) var(--tease,cubic-bezier(.4,0,.2,1)),height var(--tms,.6s) var(--tease,ease)}
 .uw-carbox{width:100%;max-width:100%}
+.uw-car.cbg .uw-media,.uw-car.cbg .uw-card{background:var(--car-bg)}.uw-car.cbg-t{box-shadow:none!important}.uw-car.cbg-t .uw-card{box-shadow:none!important}
 .uw-car .uw-media img{object-position:var(--opos,center)}
 .uw-car.h-auto .uw-track{align-items:flex-start}
 .uw-car.h-px .uw-media{aspect-ratio:auto!important;height:var(--car-h)}.uw-car.h-px .uw-media img,.uw-car.h-px .uw-media video{height:100%!important}
@@ -713,7 +715,7 @@ function renderWidgetInner(w, { full = false } = {}) {
     const boxW = c.wMode === 'px' ? `${c.w}px` : c.wMode === '%' ? `${c.wPct}%` : '100%';
     const boxM = c.align === 'left' ? '0 auto 0 0' : c.align === 'right' ? '0 0 0 auto' : '0 auto';
     const cv = `--car-h:${c.h}px;--car-hm:${c.hM || c.h}px;--tms:${c.fx === 'none' ? 0 : c.ms}ms;--tease:${EASES[c.ease]};--opos:${c.pos === 'center' ? 'center' : 'center ' + c.pos}`;
-    body = `<div class="uw-carbox" style="width:${boxW};margin:${boxM}"><div class="uw-car h-${c.hMode} fx-${c.fx}" style="${cv}" data-autoplay="${w.autoplay}" data-fx="${c.fx}" data-hover="${c.pauseHover ? 1 : 0}"><div class="uw-track">${items.map(i => `<div class="uw-slide">${cardHtml(i, w)}</div>`).join('')}</div>${w.showArrows && items.length > 1 ? `<button class="uw-nav prev" aria-label="ก่อนหน้า" style="transform:translateY(-50%) rotate(180deg)">${ARROW}</button><button class="uw-nav next" aria-label="ถัดไป">${ARROW}</button>` : ''}</div>${w.showDots && items.length > 1 ? `<div class="uw-dots"></div>` : ''}</div>`;
+    body = `<div class="uw-carbox" style="width:${boxW};margin:${boxM}"><div class="uw-car h-${c.hMode} fx-${c.fx}${c.bg ? ' cbg' : ''}${c.bg === 'transparent' ? ' cbg-t' : ''}" style="${cv}${c.bg ? `;--car-bg:${c.bg}` : ''}" data-autoplay="${w.autoplay}" data-fx="${c.fx}" data-hover="${c.pauseHover ? 1 : 0}"><div class="uw-track">${items.map(i => `<div class="uw-slide">${cardHtml(i, w)}</div>`).join('')}</div>${w.showArrows && items.length > 1 ? `<button class="uw-nav prev" aria-label="ก่อนหน้า" style="transform:translateY(-50%) rotate(180deg)">${ARROW}</button><button class="uw-nav next" aria-label="ถัดไป">${ARROW}</button>` : ''}</div>${w.showDots && items.length > 1 ? `<div class="uw-dots"></div>` : ''}</div>`;
   } else body = `<div class="uw-grid">${items.map(i => cardHtml(i, w)).join('')}</div>`;
   const more = (!full && w.moreLink && (w.limit === 0 || total > 0)) ? `<div class="uw-more"><a href="${esc(w.moreLink)}" target="_top">${esc(w.moreLabel || 'ดูทั้งหมด')} ${ARROW}</a></div>` : '';
   const title = w.showTitle && w.title ? `<h2 class="uw-title ts-${w.titleStyle || 'bar'}"><span>${esc(w.title)}</span></h2>` : '';
