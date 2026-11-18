@@ -306,6 +306,7 @@ async function viewDashboard() {
     ${stat('media', 'ไฟล์ในคลังสื่อ', s.media, `รวม ${fmtSize(s.mediaSize)}`, '#/media')}
     ${stat('home', 'หน้าเว็บไซต์', '<span class="text-base">เปิดดู →</span>', ORIGIN.replace(/^https?:\/\//, ''), '/" target="_blank')}
   </div>
+  ${state.server && state.server.cloud && state.server.storage !== 'blob' ? `<div class="mt-4 p-4 rounded-xl border border-red-200 bg-red-50 text-red-800 text-sm"><b>ยังอัปโหลดไฟล์ไม่ได้:</b> โปรเจกต์บน Vercel ยังไม่ได้เชื่อม Vercel Blob — ไปที่ Vercel → แท็บ Storage → Create → Blob (Public) → Connect กับโปรเจกต์นี้ แล้วไปที่ Deployments → Redeploy</div>` : ''}
   <div class="card p-5 mt-4">
     <div class="flex flex-col md:flex-row md:items-center justify-between gap-3">
       <div><h3 class="font-semibold text-slate-900">${state.server && state.server.cloud ? 'ที่อยู่ของระบบ (ออนไลน์)' : 'ที่อยู่สำหรับเครื่องลูกข่าย'}</h3><p class="text-sm text-slate-500">${state.server && state.server.cloud ? 'ทำงานบน Vercel — เปิดได้จากทุกที่ที่มีอินเทอร์เน็ต' : `เครื่องในเครือข่ายเดียวกันเข้าใช้งานผ่านที่อยู่นี้ · เครื่องแม่ข่าย: <span class="font-mono">${esc(state.server ? state.server.hostname : '')}</span> พอร์ต <span class="font-mono">${state.server ? state.server.port : ''}</span>`}</p>

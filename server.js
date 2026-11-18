@@ -1349,6 +1349,7 @@ async function api(req, res, pathname, query) {
       const orig = decodeURIComponent(String(req.headers['x-filename'] || 'file'));
       const ext = path.extname(orig).toLowerCase();
       if (!ALLOWED_UPLOAD.has(ext)) return json(res, 400, { error: `ไม่รองรับไฟล์ประเภท ${ext || '(ไม่มีนามสกุล)'}` });
+      if (!BLOB && CLOUD.onVercel) return json(res, 503, { error: 'ยังไม่ได้เชื่อม Vercel Blob กับโปรเจกต์นี้ (ไม่พบ BLOB_READ_WRITE_TOKEN) — ไปที่ Vercel → Storage → Blob → Connect กับโปรเจกต์ แล้วกด Redeploy' });
       const len = parseInt(req.headers['content-length'] || '0', 10);
       const { sub, fname } = newUploadName(ext);
       if (BLOB) {
