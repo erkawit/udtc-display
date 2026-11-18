@@ -267,6 +267,124 @@ function demoPage(d) {
     cover: '', status: 'published', showInMenu: true, menuOrder: 3, createdAt: t, updatedAt: t,
     blocks: [d[0], d[5], d[6]].map(w => ({ id: uid(), type: 'widget', widgetSlug: w.slug, full: false })) };
 }
+/* ------------------------------------------------------------------ */
+/* แม่แบบหน้าเว็บ (สร้างส่วนแสดงผล + หน้าเว็บให้พร้อมแก้ไข)            */
+/* ------------------------------------------------------------------ */
+const THEMES = {
+  navy: { name: 'น้ำเงิน–ทอง', main: '#1e3a5f', deep: '#0b1f3a', soft: '#f4f7fc', acc: '#b8862b' },
+  green: { name: 'เขียวหยก', main: '#14625e', deep: '#0f3d3e', soft: '#f0f8f6', acc: '#c79a3b' },
+  maroon: { name: 'แดงเลือดหมู', main: '#7a1f35', deep: '#3b0f1f', soft: '#fbf3f4', acc: '#c79a3b' },
+  indigo: { name: 'ม่วงคราม', main: '#3b3486', deep: '#1f1b4d', soft: '#f4f3fc', acc: '#0284c7' },
+  brown: { name: 'น้ำตาลทอง', main: '#7a5a1e', deep: '#3a2a0b', soft: '#fbf7ee', acc: '#b45309' },
+};
+const TEMPLATES = [
+  { id: 'full-services', name: 'หน้าบริการเต็มรูปแบบ', desc: 'สไลด์ภาพ · ปุ่มโลโก้ระบบออนไลน์ · แท็บบริการประชาชน/วิชาการ · QR · Infographics' },
+  { id: 'news-home', name: 'หน้าแรกข่าวสาร', desc: 'สไลด์ภาพแบบจางซ้อน · ข้อความต้อนรับ · ข่าวประชาสัมพันธ์ 3 คอลัมน์ · ลิงก์ด่วน · QR' },
+  { id: 'online-center', name: 'ศูนย์บริการออนไลน์', desc: 'สไลด์ภาพเตี้ย · ปุ่มโลโก้ 4 คอลัมน์ · รายการดาวน์โหลดแบบฟอร์ม · กล่องติดต่อ' },
+  { id: 'gallery', name: 'ประชาสัมพันธ์ & Infographic', desc: 'สไลด์ภาพ · สไลด์ Infographic 3 ภาพต่อหน้า · ภาพกิจกรรม 2 คอลัมน์ · ข้อความติดต่อ' },
+  { id: 'minimal', name: 'เรียบง่าย (มินิมอล)', desc: 'สไลด์ภาพกว้าง · หัวข้อกึ่งกลาง · ปุ่มเส้นขอบ 4 คอลัมน์ · เส้นคั่น' },
+];
+function makeTemplate(tplId, themeId, pageTitle) {
+  const T = THEMES[themeId] || THEMES.navy;
+  const used = new Set(db.widgets.map(w => w.slug));
+  const slug = base => { let s = base, n = 2; while (used.has(s)) s = `${base}-${n++}`; used.add(s); return s; };
+  const S = n => `/assets/samples/${n}`;
+  const mk = o => { const w = normWidget(o); w.id = uid(); w.createdAt = w.updatedAt = now(); w.slug = slug(o.slug); return w; };
+  const btn = (title, extra) => Object.assign({ type: 'button', title, link: 'https://udtc.coj.go.th/', newTab: true, active: true }, extra);
+  const txt = (content, ts) => ({ type: 'text', title: '', active: true, ts: UB.normText({ content, ...ts }) });
+  const hero = (o = {}) => mk(Object.assign({
+    slug: 'hero-slide', name: 'สไลด์ภาพหลัก', description: 'แบนเนอร์สไลด์ภาพ (เปลี่ยนภาพได้ที่แท็บรายการ)', layout: 'carousel',
+    columns: 1, mobileColumns: 1, padding: 0, gap: 0, bg: 'transparent', showTitle: false, showCaption: false, radius: 16, shadow: true,
+    ratio: 'custom', ratioW: 1920, ratioH: 700, carHMode: 'ratio', fit: 'cover', autoplay: 5, transEffect: 'slide', transMs: 700, transEase: 'smooth',
+    showArrows: true, showDots: true, accent: T.main,
+    // เริ่มสไลด์จากภาพที่สีตรงกับธีม
+    items: [0, 1, 2, 3, 4].map(k => (k + Math.max(0, Object.keys(THEMES).indexOf(themeId))) % 5 + 1).map((n, i) => ({ type: 'image', title: `สไลด์ ${i + 1}`, src: S(`hero-${n}.svg`), link: '', active: true })),
+  }, o));
+  const logoStyle = { bg: '#ffffff', color: T.main, radius: 20, shadow: 'md', hover: 'lift', iconPos: 'top', iconSize: 54, fontSize: 17, fontWeight: 700, padX: 14, padY: 24 };
+  const logos = (o = {}) => mk(Object.assign({
+    slug: 'online-systems', name: 'ปุ่มระบบบริการออนไลน์ (โลโก้)', layout: 'grid', columns: 5, mobileColumns: 2, gap: 20, padding: 22, bg: T.soft, panelRadius: 16,
+    btnMinH: 190, accent: T.main, showTitle: false, shadow: false,
+    items: [['ระบบรับส่งอิเล็กทรอนิกส์', 1], ['ระบบบริการออนไลน์ศาล', 2], ['ระบบแจ้งเตือนอิเล็กทรอนิกส์', 3], ['ระบบคำนวณค่านำหมาย', 4], ['ห้องพิจารณาคดีอิเล็กทรอนิกส์', 5],
+      ['ติดตามสำนวนคดีศาล', 6], ['ระบบไกล่เกลี่ยก่อนฟ้อง', 7], ['ระบบตรวจสอบสิ่งพิมพ์', 8], ['พิสูจน์และยืนยันตัวตน', 9], ['ระบบค้นหาเขตอำนาจศาล', 10]]
+      .map(([t, n]) => btn(t, { iconImg: S(`logo-${n}.svg`), style: logoStyle })),
+  }, o));
+  const qr = (o = {}) => mk(Object.assign({
+    slug: 'qr-codes', name: 'แถบ QR Code', layout: 'grid', columns: 5, mobileColumns: 2, gap: 20, padding: 26, bg: T.soft, panelRadius: 20, ratio: '1/1', fit: 'contain', imgPad: 14,
+    radius: 16, shadow: true, showCaption: true, captionAlign: 'center', capColor: T.main, lightbox: true, showTitle: true, title: 'สแกน QR Code', titleStyle: 'center', accent: T.main,
+    items: ['สอบถามข้อมูลคดี', 'เตรียมความพร้อมก่อนเป็นพยาน', 'แบบตอบรับการมาศาลของพยาน', 'แจ้งปัญหา / ร้องเรียน', 'แบบสอบถามความพึงพอใจ']
+      .map((t, i) => ({ type: 'image', title: t, src: S(`qr-${i + 1}.svg`), active: true })),
+  }, o));
+  const infoNames = ['ข้อกำหนดการใช้ AI', 'สิทธิขอปล่อยชั่วคราว', 'ใบแต่งทนายความ', 'ป้ายกล้องวงจรปิด', 'แนวทางสำหรับประชาชน', 'ข้อกำหนดของศาล'];
+  const infoItems = infoNames.map((t, i) => ({ type: 'image', title: t, src: S(`info-${i + 1}.svg`), active: true }));
+  let ws = [], blocks = [];
+  const W = w => ({ id: uid(), type: 'widget', widgetSlug: w.slug, full: false });
+
+  if (tplId === 'full-services') {
+    const d = makeDemo(db.widgets.concat(ws)); d.forEach(w => used.add(w.slug));
+    const [online, , , , , tabs, info] = d;
+    online.bg = T.soft; online.accent = T.main; online.items.forEach(i => { if (i.style) i.style.color = T.main; });
+    info.accent = T.main; info.capColor = T.main;
+    tabs.tabs[0].activeBg = T.acc; tabs.tabs[1].activeBg = T.main;
+    const h = hero();
+    ws = [h, ...d];
+    blocks = [W(h), W(online), W(tabs), W(info)];
+  } else if (tplId === 'news-home') {
+    const h = hero({ transEffect: 'fade', transMs: 1000, autoplay: 6, radius: 0, shadow: false });
+    const intro = mk({ slug: 'welcome-text', name: 'ข้อความต้อนรับ', layout: 'grid', columns: 1, mobileColumns: 1, gap: 6, padding: 28, bg: '#ffffff', showTitle: false, shadow: false,
+      items: [txt('ศาลจังหวัดอุดรธานี', { tag: 'h2', size: 34, sizeM: 26, weight: 700, color: T.main, align: 'center' }),
+        txt('มุ่งมั่นอำนวยความยุติธรรม ด้วยความรวดเร็ว เสมอภาค และโปร่งใส\nให้บริการประชาชนทั้งที่ศาลและผ่านระบบออนไลน์', { size: 18, color: '#475569', align: 'center', lineH: 1.7 }),
+        { type: 'divider', title: '', active: true, ts: UB.normText({ color: T.acc, thick: 3, widthPct: 12, align: 'center', mTop: 10, mBot: 0 }) }] });
+    const news = mk({ slug: 'news-grid', name: 'ข่าวประชาสัมพันธ์ (3 คอลัมน์)', layout: 'grid', title: 'ข่าวประชาสัมพันธ์', showTitle: true, titleStyle: 'bar', accent: T.main,
+      columns: 3, mobileColumns: 1, gap: 22, padding: 22, bg: '#ffffff', ratio: '16/9', radius: 14, shadow: true, showCaption: true, captionPos: 'below',
+      items: [1, 2, 3, 4, 1, 2].map((n, i) => ({ type: 'image', title: `หัวข้อข่าวตัวอย่างที่ ${i + 1}`, subtitle: 'รายละเอียดข่าวโดยย่อ — แก้ไขได้ที่ระบบหลังบ้าน', src: S(`banner-${n}.svg`), link: 'https://udtc.coj.go.th/', newTab: true, active: true })) });
+    const quick = mk({ slug: 'quick-links', name: 'ลิงก์ด่วน', layout: 'list', title: 'ลิงก์ด่วน', showTitle: true, titleStyle: 'bar', accent: T.main, columns: 2, mobileColumns: 1, gap: 10, padding: 22, bg: T.soft,
+      items: [['ตรวจสอบนัดความ', 'fa-solid fa-calendar-check'], ['ค้นหาข้อมูลคดี', 'fa-solid fa-magnifying-glass'], ['ค่าธรรมเนียมศาล', 'fa-solid fa-coins'], ['แบบฟอร์มคำร้อง', 'fa-solid fa-file-lines'],
+        ['ติดต่อหน่วยงาน', 'fa-solid fa-phone'], ['แผนที่การเดินทาง', 'fa-solid fa-map-location-dot']].map(([t, ic]) => btn(t, { iconFa: ic, subtitle: 'คำอธิบายสั้นๆ' })) });
+    const q = qr();
+    ws = [h, intro, news, quick, q]; blocks = ws.map(W);
+  } else if (tplId === 'online-center') {
+    const h = hero({ carHMode: 'px', carH: 340, carHM: 200, transEffect: 'slide', autoplay: 5, radius: 14 });
+    const head = mk({ slug: 'online-heading', name: 'หัวข้อศูนย์บริการออนไลน์', layout: 'grid', columns: 1, mobileColumns: 1, gap: 4, padding: 18, bg: 'transparent', showTitle: false, shadow: false,
+      items: [txt('ศูนย์บริการออนไลน์', { tag: 'h2', size: 30, weight: 700, color: T.main, borderSide: 'left', border: 5, borderColor: T.acc, pad: 12, bg: '' }),
+        txt('เลือกระบบที่ต้องการใช้งาน ทุกระบบเปิดในแท็บใหม่', { size: 16, color: '#64748b', pad: 0 })] });
+    const lg = logos({ columns: 4, mobileColumns: 2, bg: '#ffffff', padding: 18 }); lg.items = lg.items.slice(0, 8);
+    const dl = mk({ slug: 'download-forms', name: 'ดาวน์โหลดแบบฟอร์ม', layout: 'list', title: 'ดาวน์โหลดแบบฟอร์ม', showTitle: true, titleStyle: 'pill', accent: T.main, columns: 1, mobileColumns: 1, gap: 8, padding: 20, bg: T.soft,
+      items: ['คำร้องขอคัดถ่ายเอกสาร', 'ใบแต่งทนายความ', 'คำร้องขอปล่อยชั่วคราว', 'หนังสือมอบอำนาจ', 'แบบคำขอรับเงินคืน'].map(t => btn(t, { iconFa: 'fa-solid fa-file-arrow-down', subtitle: 'PDF · แก้ไขลิงก์ไฟล์ได้ที่หลังบ้าน' })) });
+    ws = [h, head, lg, dl]; blocks = ws.map(W);
+    blocks.push({ id: uid(), type: 'notice', tone: 'info', title: 'ติดต่อสอบถาม', content: 'ศาลจังหวัดอุดรธานี ถนนโพศรี ตำบลหมากแข้ง อำเภอเมืองอุดรธานี จังหวัดอุดรธานี 41000 · โทร. (แก้ไขเบอร์โทรได้ที่หลังบ้าน)' });
+  } else if (tplId === 'gallery') {
+    const h = hero({ autoplay: 5, transEffect: 'slide', transEase: 'ease-in-out', radius: 20 });
+    const infoSlide = mk({ slug: 'info-slide', name: 'สไลด์ Infographic (3 ภาพต่อหน้า)', layout: 'carousel', title: 'Infographics', showTitle: true, titleStyle: 'pill', accent: T.main,
+      columns: 3, mobileColumns: 1, gap: 20, padding: 22, bg: T.soft, panelRadius: 18, ratio: '3/4', carHMode: 'ratio', fit: 'cover', radius: 14, shadow: true,
+      showCaption: true, captionPos: 'below', captionAlign: 'center', capColor: T.main, lightbox: true, autoplay: 4, transMs: 600, showArrows: true, showDots: true, items: infoItems });
+    const acts = mk({ slug: 'activity-grid', name: 'ภาพกิจกรรม (2 คอลัมน์)', layout: 'grid', title: 'ภาพกิจกรรม', showTitle: true, titleStyle: 'bar', accent: T.main,
+      columns: 2, mobileColumns: 1, gap: 18, padding: 22, bg: '#ffffff', ratio: '16/9', radius: 14, shadow: true, showCaption: true, captionPos: 'overlay', lightbox: true,
+      items: [1, 2, 3, 4].map(n => ({ type: 'image', title: `กิจกรรมตัวอย่างที่ ${n}`, src: S(`banner-${n}.svg`), active: true })) });
+    const contact = mk({ slug: 'contact-text', name: 'ข้อความติดต่อ', layout: 'grid', columns: 1, mobileColumns: 1, gap: 0, padding: 16, bg: 'transparent', showTitle: false, shadow: false,
+      items: [txt('สอบถามข้อมูลเพิ่มเติม ติดต่อ **กลุ่มงานประชาสัมพันธ์** ศาลจังหวัดอุดรธานี', { size: 18, color: '#ffffff', bg: T.main, pad: 22, radius: 14, align: 'center', iconFa: 'fa-solid fa-circle-info', iconColor: T.acc, shadow: 'soft' })] });
+    ws = [h, infoSlide, acts, contact]; blocks = ws.map(W);
+  } else {
+    const h = hero({ ratioW: 21, ratioH: 7, radius: 0, shadow: false, transEffect: 'slide', transMs: 900, autoplay: 6, showArrows: false });
+    const head = mk({ slug: 'minimal-heading', name: 'หัวข้อกึ่งกลาง', layout: 'grid', columns: 1, mobileColumns: 1, gap: 6, padding: 34, bg: '#ffffff', showTitle: false, shadow: false,
+      items: [txt('บริการของเรา', { tag: 'h2', size: 32, weight: 600, color: '#0f172a', align: 'center', letter: 0.5 }),
+        txt('เลือกบริการที่ต้องการ', { size: 17, color: '#64748b', align: 'center' })] });
+    const outline = { bg: '#ffffff', color: T.main, iconColor: T.acc, radius: 12, borderW: 1.5, borderC: T.main, shadow: 'none', hover: 'lift', iconPos: 'top', iconSize: 40, fontSize: 16, fontWeight: 600, padX: 14, padY: 22 };
+    const tiles = mk({ slug: 'minimal-tiles', name: 'ปุ่มบริการ (เส้นขอบ)', layout: 'grid', columns: 4, mobileColumns: 2, gap: 16, padding: 20, bg: '#ffffff', btnMinH: 150, showTitle: false, shadow: false,
+      items: [['ยื่นฟ้องออนไลน์', 'fa-solid fa-file-signature'], ['ตรวจสอบนัดความ', 'fa-solid fa-calendar-days'], ['ห้องพิจารณาออนไลน์', 'fa-solid fa-video'], ['ไกล่เกลี่ยข้อพิพาท', 'fa-solid fa-handshake'],
+        ['ค่าธรรมเนียม', 'fa-solid fa-coins'], ['ดาวน์โหลดแบบฟอร์ม', 'fa-solid fa-download'], ['ร้องเรียน / ข้อเสนอแนะ', 'fa-solid fa-comments'], ['ติดต่อเรา', 'fa-solid fa-phone']]
+        .map(([t, ic]) => btn(t, { iconFa: ic, style: outline })) });
+    const foot = mk({ slug: 'minimal-footer-text', name: 'ข้อความปิดท้าย', layout: 'grid', columns: 1, mobileColumns: 1, gap: 0, padding: 12, bg: '#ffffff', showTitle: false, shadow: false,
+      items: [{ type: 'divider', title: '', active: true, ts: UB.normText({ color: '#e2e8f0', thick: 1, widthPct: 100, mTop: 6, mBot: 14 }) },
+        txt('เวลาทำการ จันทร์–ศุกร์ 08.30–16.30 น. (เว้นวันหยุดราชการ)', { size: 15, color: '#64748b', align: 'center', iconFa: 'fa-regular fa-clock', iconColor: T.main })] });
+    ws = [h, head, tiles, foot]; blocks = ws.map(W);
+  }
+  const tpl = TEMPLATES.find(t => t.id === tplId) || TEMPLATES[4];
+  const t = now();
+  const page = { id: uid(), slug: uniqueSlug(db.pages, `tpl-${tpl.id}`), title: String(pageTitle || tpl.name).slice(0, 300), description: `สร้างจากแม่แบบ “${tpl.name}” · ธีม${T.name}`,
+    cover: '', status: 'published', showInMenu: false, menuOrder: 50, createdAt: t, updatedAt: t, blocks: blocks.map(normBlock) };
+  return { widgets: ws, page };
+}
+
 function loadDb() {
   if (fs.existsSync(DB_FILE)) {
     try { db = JSON.parse(fs.readFileSync(DB_FILE, 'utf8')); }
@@ -566,7 +684,7 @@ a.uw-card:hover{transform:translateY(-2px)}.uw.shadow a.uw-card:hover{box-shadow
 .uw-cap{padding:10px 12px}.uw-cap b{display:block;font-weight:600;font-size:.95rem;line-height:1.4}
 .uw-cap small{display:block;margin-top:2px;color:#64748b;font-size:.82rem;line-height:1.45}
 .uw-cap.overlay{position:absolute;left:0;right:0;bottom:0;padding:28px 16px 14px;color:#fff;background:linear-gradient(transparent,rgba(2,6,23,.78));pointer-events:none}
-.uw-cap.overlay small{color:rgba(255,255,255,.85)}
+.uw-cap.overlay small{color:rgba(255,255,255,.85)}.uw-cap.overlay b{color:#fff}
 .uw-btn{display:flex;align-items:center;justify-content:center;gap:10px;min-height:52px;padding:12px 18px;border-radius:var(--radius);font-weight:600;text-decoration:none;text-align:center;transition:all .2s;line-height:1.35;height:100%}
 .uw-btn .ic{font-size:1.25em}.uw-btn small{display:block;font-weight:400;opacity:.8;font-size:.8rem}
 .uw-btn.primary{background:var(--accent);color:#fff}.uw-btn.primary:hover{filter:brightness(1.12)}
@@ -1478,6 +1596,17 @@ async function api(req, res, pathname, query) {
     if (m === 'PUT') { const b = await readJson(req); it.name = String(b.name || it.name).slice(0, 200); save(); return json(res, 200, it); }
   }
 
+  if (seg[0] === 'templates') {
+    if (m === 'GET') return json(res, 200, { templates: TEMPLATES, themes: Object.entries(THEMES).map(([id, v]) => ({ id, name: v.name, main: v.main, acc: v.acc })) });
+    if (m === 'POST') {
+      const b = await readJson(req);
+      const tid = TEMPLATES.some(t => t.id === b.template) ? b.template : TEMPLATES[Math.floor(Math.random() * TEMPLATES.length)].id;
+      const th = THEMES[b.theme] ? b.theme : Object.keys(THEMES)[Math.floor(Math.random() * 5)];
+      const r = makeTemplate(tid, th, b.title);
+      db.widgets.push(...r.widgets); db.pages.push(r.page); save();
+      return json(res, 201, { page: { id: r.page.id, slug: r.page.slug, title: r.page.title }, widgets: r.widgets.length, template: tid, theme: th });
+    }
+  }
   if (seg[0] === 'demo' && m === 'POST') {
     const d = makeDemo(db.widgets);
     db.widgets.push(...d);

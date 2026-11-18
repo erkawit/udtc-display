@@ -27,7 +27,7 @@ const IC = {
   media: '<rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.1-3.1a2 2 0 0 0-2.8 0L6 21"/>',
   users: '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/>',
   cog: '<path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/>',
-  plus: '<path d="M12 5v14M5 12h14"/>', edit: '<path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/>',
+  plus: '<path d="M12 5v14M5 12h14"/>', sparkle: '<path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/>', check: '<path d="M20 6 9 17l-5-5"/>', edit: '<path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/>',
   trash: '<path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>',
   copy: '<rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>',
   code: '<path d="m16 18 6-6-6-6M8 6l-6 6 6 6"/>', eye: '<path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/>',
@@ -1602,10 +1602,77 @@ async function choosePage() {
 /* ================================================================
  * Pages
  * ================================================================ */
+/* ---------------- แม่แบบหน้าเว็บ ---------------- */
+const TPL_SKETCH = {
+  'full-services': ['hero', 'logos5', 'tabs', 'info3'],
+  'news-home': ['hero', 'textc', 'cards3', 'list2', 'qr5'],
+  'online-center': ['herolow', 'texth', 'logos4', 'list1', 'notice'],
+  gallery: ['hero', 'slide3', 'cards2', 'band'],
+  minimal: ['herowide', 'textc', 'outline4', 'line'],
+};
+function tplSketch(id, c) {
+  const bar = (w, h = 4, o = 1) => `<div style="width:${w}%;height:${h}px;border-radius:2px;background:${c};opacity:${o}"></div>`;
+  const row = (n, h, o = .55, r = 3) => `<div style="display:grid;grid-template-columns:repeat(${n},1fr);gap:3px">${Array.from({ length: n }, () => `<div style="height:${h}px;border-radius:${r}px;background:${c};opacity:${o}"></div>`).join('')}</div>`;
+  const P = {
+    hero: `<div style="height:34px;border-radius:4px;background:linear-gradient(120deg,${c},#94a3b8);position:relative"><div style="position:absolute;bottom:3px;left:50%;transform:translateX(-50%);display:flex;gap:2px">${'<i style="width:3px;height:3px;border-radius:2px;background:#fff;display:block"></i>'.repeat(3)}</div></div>`,
+    herolow: `<div style="height:22px;border-radius:4px;background:linear-gradient(120deg,${c},#94a3b8)"></div>`,
+    herowide: `<div style="height:28px;background:linear-gradient(120deg,${c},#94a3b8)"></div>`,
+    logos5: row(5, 12, .35), logos4: row(4, 12, .35), outline4: `<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:3px">${`<div style="height:12px;border-radius:3px;border:1.5px solid ${c}"></div>`.repeat(4)}</div>`,
+    tabs: `<div style="display:flex;gap:3px">${bar(22, 5)}${bar(22, 5, .3)}</div><div style="display:grid;grid-template-columns:2fr 3fr;gap:3px"><div style="height:22px;border-radius:3px;background:${c};opacity:.45"></div>${row(3, 9, .25)}</div>`,
+    info3: row(3, 22, .4), cards3: row(3, 16, .45), cards2: row(2, 16, .45), qr5: row(5, 9, .3, 2),
+    slide3: `<div style="display:flex;align-items:center;gap:3px"><span style="font-size:8px;color:${c}">‹</span><div style="flex:1">${row(3, 20, .4)}</div><span style="font-size:8px;color:${c}">›</span></div>`,
+    textc: `<div style="display:flex;flex-direction:column;align-items:center;gap:2px">${bar(40, 5)}${bar(60, 3, .35)}</div>`,
+    texth: `<div style="border-left:3px solid ${c};padding-left:3px;display:flex;flex-direction:column;gap:2px">${bar(40, 5)}${bar(55, 3, .35)}</div>`,
+    list2: `<div style="display:grid;grid-template-columns:1fr 1fr;gap:3px">${'<div style="height:6px;border-radius:2px;background:#cbd5e1"></div>'.repeat(4)}</div>`,
+    list1: `<div style="display:flex;flex-direction:column;gap:2px">${'<div style="height:5px;border-radius:2px;background:#cbd5e1"></div>'.repeat(3)}</div>`,
+    notice: `<div style="height:10px;border-radius:3px;background:#e0f2fe;border-left:3px solid #0284c7"></div>`,
+    band: `<div style="height:10px;border-radius:3px;background:${c}"></div>`, line: `<div style="height:1px;background:#cbd5e1;margin:3px 0"></div>${bar(50, 3, .3)}`,
+  };
+  return `<div style="display:flex;flex-direction:column;gap:4px;padding:8px;background:#fff;border-radius:8px;border:1px solid #e2e8f0;height:118px;overflow:hidden">${TPL_SKETCH[id].map(k => P[k]).join('')}</div>`;
+}
+async function pickTemplate() {
+  const meta = await api('GET', '/templates');
+  let tpl = meta.templates[0].id, theme = meta.themes[0].id;
+  openModal({
+    title: 'สร้างหน้าเว็บจากแม่แบบ', size: 'max-w-5xl',
+    body: `<p class="text-sm text-slate-500 mb-4">ระบบจะสร้าง <b>ส่วนแสดงผลทุกชิ้น</b> (รวมสไลด์ภาพ) และ <b>หน้าเว็บ</b> ให้พร้อมแก้ไข — เปลี่ยนภาพ ข้อความ ลิงก์ ได้ทีหลัง ข้อมูลเดิมไม่ถูกแก้</p>
+      <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-3" data-tpls></div>
+      <div class="mt-5 grid md:grid-cols-2 gap-4">
+        <div><label class="lbl">ธีมสี</label><div class="flex flex-wrap gap-2" data-themes></div></div>
+        <div><label class="lbl">ชื่อหน้าเว็บ</label><input class="inp" data-title placeholder="เว้นว่าง = ใช้ชื่อแม่แบบ"></div></div>`,
+    footer: `<button class="btn btn-light mr-auto" data-rand>${icon('sparkle')} สุ่มแม่แบบ + ธีม</button><button class="btn btn-light" data-close>ยกเลิก</button><button class="btn btn-primary" data-tok>${icon('plus')} สร้างหน้าเว็บ</button>`,
+    onMount: (el, close) => {
+      const draw = () => {
+        const th = meta.themes.find(t => t.id === theme);
+        $('[data-tpls]', el).innerHTML = meta.templates.map(t => `<button type="button" data-tp="${t.id}" class="text-left p-2.5 rounded-xl border-2 transition ${t.id === tpl ? 'border-navy-700 bg-navy-50' : 'border-slate-200 hover:border-slate-300'}">
+          ${tplSketch(t.id, th.main)}<div class="mt-2 font-semibold text-sm text-slate-900 flex items-center gap-1.5">${t.id === tpl ? icon('check', 'w-4 h-4 text-navy-700') : ''}${esc(t.name)}</div><div class="text-xs text-slate-500 leading-relaxed">${esc(t.desc)}</div></button>`).join('');
+        $('[data-themes]', el).innerHTML = meta.themes.map(t => `<button type="button" data-th="${t.id}" class="flex items-center gap-2 px-2.5 py-1.5 rounded-lg border-2 text-xs ${t.id === theme ? 'border-navy-700' : 'border-slate-200'}"><span class="w-4 h-4 rounded-full" style="background:linear-gradient(135deg,${t.main} 55%,${t.acc} 55%)"></span>${esc(t.name)}</button>`).join('');
+        $$('[data-tp]', el).forEach(b => b.onclick = () => { tpl = b.dataset.tp; draw(); });
+        $$('[data-th]', el).forEach(b => b.onclick = () => { theme = b.dataset.th; draw(); });
+      };
+      draw();
+      $('[data-rand]', el).onclick = () => {
+        const pick = a => a[Math.floor(Math.random() * a.length)];
+        let n = pick(meta.templates).id, m = pick(meta.themes).id;
+        if (n === tpl && m === theme) { n = pick(meta.templates.filter(t => t.id !== tpl)).id; }
+        tpl = n; theme = m; draw();
+      };
+      $('[data-tok]', el).onclick = async () => {
+        const b = $('[data-tok]', el); b.disabled = true; b.textContent = 'กำลังสร้าง...';
+        try {
+          const r = await api('POST', '/templates', { template: tpl, theme, title: $('[data-title]', el).value.trim() });
+          close(); ok(`สร้างหน้า “${r.page.title}” และส่วนแสดงผล ${r.widgets} ชิ้นแล้ว`);
+          window.open(`/p/${r.page.slug}`, '_blank'); location.hash = `#/pages/${r.page.id}`;
+        } catch (e) { b.disabled = false; b.textContent = 'สร้างหน้าเว็บ'; fail(e.message); }
+      };
+    },
+  });
+}
+
 async function viewPages() {
   const list = await api('GET', '/pages');
   const home = state.settings.homePageId;
-  $('#view').innerHTML = `${pageHead('หน้าเว็บเผยแพร่', 'หน้าเว็บเต็มรูปแบบสำหรับเผยแพร่ข้อมูลเพิ่มเติม (แยกจากส่วนแสดงผล iframe)', `<a class="btn btn-light" href="/" target="_blank">${icon('ext')} ดูหน้าเว็บไซต์</a><button class="btn btn-primary" id="newP">${icon('plus')} สร้างหน้าเว็บ</button>`)}
+  $('#view').innerHTML = `${pageHead('หน้าเว็บเผยแพร่', 'หน้าเว็บเต็มรูปแบบสำหรับเผยแพร่ข้อมูลเพิ่มเติม (แยกจากส่วนแสดงผล iframe)', `<a class="btn btn-light" href="/" target="_blank">${icon('ext')} ดูหน้าเว็บไซต์</a><button class="btn btn-light !border-gold-500 !text-gold-600" id="tplP">${icon('sparkle')} สร้างจากแม่แบบ</button><button class="btn btn-primary" id="newP">${icon('plus')} สร้างหน้าเว็บ</button>`)}
   <div class="card overflow-hidden">
     <div class="overflow-x-auto"><table class="w-full text-sm">
       <thead class="bg-slate-50 text-slate-500 text-xs uppercase tracking-wide"><tr><th class="text-left px-5 py-3 font-semibold">หน้าเว็บ</th><th class="text-left px-3 py-3 font-semibold">สถานะ</th><th class="text-left px-3 py-3 font-semibold hidden md:table-cell">เมนู</th><th class="text-left px-3 py-3 font-semibold hidden lg:table-cell">แก้ไขล่าสุด</th><th class="px-5 py-3"></th></tr></thead>
@@ -1628,6 +1695,7 @@ async function viewPages() {
     if (!(await confirmBox('ลบหน้าเว็บ?', `"${p.title}" จะถูกลบถาวร`, 'ลบ'))) return;
     await api('DELETE', `/pages/${p.id}`); ok('ลบแล้ว'); viewPages();
   });
+  $('#tplP').onclick = () => pickTemplate();
   $('#newP').onclick = async () => {
     const r = await Swal.fire({
       title: 'สร้างหน้าเว็บใหม่', showCancelButton: true, confirmButtonText: 'สร้าง', cancelButtonText: 'ยกเลิก', reverseButtons: true,
