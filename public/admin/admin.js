@@ -199,7 +199,7 @@ const state = { user: null, settings: {}, dirty: false };
 window.addEventListener('beforeunload', e => { if (state.dirty) { e.preventDefault(); e.returnValue = ''; } });
 const routes = [
   [/^#\/dashboard$/, viewDashboard], [/^#\/widgets$/, viewWidgets], [/^#\/widgets\/(\w+)$/, viewWidgetEditor],
-  [/^#\/pages$/, viewPages], [/^#\/intros$/, viewIntros], [/^#\/intros\/(\w+)$/, viewIntroEditor], [/^#\/pages\/(\w+)$/, viewPageEditor], [/^#\/media$/, viewMedia],
+  [/^#\/pages$/, viewPages], [/^#\/templates$/, viewTemplates], [/^#\/intros$/, viewIntros], [/^#\/intros\/(\w+)$/, viewIntroEditor], [/^#\/pages\/(\w+)$/, viewPageEditor], [/^#\/media$/, viewMedia],
   [/^#\/users$/, viewUsers], [/^#\/settings$/, viewSettings], [/^#\/account$/, viewAccount],
 ];
 let lastHash = location.hash;
@@ -255,7 +255,7 @@ function renderLogin() {
 /* ---------------- Shell ---------------- */
 function renderShell() {
   const isAdmin = state.user.role === 'admin';
-  const nav = [['#/dashboard', 'dash', 'ภาพรวม'], ['#/widgets', 'widget', 'ส่วนแสดงผล (iframe)'], ['#/pages', 'page', 'หน้าเว็บเผยแพร่'], ['#/intros', 'home', 'หน้า Intro'], ['#/media', 'media', 'คลังสื่อ']];
+  const nav = [['#/dashboard', 'dash', 'ภาพรวม'], ['#/widgets', 'widget', 'ส่วนแสดงผล (iframe)'], ['#/pages', 'page', 'หน้าเว็บเผยแพร่'], ['#/templates', 'sparkle', 'สร้างจากแม่แบบ'], ['#/intros', 'home', 'หน้า Intro'], ['#/media', 'media', 'คลังสื่อ']];
   const navAdmin = [['#/users', 'users', 'ผู้ใช้งาน'], ['#/settings', 'cog', 'ตั้งค่าเว็บไซต์']];
   const link = ([h, i, t]) => `<a href="${h}" class="nav-a" data-nav="${h}">${icon(i, 'w-[18px] h-[18px]')}<span>${t}</span></a>`;
   $('#app').innerHTML = `
@@ -1630,43 +1630,54 @@ function tplSketch(id, c) {
   };
   return `<div style="display:flex;flex-direction:column;gap:4px;padding:8px;background:#fff;border-radius:8px;border:1px solid #e2e8f0;height:118px;overflow:hidden">${TPL_SKETCH[id].map(k => P[k]).join('')}</div>`;
 }
-async function pickTemplate() {
+/** วาดตัวเลือกแม่แบบลงใน root (ใช้ทั้งหน้าเมนู และหน้าต่างจากหน้าเว็บเผยแพร่) */
+async function buildTplPicker(root, onDone) {
   const meta = await api('GET', '/templates');
   let tpl = meta.templates[0].id, theme = meta.themes[0].id;
-  openModal({
-    title: 'สร้างหน้าเว็บจากแม่แบบ', size: 'max-w-5xl',
-    body: `<p class="text-sm text-slate-500 mb-4">ระบบจะสร้าง <b>ส่วนแสดงผลทุกชิ้น</b> (รวมสไลด์ภาพ) และ <b>หน้าเว็บ</b> ให้พร้อมแก้ไข — เปลี่ยนภาพ ข้อความ ลิงก์ ได้ทีหลัง ข้อมูลเดิมไม่ถูกแก้</p>
-      <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-3" data-tpls></div>
-      <div class="mt-5 grid md:grid-cols-2 gap-4">
-        <div><label class="lbl">ธีมสี</label><div class="flex flex-wrap gap-2" data-themes></div></div>
-        <div><label class="lbl">ชื่อหน้าเว็บ</label><input class="inp" data-title placeholder="เว้นว่าง = ใช้ชื่อแม่แบบ"></div></div>`,
-    footer: `<button class="btn btn-light mr-auto" data-rand>${icon('sparkle')} สุ่มแม่แบบ + ธีม</button><button class="btn btn-light" data-close>ยกเลิก</button><button class="btn btn-primary" data-tok>${icon('plus')} สร้างหน้าเว็บ</button>`,
-    onMount: (el, close) => {
-      const draw = () => {
-        const th = meta.themes.find(t => t.id === theme);
-        $('[data-tpls]', el).innerHTML = meta.templates.map(t => `<button type="button" data-tp="${t.id}" class="text-left p-2.5 rounded-xl border-2 transition ${t.id === tpl ? 'border-navy-700 bg-navy-50' : 'border-slate-200 hover:border-slate-300'}">
-          ${tplSketch(t.id, th.main)}<div class="mt-2 font-semibold text-sm text-slate-900 flex items-center gap-1.5">${t.id === tpl ? icon('check', 'w-4 h-4 text-navy-700') : ''}${esc(t.name)}</div><div class="text-xs text-slate-500 leading-relaxed">${esc(t.desc)}</div></button>`).join('');
-        $('[data-themes]', el).innerHTML = meta.themes.map(t => `<button type="button" data-th="${t.id}" class="flex items-center gap-2 px-2.5 py-1.5 rounded-lg border-2 text-xs ${t.id === theme ? 'border-navy-700' : 'border-slate-200'}"><span class="w-4 h-4 rounded-full" style="background:linear-gradient(135deg,${t.main} 55%,${t.acc} 55%)"></span>${esc(t.name)}</button>`).join('');
-        $$('[data-tp]', el).forEach(b => b.onclick = () => { tpl = b.dataset.tp; draw(); });
-        $$('[data-th]', el).forEach(b => b.onclick = () => { theme = b.dataset.th; draw(); });
-      };
-      draw();
-      $('[data-rand]', el).onclick = () => {
-        const pick = a => a[Math.floor(Math.random() * a.length)];
-        let n = pick(meta.templates).id, m = pick(meta.themes).id;
-        if (n === tpl && m === theme) { n = pick(meta.templates.filter(t => t.id !== tpl)).id; }
-        tpl = n; theme = m; draw();
-      };
-      $('[data-tok]', el).onclick = async () => {
-        const b = $('[data-tok]', el); b.disabled = true; b.textContent = 'กำลังสร้าง...';
-        try {
-          const r = await api('POST', '/templates', { template: tpl, theme, title: $('[data-title]', el).value.trim() });
-          close(); ok(`สร้างหน้า “${r.page.title}” และส่วนแสดงผล ${r.widgets} ชิ้นแล้ว`);
-          window.open(`/p/${r.page.slug}`, '_blank'); location.hash = `#/pages/${r.page.id}`;
-        } catch (e) { b.disabled = false; b.textContent = 'สร้างหน้าเว็บ'; fail(e.message); }
-      };
-    },
-  });
+  root.innerHTML = `<p class="text-sm text-slate-500 mb-4">ระบบจะสร้าง <b>ส่วนแสดงผลทุกชิ้น</b> (รวมสไลด์ภาพ) และ <b>หน้าเว็บ</b> ให้พร้อมแก้ไข — เปลี่ยนภาพ ข้อความ ลิงก์ ได้ทีหลัง ข้อมูลเดิมไม่ถูกแก้</p>
+    <div class="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">1. เลือกแม่แบบ (5 แบบ)</div>
+    <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-3" data-tpls></div>
+    <div class="mt-5 grid md:grid-cols-2 gap-4">
+      <div><div class="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">2. เลือกธีมสี</div><div class="flex flex-wrap gap-2" data-themes></div></div>
+      <div><div class="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">3. ชื่อหน้าเว็บ</div><input class="inp" data-title placeholder="เว้นว่าง = ใช้ชื่อแม่แบบ"></div></div>
+    <div class="mt-5 pt-4 border-t border-slate-200 flex flex-wrap items-center gap-2">
+      <button class="btn btn-light" data-rand>${icon('sparkle')} สุ่มแม่แบบ + ธีม</button>
+      <span class="text-sm text-slate-500 ml-auto" data-sum></span>
+      <button class="btn btn-primary" data-tok>${icon('plus')} สร้างหน้าเว็บ</button></div>`;
+  const draw = () => {
+    const th = meta.themes.find(t => t.id === theme);
+    $('[data-tpls]', root).innerHTML = meta.templates.map(t => `<button type="button" data-tp="${t.id}" class="text-left p-2.5 rounded-xl border-2 transition ${t.id === tpl ? 'border-navy-700 bg-navy-50' : 'border-slate-200 hover:border-slate-300 bg-white'}">
+      ${tplSketch(t.id, th.main)}<div class="mt-2 font-semibold text-sm text-slate-900 flex items-center gap-1.5">${t.id === tpl ? icon('check', 'w-4 h-4 text-navy-700') : ''}${esc(t.name)}</div><div class="text-xs text-slate-500 leading-relaxed">${esc(t.desc)}</div></button>`).join('');
+    $('[data-themes]', root).innerHTML = meta.themes.map(t => `<button type="button" data-th="${t.id}" class="flex items-center gap-2 px-2.5 py-1.5 rounded-lg border-2 text-xs bg-white ${t.id === theme ? 'border-navy-700' : 'border-slate-200'}"><span class="w-4 h-4 rounded-full" style="background:linear-gradient(135deg,${t.main} 55%,${t.acc} 55%)"></span>${esc(t.name)}</button>`).join('');
+    $('[data-sum]', root).textContent = `${meta.templates.find(t => t.id === tpl).name} · ธีม${th.name}`;
+    $$('[data-tp]', root).forEach(b => b.onclick = () => { tpl = b.dataset.tp; draw(); });
+    $$('[data-th]', root).forEach(b => b.onclick = () => { theme = b.dataset.th; draw(); });
+  };
+  draw();
+  $('[data-rand]', root).onclick = () => {
+    const pick = a => a[Math.floor(Math.random() * a.length)];
+    let n = pick(meta.templates).id; const m = pick(meta.themes).id;
+    if (n === tpl && m === theme) n = pick(meta.templates.filter(t => t.id !== tpl)).id;
+    tpl = n; theme = m; draw();
+  };
+  $('[data-tok]', root).onclick = async () => {
+    const b = $('[data-tok]', root); b.disabled = true; b.textContent = 'กำลังสร้าง...';
+    try {
+      const r = await api('POST', '/templates', { template: tpl, theme, title: $('[data-title]', root).value.trim() });
+      if (onDone) onDone();
+      ok(`สร้างหน้า “${r.page.title}” และส่วนแสดงผล ${r.widgets} ชิ้นแล้ว`);
+      window.open(`/p/${r.page.slug}`, '_blank'); location.hash = `#/pages/${r.page.id}`;
+    } catch (e) { b.disabled = false; b.innerHTML = `${icon('plus')} สร้างหน้าเว็บ`; fail(e.message); }
+  };
+}
+function pickTemplate() {
+  openModal({ title: 'สร้างหน้าเว็บจากแม่แบบ', size: 'max-w-5xl', body: '<div data-tplroot>กำลังโหลด...</div>',
+    onMount: (el, close) => buildTplPicker($('[data-tplroot]', el), close) });
+}
+async function viewTemplates() {
+  $('#view').innerHTML = `${pageHead('สร้างจากแม่แบบ', 'เลือกแม่แบบหน้าเว็บ 5 แบบ (ทุกแบบมีสไลด์ภาพ) + ธีมสี แล้วกดสร้าง — ได้หน้าเว็บและส่วนแสดงผลพร้อมแก้ไข')}
+    <div class="card p-5" id="tplRoot">กำลังโหลด...</div>`;
+  await buildTplPicker($('#tplRoot'));
 }
 
 async function viewPages() {
