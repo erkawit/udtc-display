@@ -76,7 +76,7 @@
 
 1. ในโปรเจกต์บน Vercel ไปที่แท็บ **Storage → Create → Blob**
 2. ตั้งชื่อ เช่น `udtc-files` ถ้ามีให้เลือกการเข้าถึง ให้เลือก **Public** และถ้าเลือกภูมิภาคได้ให้เลือก **Singapore**
-3. กด **Connect** กับโปรเจกต์ โดยติ๊กทุก Environment (Production, Preview, Development) ระบบจะเพิ่มตัวแปร `BLOB_READ_WRITE_TOKEN` ให้อัตโนมัติ
+3. กด **Connect** กับโปรเจกต์ โดยติ๊กทุก Environment (Production, Preview, Development) และ**ต้องติ๊ก "Add a read-write token env var to this connection"** เพื่อให้ได้ตัวแปร `BLOB_READ_WRITE_TOKEN` (ถ้าเห็นแค่ `BLOB_STORE_ID` ให้คัดลอก token จากหน้า Blob store แล้วเพิ่มเองที่ Settings → Environment Variables)
 4. **Redeploy** เพื่อให้ค่าใหม่มีผล: แท็บ **Deployments** → จุดสามจุดของรายการล่าสุด → **Redeploy**
 
 ---

@@ -934,6 +934,9 @@ function itemStatus(i) {
 async function viewWidgetEditor(id) {
   const orig = await api('GET', `/widgets/${id}`);
   const w = clone(orig);
+  // ค่าเริ่มต้นของตัวเลือกสไลด์ (ส่วนแสดงผลที่สร้างก่อนมีตัวเลือกเหล่านี้)
+  const dflt = { ratioW: 16, ratioH: 9, carWMode: 'auto', carW: 1200, carWPct: 100, carAlign: 'center', carHMode: w.ratio === 'auto' ? 'auto' : 'ratio', carH: 400, carHM: 0, imgPos: 'center', transEffect: 'slide', transMs: 600, transEase: 'smooth', pauseHover: true };
+  for (const k in dflt) if (w[k] === undefined) w[k] = dflt[k];
   let tab = 'items', device = 'desktop', previewFull = false, designer = null, rightMode = 'design';
   const markDirty = () => {
     state.dirty = true; $('#saveBtn').classList.add('ring-4', 'ring-gold-400/40'); $('#dirtyDot').classList.remove('hidden'); refresh();
@@ -992,6 +995,7 @@ async function viewWidgetEditor(id) {
     device = d;
     $('#pvWrap').style.width = { desktop: '100%', tablet: '768px', phone: '390px' }[d];
     $$('#devSeg button').forEach(b => b.classList.toggle('on', b.dataset.dev === d));
+    if (w.layout === 'carousel') setTimeout(measureCar, 450);
   };
   $$('#devSeg button').forEach(b => b.onclick = () => setDevice(b.dataset.dev));
   $('#pvFull').onchange = e => { previewFull = e.target.checked; refresh(); };
@@ -1073,8 +1077,12 @@ async function viewWidgetEditor(id) {
       <div class="h-12 mb-2 text-navy-700">${svg}</div><div class="font-semibold text-sm">${t}</div><div class="text-xs text-slate-500 leading-snug">${d}</div></button>`;
     const sec = (t, body) => `<div class="pt-4 mt-4 border-t border-slate-100 first:border-0 first:mt-0 first:pt-0"><div class="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3">${t}</div>${body}</div>`;
     const tg = (k, t, redraw) => `<label class="flex items-center justify-between gap-3 py-1.5 cursor-pointer"><span class="text-sm text-slate-700">${t}</span><input type="checkbox" class="tgl" data-k="${k}" ${w[k] ? 'checked' : ''} ${redraw ? 'data-redraw' : ''}></label>`;
-    const rng = (k, t, min, max, unit = '') => `<div><div class="flex justify-between"><label class="lbl">${t}</label><span class="text-xs text-slate-500"><span data-out="${k}">${w[k]}</span>${unit}</span></div><input type="range" class="w-full accent-navy-800" min="${min}" max="${max}" data-k="${k}" value="${w[k]}"></div>`;
-    const ratios = [['auto', 'ตามภาพจริง'], ['16/9', '16:9'], ['16/6', '16:6 แบนเนอร์'], ['21/9', '21:9'], ['4/3', '4:3'], ['3/2', '3:2'], ['1/1', '1:1'], ['3/4', '3:4 แนวตั้ง'], ['2/3', '2:3 โปสเตอร์']];
+    const rng = (k, t, min, max, unit = '', step = 1) => `<div><div class="flex justify-between"><label class="lbl">${t}</label><span class="text-xs text-slate-500"><span data-out="${k}">${w[k]}</span>${unit}</span></div><input type="range" class="w-full accent-navy-800" min="${min}" max="${max}" step="${step}" data-k="${k}" value="${w[k]}"></div>`;
+    const ratios = [['auto', 'ตามภาพจริง'], ['16/9', '16:9'], ['16/6', '16:6 แบนเนอร์'], ['21/9', '21:9'], ['4/3', '4:3'], ['3/2', '3:2'], ['1/1', '1:1'], ['3/4', '3:4 แนวตั้ง'], ['2/3', '2:3 โปสเตอร์'], ['custom', 'กำหนดเอง (กว้าง:สูง)']];
+    const ratioSel = (redraw = true) => `<select class="inp" data-k="ratio" ${redraw ? 'data-redraw' : ''}>${ratios.map(([v, t]) => `<option value="${v}" ${w.ratio === v ? 'selected' : ''}>${t}</option>`).join('')}</select>`;
+    const ratioCustom = () => w.ratio === 'custom' ? `<div class="flex items-center gap-2 mt-2"><input type="number" class="inp" min="1" data-k="ratioW" value="${w.ratioW || 16}" title="กว้าง"><span class="text-slate-400">:</span><input type="number" class="inp" min="1" data-k="ratioH" value="${w.ratioH || 9}" title="สูง"></div>` : '';
+    const num = (k, t, min, max, unit) => `<div><label class="lbl">${t}</label><div class="flex items-center gap-2"><input type="number" class="inp" data-k="${k}" min="${min}" max="${max}" value="${w[k]}"><span class="text-xs text-slate-500 w-6">${unit}</span></div></div>`;
+    const isCar = w.layout === 'carousel';
     const isC = w.layout === 'canvas', isT = w.layout === 'tabs', isG = w.layout === 'grid' || w.layout === 'carousel';
     const wseg = (k, list) => `<div class="seg flex-wrap">${list.map(([v, t]) => `<button data-wseg="${k}" data-v="${v}" class="${String(w[k]) === String(v) ? 'on' : ''}">${t}</button>`).join('')}</div>`;
     const wcol = (k, t) => `<div><label class="lbl">${t}</label><div class="flex gap-2"><input type="color" class="h-9 w-11 rounded border border-slate-300 cursor-pointer" data-k="${k}" value="${/^#[0-9a-f]{6}$/i.test(w[k] || '') ? w[k] : '#1e293b'}"></div></div>`;
@@ -1102,11 +1110,33 @@ async function viewWidgetEditor(id) {
           <div><label class="lbl">${w.layout === 'carousel' ? 'จำนวนต่อหน้า (จอใหญ่)' : 'จำนวนคอลัมน์ (จอใหญ่)'}</label><select class="inp" data-k="columns">${[1, 2, 3, 4, 5, 6].map(n => `<option ${w.columns == n ? 'selected' : ''}>${n}</option>`).join('')}</select></div>
           <div><label class="lbl">บนมือถือ</label><select class="inp" data-k="mobileColumns">${[1, 2, 3].map(n => `<option ${w.mobileColumns == n ? 'selected' : ''}>${n}</option>`).join('')}</select></div>
         </div>
-        <div class="grid grid-cols-2 gap-3">
-          <div><label class="lbl">สัดส่วนภาพ</label><select class="inp" data-k="ratio">${ratios.map(([v, t]) => `<option value="${v}" ${w.ratio === v ? 'selected' : ''}>${t}</option>`).join('')}</select></div>
+        ${isCar ? '' : `<div class="grid grid-cols-2 gap-3">
+          <div><label class="lbl">สัดส่วนภาพ</label>${ratioSel()}${ratioCustom()}</div>
           <div><label class="lbl">การปรับภาพ</label><select class="inp" data-k="fit"><option value="cover" ${w.fit === 'cover' ? 'selected' : ''}>เต็มกรอบ (ครอป)</option><option value="contain" ${w.fit === 'contain' ? 'selected' : ''}>แสดงครบทั้งภาพ</option></select></div>
-        </div></div>`) : sec('ภาพย่อ', `<div><label class="lbl">สัดส่วนภาพย่อ (กรณีรายการเป็นภาพ)</label><select class="inp" data-k="ratio">${ratios.map(([v, t]) => `<option value="${v}" ${w.ratio === v ? 'selected' : ''}>${t}</option>`).join('')}</select></div>`)}
-      ${!isC && w.layout === 'carousel' ? sec('สไลด์', `<div class="space-y-2">${rng('autoplay', 'เปลี่ยนสไลด์อัตโนมัติทุก (0 = ปิด)', 0, 20, ' วินาที')}${tg('showArrows', 'แสดงปุ่มลูกศร')}${tg('showDots', 'แสดงจุดบอกตำแหน่ง')}</div>`) : ''}
+        </div>`}</div>`) : sec('ภาพย่อ', `<div><label class="lbl">สัดส่วนภาพย่อ (กรณีรายการเป็นภาพ)</label>${ratioSel()}${ratioCustom()}</div>`)}
+      ${isCar ? sec('ขนาดการแสดงผลสไลด์', `<div class="space-y-4">
+        <div id="carMeasure" class="p-3 rounded-xl bg-navy-50 border border-navy-100 text-xs text-slate-700 leading-relaxed">กำลังวัดขนาดจากตัวอย่าง...</div>
+        <div><label class="lbl">ความกว้าง</label>${wseg('carWMode', [['auto', 'อัตโนมัติ'], ['px', 'กำหนด px'], ['%', 'เปอร์เซ็นต์']])}
+          ${w.carWMode === 'px' ? `<div class="mt-2">${num('carW', 'กว้างสูงสุด', 100, 3840, 'px')}<p class="text-xs text-slate-500 mt-1">ถ้าพื้นที่วางแคบกว่านี้ จะย่อลงให้พอดีอัตโนมัติ</p></div>` : ''}
+          ${w.carWMode === '%' ? `<div class="mt-2">${rng('carWPct', 'กว้าง (เทียบกับพื้นที่วาง)', 10, 100, '%')}</div>` : ''}
+          ${w.carWMode !== 'auto' ? `<div class="mt-2"><label class="lbl">ตำแหน่ง</label>${wseg('carAlign', [['left', 'ชิดซ้าย'], ['center', 'กึ่งกลาง'], ['right', 'ชิดขวา']])}</div>` : ''}</div>
+        <div><label class="lbl">ความสูง</label>${wseg('carHMode', [['auto', 'อัตโนมัติ'], ['ratio', 'ตามสัดส่วน'], ['px', 'กำหนด px']])}
+          ${w.carHMode === 'auto' ? `<p class="text-xs text-slate-500 mt-2">ความสูงเปลี่ยนตามภาพแต่ละภาพ ภาพไม่ถูกครอป (ภาพขนาดไม่เท่ากัน กรอบจะยืด–หดตาม)</p>` : ''}
+          ${w.carHMode === 'ratio' ? `<div class="mt-2">${ratioSel()}${ratioCustom()}<button class="btn btn-light btn-sm mt-2" id="ratioFromImg">${icon('media', 'w-3.5 h-3.5')} ใช้สัดส่วนจากภาพแรก</button><p class="text-xs text-slate-500 mt-1">ความสูงปรับตามความกว้างโดยคงสัดส่วนเดิม เหมาะกับทุกขนาดจอ</p></div>` : ''}
+          ${w.carHMode === 'px' ? `<div class="mt-2 grid grid-cols-2 gap-3">${num('carH', 'สูง (จอใหญ่)', 40, 2000, 'px')}${num('carHM', 'สูงบนมือถือ (0 = เท่าจอใหญ่)', 0, 2000, 'px')}</div><div class="mt-2">${rng('carH', 'ปรับความสูงละเอียด', 40, 1000, 'px')}</div>` : ''}</div>
+        ${w.carHMode !== 'auto' ? `<div class="grid grid-cols-2 gap-3">
+          <div><label class="lbl">การปรับภาพในกรอบ</label><select class="inp" data-k="fit"><option value="cover" ${w.fit === 'cover' ? 'selected' : ''}>เต็มกรอบ (ครอป)</option><option value="contain" ${w.fit === 'contain' ? 'selected' : ''}>แสดงครบทั้งภาพ</option></select></div>
+          <div><label class="lbl">จุดยึดภาพ (เมื่อครอป)</label>${wseg('imgPos', [['top', 'บน'], ['center', 'กลาง'], ['bottom', 'ล่าง']])}</div></div>` : ''}
+        <div id="natSizes" class="text-xs text-slate-500"></div></div>`) : ''}
+      ${!isC && isCar ? sec('การเปลี่ยนภาพ', `<div class="space-y-3">
+        <div><label class="lbl">เอฟเฟกต์</label>${wseg('transEffect', [['slide', 'เลื่อน'], ['fade', 'จางซ้อน'], ['none', 'ตัดทันที']])}</div>
+        <div class="grid grid-cols-2 gap-3">${num('autoplay', 'เปลี่ยนภาพทุก (0 = ไม่เลื่อนเอง)', 0, 60, 'วิ')}${w.transEffect === 'none' ? '' : num('transMs', 'ระยะเวลาเปลี่ยนผ่าน', 0, 5000, 'ms')}</div>
+        ${rng('autoplay', 'แสดงแต่ละภาพนาน', 0, 20, ' วินาที', 0.5)}
+        ${w.transEffect === 'none' ? '' : `${rng('transMs', 'ความเร็วการเปลี่ยนผ่าน', 100, 3000, ' ms', 50)}
+        <div><label class="lbl">จังหวะการเคลื่อนไหว</label><select class="inp" data-k="transEase">${[['smooth', 'นุ่มนวล (แนะนำ)'], ['ease', 'ธรรมดา'], ['ease-in-out', 'ช้า–เร็ว–ช้า'], ['linear', 'ความเร็วคงที่'], ['bounce', 'เด้งเล็กน้อย']].map(([v, t]) => `<option value="${v}" ${w.transEase === v ? 'selected' : ''}>${t}</option>`).join('')}</select></div>`}
+        ${w.autoplay > 0 && w.transEffect !== 'none' && w.transMs >= w.autoplay * 1000 ? `<p class="text-xs text-amber-700">⚠ เวลาเปลี่ยนผ่านนานกว่าเวลาแสดงภาพ ภาพจะเลื่อนต่อเนื่องโดยไม่หยุด</p>` : ''}
+        ${w.transEffect === 'fade' && w.columns > 1 ? `<p class="text-xs text-amber-700">เอฟเฟกต์จางซ้อนแสดงครั้งละ 1 ภาพเสมอ</p>` : ''}
+        ${tg('pauseHover', 'หยุดเลื่อนเมื่อชี้เมาส์')}${tg('showArrows', 'แสดงปุ่มลูกศร')}${tg('showDots', 'แสดงจุดบอกตำแหน่ง')}</div>`) : ''}
       ${isC || isT ? '' : sec('คำบรรยายภาพ', `${tg('showCaption', 'แสดงชื่อ/คำบรรยาย', true)}${w.showCaption && w.layout !== 'list' ? `<div class="seg mt-2">${[['below', 'ใต้ภาพ'], ['overlay', 'ทับบนภาพ']].map(([v, t]) => `<button data-cap="${v}" class="${w.captionPos === v ? 'on' : ''}">${t}</button>`).join('')}</div>
         <div class="grid grid-cols-2 gap-3 mt-3"><div><label class="lbl">จัดข้อความ</label>${wseg('captionAlign', [['left', 'ชิดซ้าย'], ['center', 'กึ่งกลาง']])}</div>${wcol('capColor', 'สีชื่อภาพ')}</div>` : ''}`)}
       ${isG ? sec('ภาพในการ์ด', `<div class="space-y-3">
@@ -1139,9 +1169,41 @@ async function viewWidgetEditor(id) {
     const bgT = $('#bgT'); if (bgT) bgT.onclick = () => { w.bg = w.bg === 'transparent' ? '#ffffff' : 'transparent'; markDirty(); drawPanel(); };
     const pp = $('#pickPage'); if (pp) pp.onclick = async () => { const s = await choosePage(); if (s) { w.moreLink = `/p/${s}`; markDirty(); drawPanel(); } };
     bind(P);
+    if (isCar) carHelpers(P);
     $$('[data-k="accent"]', P).forEach(c => c.addEventListener('input', () => { const m = $('[data-mirror="accent"]', P); if (m) m.value = c.value; }));
     $$('[data-k="bg"]', P).forEach(c => c.addEventListener('input', () => { w.bg = c.value; }));
   }
+
+  /* สไลด์: ขนาดภาพจริง + ขนาดที่แสดงในตัวอย่าง */
+  const natCache = {};
+  const natSize = src => natCache[src] || (natCache[src] = new Promise(r => { const im = new Image(); im.onload = () => r({ w: im.naturalWidth, h: im.naturalHeight }); im.onerror = () => r(null); im.src = src; }));
+  async function carHelpers(P) {
+    // sync number <-> range ที่ใช้ key เดียวกัน
+    $$('[data-k]', P).forEach(el => el.addEventListener('input', () => $$(`[data-k="${el.dataset.k}"]`, P).forEach(o => { if (o !== el && o.type !== 'checkbox') o.value = el.value; })));
+    const imgs = (w.items || []).filter(i => i.type === 'image' && i.src && i.active !== false);
+    const rb = $('#ratioFromImg', P);
+    if (rb) rb.onclick = async () => { const n = imgs[0] && await natSize(imgs[0].src); if (!n) return fail('ยังไม่มีภาพในสไลด์'); w.ratio = 'custom'; w.ratioW = n.w; w.ratioH = n.h; markDirty(); drawPanel(); };
+    const box = $('#natSizes', P);
+    if (box && imgs.length) {
+      const sizes = await Promise.all(imgs.slice(0, 12).map(i => natSize(i.src)));
+      if (!document.body.contains(box)) return;
+      box.innerHTML = `<div class="font-semibold text-slate-600 mb-1">ขนาดไฟล์ภาพจริง</div>` + sizes.map((n, k) => `<div class="flex justify-between gap-2 py-0.5 border-b border-slate-100"><span class="truncate">${esc(imgs[k].title || 'ภาพที่ ' + (k + 1))}</span><span class="font-mono flex-none">${n ? `${n.w} × ${n.h} px <span class="text-slate-400">(${(n.w / n.h).toFixed(2)}:1)</span>` : 'โหลดไม่ได้'}</span></div>`).join('');
+    }
+    measureCar();
+  }
+  function measureCar() {
+    const box = $('#carMeasure'); if (!box) return;
+    let d; try { d = pv.contentDocument; } catch { d = null; }
+    const car = d && d.querySelector('.uw-car'), media = d && d.querySelector('.uw-car .uw-slide' + (w.transEffect === 'fade' ? '.on' : '') + ' .uw-media');
+    if (!car) { box.textContent = 'ยังไม่มีภาพในสไลด์ — เพิ่มภาพที่แท็บ “รายการ” แล้วขนาดจะแสดงที่นี่'; return; }
+    const r = car.getBoundingClientRect(), m = media ? media.getBoundingClientRect() : null;
+    const dev = { desktop: 'จอใหญ่', tablet: 'แท็บเล็ต (768px)', phone: 'มือถือ (390px)' }[device] || '';
+    box.innerHTML = `<div class="flex items-center justify-between gap-2"><b class="text-navy-800">ขนาดที่แสดงจริงในตัวอย่าง</b><span class="text-slate-500">${dev}</span></div>
+      <div class="mt-1 font-mono text-[13px]">กรอบสไลด์: <b>${Math.round(r.width)} × ${Math.round(r.height)}</b> px</div>
+      ${m ? `<div class="font-mono text-[13px]">พื้นที่ภาพ: <b>${Math.round(m.width)} × ${Math.round(m.height)}</b> px</div>` : ''}
+      <div class="text-slate-500 mt-1">ขนาดจริงบนเว็บขึ้นกับความกว้างของช่องที่นำไปวาง สลับดูจอใหญ่ / แท็บเล็ต / มือถือ ได้ที่แถบด้านบนตัวอย่าง</div>`;
+  }
+  pv.addEventListener('load', () => { if (w.layout === 'carousel') { measureCar(); setTimeout(measureCar, 600); setTimeout(measureCar, 1500); } });
 
   let widgetCache = null;
   async function drawTabsEditor(P) {

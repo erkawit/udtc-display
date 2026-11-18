@@ -411,7 +411,27 @@ function safeJoin(base, rel) {
 /* ------------------------------------------------------------------ */
 const LAYOUTS = ['grid', 'carousel', 'list', 'canvas', 'tabs'];
 const safeFa = c => /^[a-z0-9\- ]{3,80}$/i.test(String(c || '')) ? String(c).trim() : '';
-const RATIOS = ['auto', '16/9', '16/6', '21/9', '4/3', '3/2', '1/1', '3/4', '2/3'];
+const RATIOS = ['auto', '16/9', '16/6', '21/9', '4/3', '3/2', '1/1', '3/4', '2/3', 'custom'];
+const EASES = { smooth: 'cubic-bezier(.4,0,.2,1)', ease: 'ease', linear: 'linear', 'ease-in-out': 'ease-in-out', bounce: 'cubic-bezier(.34,1.4,.64,1)' };
+/** สัดส่วนภาพที่ใช้จริง (รองรับกำหนดเอง กว้าง:สูง) */
+function ratioVal(w) {
+  if (w.ratio === 'custom') return `${clamp(w.ratioW, 1, 10000, 16)}/${clamp(w.ratioH, 1, 10000, 9)}`;
+  return w.ratio === 'auto' || !w.ratio ? 'auto' : w.ratio;
+}
+/** ค่าขนาด/การเปลี่ยนภาพของสไลด์ (ใส่ค่าเริ่มต้นให้ส่วนแสดงผลเก่าที่ยังไม่มีค่าเหล่านี้) */
+function carCfg(w) {
+  const hMode = ['auto', 'ratio', 'px'].includes(w.carHMode) ? w.carHMode : (ratioVal(w) === 'auto' ? 'auto' : 'ratio');
+  return {
+    wMode: ['auto', 'px', '%'].includes(w.carWMode) ? w.carWMode : 'auto',
+    w: clamp(w.carW, 100, 3840, 1200), wPct: clamp(w.carWPct, 10, 100, 100),
+    align: ['left', 'center', 'right'].includes(w.carAlign) ? w.carAlign : 'center',
+    hMode, h: clamp(w.carH, 40, 2000, 400), hM: clamp(w.carHM, 0, 2000, 0),
+    pos: ['top', 'center', 'bottom'].includes(w.imgPos) ? w.imgPos : 'center',
+    fx: ['slide', 'fade', 'none'].includes(w.transEffect) ? w.transEffect : 'slide',
+    ms: clamp(w.transMs, 0, 5000, 600), ease: EASES[w.transEase] ? w.transEase : 'smooth',
+    pauseHover: w.pauseHover !== false,
+  };
+}
 function normItem(i) {
   const type = ['image', 'video', 'button', 'html'].includes(i.type) ? i.type : 'image';
   return {
@@ -434,9 +454,10 @@ function normWidget(w, existing) {
     layout: LAYOUTS.includes(w.layout) ? w.layout : 'grid',
     columns: clamp(w.columns, 1, 6, 3), mobileColumns: clamp(w.mobileColumns, 1, 3, 1),
     gap: clamp(w.gap, 0, 48, 12), ratio: RATIOS.includes(w.ratio) ? w.ratio : 'auto',
+    ratioW: clamp(w.ratioW, 1, 10000, 16), ratioH: clamp(w.ratioH, 1, 10000, 9),
     fit: w.fit === 'contain' ? 'contain' : 'cover', radius: clamp(w.radius, 0, 32, 10), shadow: !!w.shadow,
     showCaption: !!w.showCaption, captionPos: w.captionPos === 'overlay' ? 'overlay' : 'below',
-    autoplay: clamp(w.autoplay, 0, 60, 5), showArrows: !!w.showArrows, showDots: !!w.showDots,
+    autoplay: Math.round(clamp(w.autoplay, 0, 60, 5) * 10) / 10, showArrows: !!w.showArrows, showDots: !!w.showDots,
     limit: clamp(w.limit, 0, 500, 0), moreLabel: String(w.moreLabel || '').slice(0, 100), moreLink: safeUrl(w.moreLink),
     bg: w.bg === 'transparent' ? 'transparent' : color(w.bg, '#ffffff'), padding: clamp(w.padding, 0, 48, 12),
     accent: color(w.accent, '#1e3a5f'),
@@ -446,6 +467,8 @@ function normWidget(w, existing) {
     captionAlign: w.captionAlign === 'center' ? 'center' : 'left', capColor: color(w.capColor, '#1e293b'),
     imgPad: clamp(w.imgPad, 0, 60, 0), panelRadius: clamp(w.panelRadius, 0, 40, 0), btnMinH: clamp(w.btnMinH, 0, 600, 0),
     lightbox: !!w.lightbox, link2Color: color(w.link2Color, '#c2410c'),
+    ...(c => ({ carWMode: c.wMode, carW: c.w, carWPct: c.wPct, carAlign: c.align, carHMode: c.hMode, carH: c.h, carHM: c.hM,
+      imgPos: c.pos, transEffect: c.fx, transMs: c.ms, transEase: c.ease, pauseHover: c.pauseHover }))(carCfg(w)),
     tabStyle: ['pill', 'underline', 'button'].includes(w.tabStyle) ? w.tabStyle : 'pill', tabEqual: w.tabEqual !== false,
     tabs: Array.isArray(w.tabs) ? w.tabs.slice(0, 12).map(t => ({
       id: t.id || uid(), label: String(t.label || 'แท็บ').slice(0, 80), iconFa: safeFa(t.iconFa), active: t.active !== false,
@@ -550,7 +573,15 @@ a.uw-row:hover{border-color:var(--accent);background:#f8fafc}
 .uw-row.video{display:block;padding:0;overflow:hidden}
 .uw-car{position:relative;overflow:hidden;border-radius:var(--radius)}
 .uw.shadow .uw-car{box-shadow:0 1px 3px rgba(15,23,42,.08),0 4px 14px rgba(15,23,42,.06)}
-.uw-track{display:flex;transition:transform .6s cubic-bezier(.4,0,.2,1)}
+.uw-track{display:flex;transition:transform var(--tms,.6s) var(--tease,cubic-bezier(.4,0,.2,1)),height var(--tms,.6s) var(--tease,ease)}
+.uw-carbox{width:100%;max-width:100%}
+.uw-car .uw-media img{object-position:var(--opos,center)}
+.uw-car.h-auto .uw-track{align-items:flex-start}
+.uw-car.h-px .uw-media{aspect-ratio:auto!important;height:var(--car-h)}.uw-car.h-px .uw-media img,.uw-car.h-px .uw-media video{height:100%!important}
+@media(max-width:639px){.uw-car.h-px .uw-media{height:var(--car-hm)}}
+.uw-car.fx-fade .uw-track{display:grid;transform:none!important}
+.uw-car.fx-fade .uw-slide{grid-area:1/1;margin:0;align-self:start;opacity:0;visibility:hidden;transition:opacity var(--tms,.6s) var(--tease,ease),visibility 0s linear var(--tms,.6s)}
+.uw-car.fx-fade .uw-slide.on{opacity:1;visibility:visible;z-index:1;transition:opacity var(--tms,.6s) var(--tease,ease)}
 .uw-slide{flex:0 0 calc((100% - (var(--cols) - 1) * var(--gap)) / var(--cols));margin-right:var(--gap)}
 @media(max-width:639px){.uw-slide{flex-basis:calc((100% - (var(--mcols) - 1) * var(--gap)) / var(--mcols))}}
 .uw-car .uw-card{border-radius:var(--radius);height:100%}
@@ -603,7 +634,7 @@ const ARROW = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" strok
 function linkAttrs(it) { return `href="${esc(it.link)}"${it.newTab ? ' target="_blank" rel="noopener"' : ' target="_top"'}`; }
 
 function cardHtml(it, w) {
-  const ratioCls = w.ratio === 'auto' ? ' auto' : '';
+  const ratioCls = ratioVal(w) === 'auto' || (w.layout === 'carousel' && carCfg(w).hMode !== 'ratio') ? ' auto' : '';
   const capOverlay = w.captionPos === 'overlay' && it.type === 'image';
   const cap = (w.showCaption && (it.title || it.subtitle))
     ? `<div class="uw-cap${capOverlay ? ' overlay' : ''}">${it.title ? `<b>${esc(it.title)}</b>` : ''}${it.subtitle ? `<small>${esc(it.subtitle)}</small>` : ''}</div>` : '';
@@ -671,14 +702,18 @@ function renderWidgetInner(w, { full = false } = {}) {
   let items = (w.items || []).filter(i => isVisible(i));
   const total = items.length;
   if (!full && w.limit > 0) items = items.slice(0, w.limit);
-  const vars = `--bg:${w.bg};--pad:${w.padding}px;--gap:${w.gap}px;--cols:${w.layout === 'carousel' ? w.columns : w.columns};--mcols:${w.mobileColumns};--ratio:${w.ratio === 'auto' ? 'auto' : w.ratio};--fit:${w.fit};--radius:${w.radius}px;--accent:${w.accent};--prad:${w.panelRadius || 0}px;--imgpad:${w.imgPad || 0}px;--capc:${w.capColor || 'inherit'};--l2c:${w.link2Color || '#c2410c'}${w.btnMinH ? `;--bminh:${w.btnMinH}px` : ''}`;
+  const vars = `--bg:${w.bg};--pad:${w.padding}px;--gap:${w.gap}px;--cols:${w.layout === 'carousel' ? w.columns : w.columns};--mcols:${w.mobileColumns};--ratio:${ratioVal(w)};--fit:${w.fit};--radius:${w.radius}px;--accent:${w.accent};--prad:${w.panelRadius || 0}px;--imgpad:${w.imgPad || 0}px;--capc:${w.capColor || 'inherit'};--l2c:${w.link2Color || '#c2410c'}${w.btnMinH ? `;--bminh:${w.btnMinH}px` : ''}`;
   let body;
   if (w.layout === 'tabs') body = tabsHtml(w);
   else if (!items.length) body = `<div class="uw-empty">ยังไม่มีรายการแสดงผล</div>`;
   else if (w.layout === 'canvas') body = canvasHtml(items, w);
   else if (w.layout === 'list') body = `<div class="uw-list">${items.map(i => rowHtml(i, w)).join('')}</div>`;
   else if (w.layout === 'carousel') {
-    body = `<div class="uw-car" data-autoplay="${w.autoplay}"><div class="uw-track">${items.map(i => `<div class="uw-slide">${cardHtml(i, w)}</div>`).join('')}</div>${w.showArrows && items.length > 1 ? `<button class="uw-nav prev" aria-label="ก่อนหน้า" style="transform:translateY(-50%) rotate(180deg)">${ARROW}</button><button class="uw-nav next" aria-label="ถัดไป">${ARROW}</button>` : ''}</div>${w.showDots && items.length > 1 ? `<div class="uw-dots"></div>` : ''}`;
+    const c = carCfg(w);
+    const boxW = c.wMode === 'px' ? `${c.w}px` : c.wMode === '%' ? `${c.wPct}%` : '100%';
+    const boxM = c.align === 'left' ? '0 auto 0 0' : c.align === 'right' ? '0 0 0 auto' : '0 auto';
+    const cv = `--car-h:${c.h}px;--car-hm:${c.hM || c.h}px;--tms:${c.fx === 'none' ? 0 : c.ms}ms;--tease:${EASES[c.ease]};--opos:${c.pos === 'center' ? 'center' : 'center ' + c.pos}`;
+    body = `<div class="uw-carbox" style="width:${boxW};margin:${boxM}"><div class="uw-car h-${c.hMode} fx-${c.fx}" style="${cv}" data-autoplay="${w.autoplay}" data-fx="${c.fx}" data-hover="${c.pauseHover ? 1 : 0}"><div class="uw-track">${items.map(i => `<div class="uw-slide">${cardHtml(i, w)}</div>`).join('')}</div>${w.showArrows && items.length > 1 ? `<button class="uw-nav prev" aria-label="ก่อนหน้า" style="transform:translateY(-50%) rotate(180deg)">${ARROW}</button><button class="uw-nav next" aria-label="ถัดไป">${ARROW}</button>` : ''}</div>${w.showDots && items.length > 1 ? `<div class="uw-dots"></div>` : ''}</div>`;
   } else body = `<div class="uw-grid">${items.map(i => cardHtml(i, w)).join('')}</div>`;
   const more = (!full && w.moreLink && (w.limit === 0 || total > 0)) ? `<div class="uw-more"><a href="${esc(w.moreLink)}" target="_top">${esc(w.moreLabel || 'ดูทั้งหมด')} ${ARROW}</a></div>` : '';
   const title = w.showTitle && w.title ? `<h2 class="uw-title ts-${w.titleStyle || 'bar'}"><span>${esc(w.title)}</span></h2>` : '';
@@ -700,16 +735,19 @@ function runtimeJs(rootExpr, embed) {
   function narrow(){return (R.clientWidth||innerWidth)<640;}
   [].forEach.call(R.querySelectorAll('.uw-car'),function(car){
     var track=car.querySelector('.uw-track'),slides=[].slice.call(track.children),root=car.closest('.uw');
-    var dotsBox=car.parentNode.querySelector('.uw-dots'),i=0,timer=null;
-    function per(){var cs=getComputedStyle(root);return parseInt(cs.getPropertyValue(narrow()?'--mcols':'--cols'))||1;}
+    var dotsBox=car.parentNode.querySelector('.uw-dots'),i=0,timer=null,fx=car.getAttribute('data-fx')||'slide';
+    function per(){if(fx==='fade')return 1;var cs=getComputedStyle(root);return parseInt(cs.getPropertyValue(narrow()?'--mcols':'--cols'))||1;}
+    function fitH(){if(!car.classList.contains('h-auto'))return;var m=0,e=Math.min(slides.length,i+per());for(var k=i;k<e;k++)m=Math.max(m,slides[k].offsetHeight);if(m)track.style.height=m+'px';}
+    [].forEach.call(car.querySelectorAll('img'),function(im){if(!im.complete)im.addEventListener('load',fitH);});
     function pages(){return Math.max(1,slides.length-per()+1);}
-    function go(n){var p=pages();i=(n+p)%p;var s=slides[i];track.style.transform='translateX(-'+(s?s.offsetLeft:0)+'px)';
+    function go(n){var p=pages();i=(n+p)%p;var s=slides[i];
+      if(fx==='fade')slides.forEach(function(x,k){x.classList.toggle('on',k===i);});else track.style.transform='translateX(-'+(s?s.offsetLeft:0)+'px)';fitH();
       if(dotsBox){[].forEach.call(dotsBox.children,function(d,k){d.className=k===i?'on':'';});}}
     function dots(){if(!dotsBox)return;dotsBox.innerHTML='';for(var k=0;k<pages();k++){var b=document.createElement('button');b.type='button';b.setAttribute('aria-label','สไลด์ '+(k+1));(function(k){b.onclick=function(){go(k);reset();};})(k);dotsBox.appendChild(b);}}
     function reset(){clearInterval(timer);var a=+car.dataset.autoplay;if(a>0&&pages()>1)timer=setInterval(function(){if(car.offsetParent)go(i+1);},a*1000);}
     var pv=car.querySelector('.prev'),nx=car.querySelector('.next');
     if(pv)pv.onclick=function(){go(i-1);reset();};if(nx)nx.onclick=function(){go(i+1);reset();};
-    car.addEventListener('mouseenter',function(){clearInterval(timer);});car.addEventListener('mouseleave',reset);
+    if(car.getAttribute('data-hover')!=='0'){car.addEventListener('mouseenter',function(){clearInterval(timer);});car.addEventListener('mouseleave',reset);}
     var sx=null;car.addEventListener('touchstart',function(e){sx=e.touches[0].clientX;},{passive:true});
     car.addEventListener('touchend',function(e){if(sx===null)return;var dx=e.changedTouches[0].clientX-sx;if(Math.abs(dx)>40){go(i+(dx<0?1:-1));reset();}sx=null;});
     addEventListener('resize',function(){dots();go(Math.min(i,pages()-1));});
@@ -1349,7 +1387,9 @@ async function api(req, res, pathname, query) {
       const orig = decodeURIComponent(String(req.headers['x-filename'] || 'file'));
       const ext = path.extname(orig).toLowerCase();
       if (!ALLOWED_UPLOAD.has(ext)) return json(res, 400, { error: `ไม่รองรับไฟล์ประเภท ${ext || '(ไม่มีนามสกุล)'}` });
-      if (!BLOB && CLOUD.onVercel) return json(res, 503, { error: 'ยังไม่ได้เชื่อม Vercel Blob กับโปรเจกต์นี้ (ไม่พบ BLOB_READ_WRITE_TOKEN) — ไปที่ Vercel → Storage → Blob → Connect กับโปรเจกต์ แล้วกด Redeploy' });
+      if (!BLOB && CLOUD.onVercel) return json(res, 503, { error: process.env.BLOB_STORE_ID
+        ? 'เชื่อม Blob store แล้ว แต่ยังไม่มี BLOB_READ_WRITE_TOKEN — ไปที่ Vercel → Storage → Blob store → คัดลอกค่า BLOB_READ_WRITE_TOKEN (ขึ้นต้น vercel_blob_rw_) → Settings → Environment Variables → เพิ่มชื่อ BLOB_READ_WRITE_TOKEN (ทุก Environment) แล้วกด Redeploy'
+        : 'ยังไม่ได้เชื่อม Vercel Blob กับโปรเจกต์นี้ (ไม่พบ BLOB_READ_WRITE_TOKEN) — ไปที่ Vercel → Storage → Blob → Connect กับโปรเจกต์ แล้วกด Redeploy' });
       const len = parseInt(req.headers['content-length'] || '0', 10);
       const { sub, fname } = newUploadName(ext);
       if (BLOB) {
