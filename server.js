@@ -587,7 +587,8 @@ a.uw-row:hover{border-color:var(--accent);background:#f8fafc}
 .uw.shadow .uw-car{box-shadow:0 1px 3px rgba(15,23,42,.08),0 4px 14px rgba(15,23,42,.06)}
 .uw-track{display:flex;transition:transform var(--tms,.6s) var(--tease,cubic-bezier(.4,0,.2,1)),height var(--tms,.6s) var(--tease,ease)}
 .uw-carbox{width:100%;max-width:100%}
-.uw-car.cbg .uw-media,.uw-car.cbg .uw-card{background:var(--car-bg)}.uw-car.cbg-t{box-shadow:none!important}.uw-car.cbg-t .uw-card{box-shadow:none!important}
+.uw.cbg .uw-media,.uw.cbg .uw-card,.uw.cbg .uw-row,.uw.cbg .uw-row .th{background:var(--car-bg)}
+.uw.cbg-t .uw-car,.uw.cbg-t .uw-card,.uw.cbg-t a.uw-card:hover,.uw.cbg-t .uw-card.lk:hover{box-shadow:none!important}
 .uw-car .uw-media img{object-position:var(--opos,center)}
 .uw-car.h-auto .uw-track{align-items:flex-start}
 .uw-car.h-px .uw-media{aspect-ratio:auto!important;height:var(--car-h)}.uw-car.h-px .uw-media img,.uw-car.h-px .uw-media video{height:100%!important}
@@ -745,15 +746,15 @@ function renderWidgetInner(w, { full = false } = {}) {
     const boxW = c.wMode === 'px' ? `${c.w}px` : c.wMode === '%' ? `${c.wPct}%` : '100%';
     const boxM = c.align === 'left' ? '0 auto 0 0' : c.align === 'right' ? '0 0 0 auto' : '0 auto';
     const cv = `--car-h:${c.h}px;--car-hm:${c.hM || c.h}px;--tms:${c.fx === 'none' ? 0 : c.ms}ms;--tease:${EASES[c.ease]};--opos:${c.pos === 'center' ? 'center' : 'center ' + c.pos}`;
-    body = `<div class="uw-carbox" style="width:${boxW};margin:${boxM}"><div class="uw-car h-${c.hMode} fx-${c.fx}${c.bg ? ' cbg' : ''}${c.bg === 'transparent' ? ' cbg-t' : ''}" style="${cv}${c.bg ? `;--car-bg:${c.bg}` : ''}" data-autoplay="${w.autoplay}" data-fx="${c.fx}" data-hover="${c.pauseHover ? 1 : 0}"><div class="uw-track">${items.map(i => `<div class="uw-slide">${cardHtml(i, w)}</div>`).join('')}</div>${w.showArrows && items.length > 1 ? `<button class="uw-nav prev" aria-label="ก่อนหน้า" style="transform:translateY(-50%) rotate(180deg)">${ARROW}</button><button class="uw-nav next" aria-label="ถัดไป">${ARROW}</button>` : ''}</div>${w.showDots && items.length > 1 ? `<div class="uw-dots"></div>` : ''}</div>`;
+    body = `<div class="uw-carbox" style="width:${boxW};margin:${boxM}"><div class="uw-car h-${c.hMode} fx-${c.fx}" style="${cv}" data-autoplay="${w.autoplay}" data-fx="${c.fx}" data-hover="${c.pauseHover ? 1 : 0}"><div class="uw-track">${items.map(i => `<div class="uw-slide">${cardHtml(i, w)}</div>`).join('')}</div>${w.showArrows && items.length > 1 ? `<button class="uw-nav prev" aria-label="ก่อนหน้า" style="transform:translateY(-50%) rotate(180deg)">${ARROW}</button><button class="uw-nav next" aria-label="ถัดไป">${ARROW}</button>` : ''}</div>${w.showDots && items.length > 1 ? `<div class="uw-dots"></div>` : ''}</div>`;
   } else body = `<div class="uw-grid">${items.map(i => cardHtml(i, w)).join('')}</div>`;
   const more = (!full && w.moreLink && (w.limit === 0 || total > 0)) ? `<div class="uw-more"><a href="${esc(w.moreLink)}" target="_top">${esc(w.moreLabel || 'ดูทั้งหมด')} ${ARROW}</a></div>` : '';
   const title = w.showTitle && w.title ? `<h2 class="uw-title ts-${w.titleStyle || 'bar'}"><span>${esc(w.title)}</span></h2>` : '';
-  const bx = boxCfg(w);
-  let bstyle = '', bcls = '';
+  const bx = boxCfg(w), cb = carCfg(w).bg;
+  let bstyle = cb ? `;--car-bg:${cb}` : '', bcls = cb ? ` cbg${cb === 'transparent' ? ' cbg-t' : ''}` : '';
   if (w.layout !== 'canvas') {
     if (bx.wMode !== 'auto') bstyle += `;max-width:${bx.wMode === 'px' ? bx.w + 'px' : bx.wPct + '%'};margin:${bx.align === 'left' ? '0 auto 0 0' : bx.align === 'right' ? '0 0 0 auto' : '0 auto'}`;
-    if (bx.hMode !== 'auto') { bcls = ` bh bh-${bx.hMode}`; bstyle += `;--bh:${bx.h}px;--bhm:${bx.hM || bx.h}px;--bva:${bx.vAlign === 'middle' ? 'center' : bx.vAlign === 'bottom' ? 'flex-end' : 'flex-start'}`; }
+    if (bx.hMode !== 'auto') { bcls += ` bh bh-${bx.hMode}`; bstyle += `;--bh:${bx.h}px;--bhm:${bx.hM || bx.h}px;--bva:${bx.vAlign === 'middle' ? 'center' : bx.vAlign === 'bottom' ? 'flex-end' : 'flex-start'}`; }
   }
   return `<div class="uw${w.shadow ? ' shadow' : ''}${w.captionAlign === 'center' ? ' capc' : ''}${bcls}" style="${vars}${bstyle}">${title}${body}${more}</div>`;
 }
@@ -1250,6 +1251,11 @@ function renderHome() {
 /* ------------------------------------------------------------------ */
 /* API                                                                 */
 /* ------------------------------------------------------------------ */
+/** ลบไฟล์จริง (Vercel Blob หรือโฟลเดอร์ uploads/) */
+async function removeMediaFile(it) {
+  if (CLOUD.isBlobUrl(it.url)) { if (BLOB) await CLOUD.blobDel(it.url).catch(e => console.error('ลบไฟล์ใน Blob ไม่ได้:', e.message)); }
+  else if (!CLOUD.onVercel && String(it.url).startsWith('/uploads/')) { const f = safeJoin(UPLOAD_DIR, it.url.replace(/^\/uploads\//, '')); if (f) fs.rm(f, () => {}); }
+}
 function newUploadName(ext) {
   const d = new Date();
   return { sub: `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}`, fname: `${Date.now().toString(36)}-${uid(6)}${ext}` };
@@ -1412,7 +1418,20 @@ async function api(req, res, pathname, query) {
 
   /* media */
   if (seg[0] === 'media') {
-    if (!seg[1] && m === 'GET') return json(res, 200, [...db.media].reverse());
+    if (!seg[1] && m === 'GET') {
+      // บอกว่าไฟล์ไหนถูกใช้อยู่ที่ใด (ส่วนแสดงผล / หน้าเว็บ / หน้า Intro / ตั้งค่า)
+      const places = [...db.widgets.map(x => ['ส่วนแสดงผล', x.name, JSON.stringify(x)]), ...db.pages.map(x => ['หน้าเว็บ', x.title, JSON.stringify(x)]),
+        ...db.intros.map(x => ['หน้า Intro', x.name, JSON.stringify(x)]), ['ตั้งค่าเว็บไซต์', 'โลโก้', JSON.stringify(db.settings)]];
+      return json(res, 200, [...db.media].reverse().map(x => ({ ...x, usedIn: places.filter(p => p[2].includes(x.url)).map(p => `${p[0]}: ${p[1]}`) })));
+    }
+    if (seg[1] === 'bulk-delete' && m === 'POST') {
+      const b = await readJson(req);
+      const ids = new Set(Array.isArray(b.ids) ? b.ids.map(String) : []);
+      const del = db.media.filter(x => ids.has(x.id));
+      for (const it of del) await removeMediaFile(it);
+      db.media = db.media.filter(x => !ids.has(x.id)); save();
+      return json(res, 200, { ok: true, deleted: del.length });
+    }
     if (seg[1] === 'register' && m === 'POST') {
       // หลังเบราว์เซอร์อัปโหลดตรงไป Vercel Blob แล้ว ให้บันทึกรายการลงคลังสื่อ
       if (!BLOB) return json(res, 400, { error: 'ยังไม่ได้ตั้งค่า Vercel Blob' });
@@ -1453,8 +1472,7 @@ async function api(req, res, pathname, query) {
     const it = db.media.find(x => x.id === seg[1]);
     if (!it) return json(res, 404, { error: 'ไม่พบไฟล์' });
     if (m === 'DELETE') {
-      if (CLOUD.isBlobUrl(it.url)) { if (BLOB) await CLOUD.blobDel(it.url).catch(e => console.error('ลบไฟล์ใน Blob ไม่ได้:', e.message)); }
-      else if (!CLOUD.onVercel) { const f = safeJoin(UPLOAD_DIR, it.url.replace(/^\/uploads\//, '')); if (f) fs.rm(f, () => {}); }
+      await removeMediaFile(it);
       db.media = db.media.filter(x => x.id !== it.id); save(); return json(res, 200, { ok: true });
     }
     if (m === 'PUT') { const b = await readJson(req); it.name = String(b.name || it.name).slice(0, 200); save(); return json(res, 200, it); }

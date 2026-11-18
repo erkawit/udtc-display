@@ -171,13 +171,24 @@ function pickMedia(kind = 'image') {
         const done = url => { chosen = url; close(); };
         $('[data-useurl]', el).onclick = () => { const v = $('[data-url]', el).value.trim(); if (v) done(v); };
         $('[data-up]', el).onchange = async e => { const r = await uploadMany([...e.target.files]); if (r[0]) done(r[0].url); };
-        const list = (await api('GET', '/media')).filter(x => kind === 'any' || kind === 'file' ? true : x.kind === kind);
+        let list = (await api('GET', '/media')).filter(x => kind === 'any' || kind === 'file' ? true : x.kind === kind);
         const g = $('[data-grid]', el);
-        g.innerHTML = list.length ? list.map(x => `<button class="group text-left rounded-lg border border-slate-200 overflow-hidden hover:ring-2 hover:ring-navy-500" data-pick="${esc(x.url)}">
-            <div class="aspect-square bg-slate-100 grid place-items-center overflow-hidden chk-pattern">${x.kind === 'image' ? `<img src="${esc(x.url)}" class="w-full h-full object-cover" loading="lazy">` : x.kind === 'video' ? icon('video', 'w-8 h-8 text-slate-400') : icon('file', 'w-8 h-8 text-slate-400')}</div>
-            <div class="px-2 py-1.5 text-xs text-slate-600 truncate">${esc(x.name)}</div></button>`).join('')
-          : `<div class="col-span-full text-center py-10 text-slate-400">ยังไม่มี${label}ในคลัง — อัปโหลดได้จากปุ่มด้านบน</div>`;
-        $$('[data-pick]', g).forEach(b => b.onclick = () => done(b.dataset.pick));
+        const drawG = () => {
+          g.innerHTML = list.length ? list.map(x => `<div class="relative group rounded-lg border border-slate-200 overflow-hidden hover:ring-2 hover:ring-navy-500">
+            <button class="block w-full text-left" data-pick="${esc(x.url)}"><div class="aspect-square bg-slate-100 grid place-items-center overflow-hidden chk-pattern">${x.kind === 'image' ? `<img src="${esc(x.url)}" class="w-full h-full object-cover" loading="lazy">` : x.kind === 'video' ? icon('video', 'w-8 h-8 text-slate-400') : icon('file', 'w-8 h-8 text-slate-400')}</div>
+            <div class="px-2 py-1.5 text-xs text-slate-600 truncate pr-8">${esc(x.name)}</div></button>
+            <button class="absolute bottom-1 right-1 p-1 rounded-md text-slate-400 hover:text-rose-600 hover:bg-rose-50" data-pdel="${x.id}" title="ลบไฟล์นี้">${icon('trash', 'w-3.5 h-3.5')}</button>
+            ${x.usedIn && x.usedIn.length ? `<span class="absolute top-1.5 left-1.5 text-[10px] px-1.5 rounded bg-emerald-600 text-white">ใช้อยู่</span>` : ''}</div>`).join('')
+            : `<div class="col-span-full text-center py-10 text-slate-400">ยังไม่มี${label}ในคลัง — อัปโหลดได้จากปุ่มด้านบน</div>`;
+          $$('[data-pick]', g).forEach(b => b.onclick = () => done(b.dataset.pick));
+          $$('[data-pdel]', g).forEach(b => b.onclick = async () => {
+            const x = list.find(m => m.id === b.dataset.pdel);
+            const used = x.usedIn && x.usedIn.length ? `\n\nไฟล์นี้กำลังถูกใช้งานที่: ${x.usedIn.slice(0, 3).join(', ')} — ภาพในจุดนั้นจะหายไป` : '';
+            if (!(await confirmBox('ลบไฟล์ถาวร?', `"${x.name}" จะถูกลบถาวร กู้คืนไม่ได้${used}`, 'ลบถาวร'))) return;
+            try { await api('DELETE', `/media/${x.id}`); list = list.filter(m => m.id !== x.id); ok('ลบแล้ว'); drawG(); } catch (e) { fail(e.message); }
+          });
+        };
+        drawG();
       },
     });
   });
@@ -1075,6 +1086,7 @@ async function viewWidgetEditor(id) {
     if (e.source === pv.contentWindow && e.data && e.data.type === 'uw-resize') pv.style.height = Math.max(120, e.data.height) + 'px';
   });
   const refresh = debounce(async () => {
+    $('#pvWrap').classList.toggle('bg-white', w.bg !== 'transparent');
     try { pv.srcdoc = await api('POST', '/widgets/preview', { ...w, __full: previewFull }); } catch (e) { /* ignore */ }
   }, 250);
   const setDevice = d => {
@@ -1190,16 +1202,24 @@ async function viewWidgetEditor(id) {
       </div>`)}
       ${isC ? '' : sec('ขนาดพื้นที่แสดงผล', `<div class="space-y-3">
         <div id="boxMeasure" class="p-2.5 rounded-lg bg-navy-50 border border-navy-100 text-xs text-slate-700 font-mono">กำลังวัดขนาด...</div>
-        <div><label class="lbl">ความกว้าง</label>${wseg('boxWMode', [['auto', 'อัตโนมัติ (เต็มช่อง)'], ['px', 'กำหนด px'], ['%', 'เปอร์เซ็นต์']])}
+        <div><label class="lbl">ความกว้าง</label>${wseg('boxWMode', [['auto', 'อัตโนมัติ'], ['px', 'กำหนด px'], ['%', 'เปอร์เซ็นต์']])}
           ${w.boxWMode === 'px' ? `<div class="mt-2">${num('boxW', 'กว้างสูงสุด', 100, 3840, 'px')}<p class="text-xs text-slate-500 mt-1">ช่องที่วางแคบกว่านี้ จะย่อให้พอดีอัตโนมัติ</p></div>` : ''}
           ${w.boxWMode === '%' ? `<div class="mt-2">${rng('boxWPct', 'กว้าง (เทียบกับช่องที่วาง)', 10, 100, '%')}</div>` : ''}
           ${w.boxWMode !== 'auto' ? `<div class="mt-2"><label class="lbl">ตำแหน่ง</label>${wseg('boxAlign', [['left', 'ชิดซ้าย'], ['center', 'กึ่งกลาง'], ['right', 'ชิดขวา']])}</div>` : ''}</div>
-        <div><label class="lbl">ความสูง</label>${wseg('boxHMode', [['auto', 'อัตโนมัติ (ตามเนื้อหา)'], ['min', 'สูงอย่างน้อย'], ['fixed', 'สูงคงที่']])}
+        <div><label class="lbl">ความสูง</label>${wseg('boxHMode', [['auto', 'อัตโนมัติ'], ['min', 'สูงอย่างน้อย'], ['fixed', 'สูงคงที่']])}
           ${w.boxHMode !== 'auto' ? `<div class="mt-2 grid grid-cols-2 gap-3">${num('boxH', 'สูง (จอใหญ่)', 20, 3000, 'px')}${num('boxHM', 'บนมือถือ (0 = เท่ากัน)', 0, 3000, 'px')}</div>
             <div class="mt-2">${rng('boxH', 'ปรับความสูงละเอียด', 20, 1000, 'px')}</div>
             <div class="mt-2"><label class="lbl">วางเนื้อหาในแนวตั้ง</label>${wseg('boxVAlign', [['top', 'ชิดบน'], ['middle', 'กึ่งกลาง'], ['bottom', 'ชิดล่าง']])}</div>
             ${w.boxHMode === 'fixed' ? '<p class="text-xs text-amber-700 mt-1">สูงคงที่: เนื้อหาที่ยาวเกินจะถูกตัด — ถ้าไม่แน่ใจให้ใช้ “สูงอย่างน้อย”</p>' : ''}` : '<p class="text-xs text-slate-500 mt-1">สูงเท่ากับเนื้อหา ไม่มีพื้นที่ว่างเกิน</p>'}</div>
         <p class="text-xs text-slate-500">${isCar ? 'ขนาดของภาพในสไลด์ ปรับได้อีกชั้นที่หัวข้อ “ขนาดการแสดงผลสไลด์” ด้านล่าง' : 'ความกว้างของแต่ละรายการ ปรับได้ที่จำนวนคอลัมน์และระยะห่าง'}</p></div>`)}
+      ${sec('พื้นหลัง', `<div class="space-y-3">
+        <div><label class="lbl">พื้นหลังทั้งส่วน${isC ? ' (ผืนผ้าใบ)' : ''}</label>
+          <div class="flex gap-2"><button class="btn btn-light btn-sm flex-1 ${w.bg === '#ffffff' ? '!border-navy-700 !text-navy-800' : ''}" data-wbg="#ffffff">สีขาว</button><button class="btn btn-light btn-sm flex-1 ${w.bg === 'transparent' ? '!border-navy-700 !text-navy-800' : ''}" data-wbg="transparent">โปร่งใส</button>
+          <input type="color" class="h-9 w-11 rounded border border-slate-300 cursor-pointer flex-none" id="wbgColor" title="เลือกสี" value="${w.bg === 'transparent' ? '#ffffff' : w.bg}"></div></div>
+        ${isC || isT ? '' : `<div><label class="lbl">${isCar ? 'พื้นหลังกรอบภาพสไลด์' : 'พื้นหลังการ์ด / กรอบภาพ'} <span class="font-normal text-slate-400">(เห็นเมื่อภาพไม่เต็มกรอบ หรือภาพ PNG โปร่งใส)</span></label>
+          <div class="flex gap-2"><button class="btn btn-light btn-sm flex-1 ${!w.carBg ? '!border-navy-700 !text-navy-800' : ''}" data-cbg="">ค่าเริ่มต้น</button><button class="btn btn-light btn-sm flex-1 ${w.carBg === 'transparent' ? '!border-navy-700 !text-navy-800' : ''}" data-cbg="transparent">โปร่งใส</button>
+          <input type="color" class="h-9 w-11 rounded border border-slate-300 cursor-pointer flex-none" id="cbgColor" title="เลือกสี" value="${/^#[0-9a-f]{6}$/i.test(w.carBg || '') ? w.carBg : '#ffffff'}"></div></div>`}
+        <p class="text-xs text-slate-500">โปร่งใส = เห็นพื้นหลังของหน้าเว็บศาลที่นำไปวาง · การ์ดโปร่งใสจะปิดเงาให้อัตโนมัติ · ในตัวอย่างจะเห็นเป็นลายตาราง</p></div>`)}
       ${sec('หัวข้อ', `${tg('showTitle', 'แสดงหัวข้อด้านบน', true)}${w.showTitle ? `<input class="inp mt-2" data-k="title" value="${esc(w.title)}" placeholder="หัวข้อที่แสดง">
         <div class="mt-2"><label class="lbl">รูปแบบหัวข้อ</label>${wseg('titleStyle', [['bar', '▍ แถบซ้าย'], ['pill', '⬭ แคปซูลกลาง'], ['center', 'กึ่งกลาง+ขีด'], ['plain', 'ข้อความ']])}</div>` : ''}`)}
       ${isT ? sec('แถบแท็บ', `<div class="space-y-3"><div><label class="lbl">รูปแบบแถบ</label>${wseg('tabStyle', [['pill', 'กล่องแคปซูล'], ['button', 'ปุ่มแยก'], ['underline', 'ขีดเส้นใต้']])}</div>
@@ -1233,10 +1253,6 @@ async function viewWidgetEditor(id) {
         ${w.carHMode !== 'auto' ? `<div class="grid grid-cols-2 gap-3">
           <div><label class="lbl">การปรับภาพในกรอบ</label><select class="inp" data-k="fit"><option value="cover" ${w.fit === 'cover' ? 'selected' : ''}>เต็มกรอบ (ครอป)</option><option value="contain" ${w.fit === 'contain' ? 'selected' : ''}>แสดงครบทั้งภาพ</option></select></div>
           <div><label class="lbl">จุดยึดภาพ (เมื่อครอป)</label>${wseg('imgPos', [['top', 'บน'], ['center', 'กลาง'], ['bottom', 'ล่าง']])}</div></div>` : ''}
-        <div><label class="lbl">พื้นหลังสไลด์ (เห็นเมื่อภาพไม่เต็มกรอบ / ภาพโปร่งใส)</label>
-          <div class="flex gap-2"><button class="btn btn-light btn-sm flex-1 ${!w.carBg ? '!border-navy-700 !text-navy-800' : ''}" data-cbg="">ค่าเริ่มต้น (เทาอ่อน)</button><button class="btn btn-light btn-sm flex-1 ${w.carBg === 'transparent' ? '!border-navy-700 !text-navy-800' : ''}" data-cbg="transparent">โปร่งใส</button>
-          <input type="color" class="h-9 w-11 rounded border border-slate-300 cursor-pointer flex-none" id="cbgColor" title="เลือกสี" value="${/^#[0-9a-f]{6}$/i.test(w.carBg || '') ? w.carBg : '#ffffff'}"></div>
-          ${w.carBg === 'transparent' ? '<p class="text-xs text-slate-500 mt-1">โหมดโปร่งใสจะปิดเงาของสไลด์ให้อัตโนมัติ ถ้าต้องการให้ทั้งส่วนโปร่งใส ให้ตั้ง “สีพื้นหลัง → โปร่งใส” ที่หัวข้อระยะห่างและความสวยงามด้านล่างด้วย</p>' : ''}</div>
         <div id="natSizes" class="text-xs text-slate-500"></div></div>`) : ''}
       ${!isC && isCar ? sec('การเปลี่ยนภาพ', `<div class="space-y-3">
         <div><label class="lbl">เอฟเฟกต์</label>${wseg('transEffect', [['slide', 'เลื่อน'], ['fade', 'จางซ้อน'], ['none', 'ตัดทันที']])}</div>
@@ -1265,7 +1281,7 @@ async function viewWidgetEditor(id) {
         ${isC || isT ? '' : tg('shadow', 'เงาการ์ด')}
         <div class="grid grid-cols-2 gap-3">
           <div><label class="lbl">สีหลัก</label><div class="flex gap-2"><input type="color" class="h-10 w-12 rounded border border-slate-300 cursor-pointer" data-k="accent" value="${w.accent}"><input class="inp font-mono text-xs" value="${w.accent}" data-mirror="accent"></div></div>
-          <div><label class="lbl">สีพื้นหลัง</label><div class="flex gap-2"><input type="color" class="h-10 w-12 rounded border border-slate-300 cursor-pointer" data-k="bg" value="${w.bg === 'transparent' ? '#ffffff' : w.bg}"><button class="btn btn-light btn-sm flex-1 ${w.bg === 'transparent' ? '!border-navy-700 !text-navy-800' : ''}" id="bgT">โปร่งใส</button></div></div>
+          <div class="text-xs text-slate-500 self-end pb-2">สีพื้นหลัง / โปร่งใส ตั้งได้ที่หัวข้อ “พื้นหลัง” ด้านบน</div>
         </div></div>`)}`;
     $$('[data-lay]', P).forEach(b => b.onclick = () => {
       w.layout = b.dataset.lay;
@@ -1282,6 +1298,9 @@ async function viewWidgetEditor(id) {
     if (!isCar) $$('[data-k]', P).forEach(el => el.addEventListener('input', () => $$(`[data-k="${el.dataset.k}"]`, P).forEach(o => { if (o !== el && o.type !== 'checkbox') o.value = el.value; })));
     measureBox();
     if (isCar) carHelpers(P);
+    $('#pvWrap').classList.toggle('bg-white', w.bg !== 'transparent');
+    $$('[data-wbg]', P).forEach(b => b.onclick = () => { w.bg = b.dataset.wbg; markDirty(); drawPanel(); });
+    const wbc = $('#wbgColor', P); if (wbc) wbc.onchange = () => { w.bg = wbc.value; markDirty(); drawPanel(); };
     $$('[data-cbg]', P).forEach(b => b.onclick = () => { w.carBg = b.dataset.cbg; markDirty(); drawPanel(); });
     const cbc = $('#cbgColor', P); if (cbc) cbc.onchange = () => { w.carBg = cbc.value; markDirty(); drawPanel(); };
     $$('[data-k="accent"]', P).forEach(c => c.addEventListener('input', () => { const m = $('[data-mirror="accent"]', P); if (m) m.value = c.value; }));
@@ -2114,29 +2133,60 @@ async function viewIntroEditor(id) {
 async function viewMedia() {
   let list = await api('GET', '/media');
   let filter = 'all';
+  const sel = new Set();
   $('#view').innerHTML = `${pageHead('คลังสื่อ', 'ภาพ วีดีโอ และไฟล์เอกสารที่อัปโหลดไว้ (สูงสุด 200MB ต่อไฟล์)', `<label class="btn btn-primary cursor-pointer">${icon('upload')} อัปโหลดไฟล์<input type="file" multiple class="hidden" id="mUp"></label>`)}
   <div id="drop" class="card p-6 mb-4 border-2 border-dashed border-slate-300 text-center text-slate-500 text-sm">ลากไฟล์มาวางที่นี่เพื่ออัปโหลด</div>
-  <div class="flex flex-wrap items-center gap-3 mb-4"><div class="seg !w-auto" id="mf">${[['all', 'ทั้งหมด'], ['image', 'ภาพ'], ['video', 'วีดีโอ'], ['file', 'เอกสาร']].map(([k, t]) => `<button data-mf="${k}" class="!px-4">${t}</button>`).join('')}</div>
+  <div class="flex flex-wrap items-center gap-3 mb-3"><div class="seg !w-auto flex-wrap" id="mf">${[['all', 'ทั้งหมด'], ['image', 'ภาพ'], ['video', 'วีดีโอ'], ['file', 'เอกสาร'], ['unused', 'ไม่ได้ใช้']].map(([k, t]) => `<button data-mf="${k}" class="!px-4 whitespace-nowrap">${t}</button>`).join('')}</div>
   <div class="card flex-1 min-w-[200px] px-3 py-2 flex items-center gap-2">${icon('search', 'w-4 h-4 text-slate-400')}<input id="mq" class="flex-1 outline-none text-sm" placeholder="ค้นหาชื่อไฟล์..."></div></div>
+  <div id="mbar" class="card px-3 py-2 mb-4 flex flex-wrap items-center gap-2 text-sm"></div>
   <div id="mg" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-6 gap-3"></div>`;
-  const draw = () => {
+  const shown = () => {
     const q = ($('#mq').value || '').toLowerCase();
+    return list.filter(x => (filter === 'all' || (filter === 'unused' ? !x.usedIn.length : x.kind === filter)) && x.name.toLowerCase().includes(q));
+  };
+  const usedNote = arr => arr.length ? `\n\nไฟล์ที่กำลังถูกใช้งาน ${arr.length} ไฟล์ จะทำให้ภาพในจุดนั้นหายไป:\n` + arr.slice(0, 6).map(x => `• ${x.name} → ${x.usedIn.slice(0, 2).join(', ')}${x.usedIn.length > 2 ? ' ...' : ''}`).join('\n') + (arr.length > 6 ? '\n...' : '') : '';
+  async function removeMany(items) {
+    if (!items.length) return;
+    const used = items.filter(x => x.usedIn.length);
+    const r = await Swal.fire({ icon: 'warning', title: items.length === 1 ? 'ลบไฟล์นี้?' : `ลบ ${items.length} ไฟล์?`,
+      html: `<div class="text-left text-sm whitespace-pre-line">${esc((items.length === 1 ? `"${items[0].name}"` : items.slice(0, 5).map(x => '• ' + x.name).join('\n') + (items.length > 5 ? `\nและอีก ${items.length - 5} ไฟล์` : '')) + '\n\nไฟล์จะถูกลบถาวร กู้คืนไม่ได้' + usedNote(used))}</div>`,
+      showCancelButton: true, confirmButtonText: used.length ? 'ลบทั้งที่ยังใช้งานอยู่' : 'ลบถาวร', cancelButtonText: 'ยกเลิก', confirmButtonColor: '#e11d48', reverseButtons: true, focusCancel: true });
+    if (!r.isConfirmed) return;
+    try {
+      if (items.length === 1) await api('DELETE', `/media/${items[0].id}`);
+      else await api('POST', '/media/bulk-delete', { ids: items.map(x => x.id) });
+      const ids = new Set(items.map(x => x.id));
+      list = list.filter(m => !ids.has(m.id)); ids.forEach(i => sel.delete(i));
+      ok(`ลบแล้ว ${items.length} ไฟล์`); draw();
+    } catch (e) { fail(e.message); }
+  }
+  const draw = () => {
     $$('[data-mf]').forEach(b => b.classList.toggle('on', b.dataset.mf === filter));
-    const f = list.filter(x => (filter === 'all' || x.kind === filter) && x.name.toLowerCase().includes(q));
-    $('#mg').innerHTML = f.map(x => `<div class="card overflow-hidden group">
-      <div class="aspect-square chk-pattern grid place-items-center relative overflow-hidden">${x.kind === 'image' ? `<img src="${esc(x.url)}" class="w-full h-full object-cover" loading="lazy">` : x.kind === 'video' ? `<video src="${esc(x.url)}#t=0.5" class="w-full h-full object-cover" preload="metadata" muted></video>` : `<div class="text-center">${icon('file', 'w-10 h-10 text-slate-400 mx-auto')}<div class="text-xs font-bold text-slate-500 mt-1">${esc(x.url.split('.').pop().toUpperCase())}</div></div>`}
-        <div class="absolute inset-0 bg-slate-900/60 opacity-0 group-hover:opacity-100 transition flex items-center justify-center gap-1.5">
-          <button class="p-2 rounded-lg bg-white text-slate-700" data-cu="${esc(x.url)}" title="คัดลอกลิงก์">${icon('link')}</button>
-          <a class="p-2 rounded-lg bg-white text-slate-700" href="${esc(x.url)}" target="_blank" title="เปิด">${icon('ext')}</a>
-          <button class="p-2 rounded-lg bg-white text-rose-600" data-md="${x.id}" title="ลบ">${icon('trash')}</button></div></div>
-      <div class="p-2.5"><div class="text-xs font-medium truncate" title="${esc(x.name)}">${esc(x.name)}</div><div class="text-[11px] text-slate-400">${fmtSize(x.size)} · ${new Date(x.createdAt).toLocaleDateString('th-TH')}</div></div></div>`).join('')
-      || '<div class="col-span-full text-center py-12 text-slate-400">ไม่มีไฟล์</div>';
-    $$('[data-cu]').forEach(b => b.onclick = () => copyText(ORIGIN + b.dataset.cu));
-    $$('[data-md]').forEach(b => b.onclick = async () => {
-      const x = list.find(m => m.id === b.dataset.md);
-      if (!(await confirmBox('ลบไฟล์?', `"${x.name}" — หากไฟล์นี้ถูกใช้อยู่ในส่วนแสดงผลหรือหน้าเว็บ จะแสดงผลไม่ได้`, 'ลบ'))) return;
-      await api('DELETE', `/media/${x.id}`); list = list.filter(m => m.id !== x.id); ok('ลบแล้ว'); draw();
-    });
+    const f = shown();
+    [...sel].forEach(id => { if (!list.some(x => x.id === id)) sel.delete(id); });
+    const allOn = f.length && f.every(x => sel.has(x.id));
+    const totalSize = list.reduce((a, x) => a + (x.size || 0), 0);
+    $('#mbar').innerHTML = `<label class="flex items-center gap-2 cursor-pointer select-none"><input type="checkbox" id="mAll" class="w-4 h-4 accent-navy-800" ${allOn ? 'checked' : ''} ${f.length ? '' : 'disabled'}> เลือกทั้งหมดที่แสดง (${f.length})</label>
+      <span class="text-slate-400">·</span><span class="text-slate-500">ทั้งหมด ${list.length} ไฟล์ · ${fmtSize(totalSize)}${list.some(x => !x.usedIn.length) ? ` · ไม่ได้ใช้งาน ${list.filter(x => !x.usedIn.length).length} ไฟล์` : ''}</span>
+      <span class="ml-auto flex items-center gap-2">${sel.size ? `<span class="font-semibold text-navy-800">เลือกแล้ว ${sel.size} ไฟล์</span><button class="btn btn-light btn-sm" id="mClear">ยกเลิกเลือก</button>
+        <button class="btn btn-sm !bg-rose-600 !text-white hover:!bg-rose-700" id="mDel">${icon('trash', 'w-3.5 h-3.5')} ลบที่เลือก</button>` : '<span class="text-xs text-slate-400">ติ๊กช่องที่มุมภาพเพื่อเลือกหลายไฟล์</span>'}</span>`;
+    $('#mg').innerHTML = f.map(x => `<div class="card overflow-hidden group relative ${sel.has(x.id) ? 'ring-2 ring-navy-600' : ''}">
+      <label class="absolute top-2 left-2 z-10 w-7 h-7 rounded-md bg-white/95 shadow grid place-items-center cursor-pointer" title="เลือก"><input type="checkbox" class="w-4 h-4 accent-navy-800" data-ms="${x.id}" ${sel.has(x.id) ? 'checked' : ''}></label>
+      ${x.usedIn.length ? `<span class="absolute top-2 right-2 z-10 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-emerald-600 text-white" title="${esc(x.usedIn.join('\n'))}">ใช้อยู่ ${x.usedIn.length}</span>` : `<span class="absolute top-2 right-2 z-10 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-slate-500/80 text-white">ไม่ได้ใช้</span>`}
+      <div class="aspect-square chk-pattern grid place-items-center relative overflow-hidden cursor-pointer" data-mt="${x.id}">${x.kind === 'image' ? `<img src="${esc(x.url)}" class="w-full h-full object-cover" loading="lazy">` : x.kind === 'video' ? `<video src="${esc(x.url)}#t=0.5" class="w-full h-full object-cover" preload="metadata" muted></video>` : `<div class="text-center">${icon('file', 'w-10 h-10 text-slate-400 mx-auto')}<div class="text-xs font-bold text-slate-500 mt-1">${esc(x.url.split('.').pop().toUpperCase())}</div></div>`}</div>
+      <div class="p-2.5"><div class="text-xs font-medium truncate" title="${esc(x.name)}">${esc(x.name)}</div><div class="text-[11px] text-slate-400">${fmtSize(x.size)} · ${new Date(x.createdAt).toLocaleDateString('th-TH')}</div>
+        <div class="flex items-center gap-1 mt-2">
+          <button class="flex-1 btn btn-light btn-sm !px-1.5" data-cu="${esc(x.url)}" title="คัดลอกลิงก์">${icon('link', 'w-3.5 h-3.5')}</button>
+          <a class="flex-1 btn btn-light btn-sm !px-1.5" href="${esc(x.url)}" target="_blank" title="เปิดดู">${icon('ext', 'w-3.5 h-3.5')}</a>
+          <button class="flex-1 btn btn-light btn-sm !px-1.5 !text-rose-600 hover:!bg-rose-50 hover:!border-rose-300" data-md="${x.id}" title="ลบไฟล์">${icon('trash', 'w-3.5 h-3.5')}</button></div></div></div>`).join('')
+      || `<div class="col-span-full text-center py-12 text-slate-400">${filter === 'unused' ? 'ไม่มีไฟล์ที่ไม่ได้ใช้งาน' : 'ไม่มีไฟล์'}</div>`;
+    $$('[data-cu]').forEach(b => b.onclick = () => copyText(/^https?:/i.test(b.dataset.cu) ? b.dataset.cu : ORIGIN + b.dataset.cu));
+    $$('[data-md]').forEach(b => b.onclick = () => removeMany([list.find(m => m.id === b.dataset.md)]));
+    $$('[data-ms]').forEach(c => c.onchange = () => { c.checked ? sel.add(c.dataset.ms) : sel.delete(c.dataset.ms); draw(); });
+    $$('[data-mt]').forEach(t => t.onclick = () => { const id = t.dataset.mt; sel.has(id) ? sel.delete(id) : sel.add(id); draw(); });
+    const all = $('#mAll'); if (all) all.onchange = () => { f.forEach(x => all.checked ? sel.add(x.id) : sel.delete(x.id)); draw(); };
+    const cl = $('#mClear'); if (cl) cl.onclick = () => { sel.clear(); draw(); };
+    const dl = $('#mDel'); if (dl) dl.onclick = () => removeMany(list.filter(x => sel.has(x.id)));
   };
   const up = async files => { if (!files.length) return; await uploadMany(files); list = await api('GET', '/media'); draw(); };
   $('#mUp').onchange = e => up([...e.target.files]);
