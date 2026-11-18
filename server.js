@@ -434,7 +434,7 @@ function carCfg(w) {
   };
 }
 function normItem(i) {
-  const type = ['image', 'video', 'button', 'html'].includes(i.type) ? i.type : 'image';
+  const type = ['image', 'video', 'button', 'html', 'text', 'divider', 'spacer'].includes(i.type) ? i.type : 'image';
   return {
     id: i.id || uid(), type,
     title: String(i.title || '').slice(0, 300), subtitle: String(i.subtitle || '').slice(0, 500),
@@ -444,6 +444,7 @@ function normItem(i) {
     pos: i.pos && typeof i.pos === 'object' ? { x: clamp(i.pos.x, 0, 4000, 0), y: clamp(i.pos.y, 0, 4000, 0), w: clamp(i.pos.w, 4, 4000, 200), h: clamp(i.pos.h, 4, 4000, 60), z: clamp(i.pos.z, 0, 999, 1), locked: !!i.pos.locked } : null,
     icon: String(i.icon || '').slice(0, 8), btnStyle: ['primary', 'outline', 'light', 'accent'].includes(i.btnStyle) ? i.btnStyle : 'primary',
     html: type === 'html' ? String(i.html || '') : '',
+    ts: ['text', 'divider', 'spacer'].includes(type) ? UB.normText(i.ts) : undefined,
     active: i.active !== false, start: String(i.start || ''), end: String(i.end || ''),
   };
 }
@@ -597,10 +598,15 @@ a.uw-row:hover{border-color:var(--accent);background:#f8fafc}
 .uw-more a:hover{background:var(--accent);color:#fff}
 .uw-bw{height:100%;min-height:52px;display:flex}
 .uc{position:relative;width:100%;container-type:inline-size}
-.uc-el{position:absolute;box-sizing:border-box}.uc-el .uw-html{height:100%;overflow:hidden}.uc-img{display:block;height:100%}
+.uc-el{position:absolute;box-sizing:border-box}
+.uc-el.t-text>.ux{height:100%;display:flex;flex-direction:column;justify-content:var(--tva)}.uc-el.t-text>.ux.fit{display:flex;max-width:none}
+.uc-el.t-divider{display:flex;flex-direction:column;justify-content:center}
+@media(max-width:639px){.uc:not(.stack) .ux{font-size:var(--tfs)}}
+.uw-tx{min-width:0}.uw-grid>.uw-tx.full,.uw-list>.uw-tx.full{grid-column:1/-1}.uc-el .uw-html{height:100%;overflow:hidden}.uc-img{display:block;height:100%}
 @media(max-width:600px){.uc.stack{aspect-ratio:auto!important;display:flex;flex-direction:column;gap:10px}
 .uc.stack .uc-el{position:relative;left:auto!important;top:auto!important;width:100%!important;height:auto!important}
-.uc.stack .uc-el.t-button{aspect-ratio:auto!important}
+.uc.stack .uc-el.t-button,.uc.stack .uc-el.t-text,.uc.stack .uc-el.t-divider,.uc.stack .uc-el.t-spacer{aspect-ratio:auto!important}
+.uc.stack .uc-el.t-text .ux{height:auto!important}
 .uc.stack .ub{min-height:54px;font-size:16px!important;padding:12px 16px!important;border-radius:min(var(--r),14px)}
 .uc.stack .ub .ui{font-size:20px!important}.uc.stack .ub.pos-top .ui{font-size:28px!important}}
 .uw{border-radius:var(--prad,0)}
@@ -653,7 +659,17 @@ function cardHtml(it, w) {
     return `<div class="uw-card"><div class="uw-media${ratioCls === ' auto' ? '' : ''}" style="${w.ratio === 'auto' ? 'aspect-ratio:16/9' : ''}">${videoHtml(it.src, it.poster)}</div>${w.captionPos === 'overlay' ? cap.replace(' overlay', '') : cap}</div>`;
   }
   if (it.type === 'button') return `<div class="uw-bw">${btnHtml(it, w)}</div>`;
+  if (TEXTY.includes(it.type)) return textItemHtml(it);
   return `<div class="uw-html">${it.html}</div>`;
+}
+const TEXTY = ['text', 'divider', 'spacer'];
+function textItemHtml(it, cw) {
+  const ts = it.ts || {};
+  if (it.type === 'divider') return `<div class="uw-tx full">${UB.dividerHtml(ts, { cw })}</div>`;
+  if (it.type === 'spacer') return `<div class="uw-tx full">${UB.spacerHtml(ts, { cw })}</div>`;
+  const link = it.link ? { href: it.link, target: it.newTab ? '_blank' : '_top' } : null;
+  const inner = UB.textHtml(ts, { cw, link });
+  return cw ? inner : `<div class="uw-tx${ts.full !== false ? ' full' : ''}">${inner}</div>`;
 }
 function btnHtml(it, w, cw) {
   return UB.buttonHtml({ ...it, title: it.title || 'ปุ่ม', style: it.style || UB.fromLegacy(it.btnStyle, w.accent) }, { cw });
@@ -661,6 +677,7 @@ function btnHtml(it, w, cw) {
 function rowHtml(it, w) {
   if (it.type === 'video') return `<div class="uw-row video"><div class="uw-media" style="aspect-ratio:16/9">${videoHtml(it.src, it.poster)}</div>${it.title ? `<div class="uw-cap"><b>${esc(it.title)}</b>${it.subtitle ? `<small>${esc(it.subtitle)}</small>` : ''}</div>` : ''}</div>`;
   if (it.type === 'html') return `<div class="uw-html">${it.html}</div>`;
+  if (TEXTY.includes(it.type)) return textItemHtml(it);
   const lead = it.type === 'image' && it.src
     ? `<span class="th${w.ratio === 'auto' ? ' auto' : ''}"><img src="${esc(it.src)}" alt="" loading="lazy"></span>`
     : (it.iconFa ? `<span class="ic" style="color:${(it.style && it.style.iconColor) || w.accent}"><i class="${esc(it.iconFa)}"></i></span>` : it.icon ? `<span class="ic">${esc(it.icon)}</span>` : '');
@@ -680,6 +697,7 @@ function canvasHtml(items, w) {
         const img = `<img src="${esc(it.src)}" alt="${esc(it.title)}" loading="lazy" style="width:100%;height:100%;object-fit:${w.fit};border-radius:${r};display:block">`;
         inner = it.link ? `<a ${linkAttrs(it)} class="uc-img">${img}</a>` : img;
       } else if (it.type === 'video') inner = `<div class="uw-media" style="height:100%;border-radius:${w.radius}px">${videoHtml(it.src, it.poster)}</div>`;
+      else if (TEXTY.includes(it.type)) inner = it.type === 'text' ? textItemHtml(it, W) : it.type === 'divider' ? UB.dividerHtml(it.ts, { cw: W }) : '';
       else inner = `<div class="uw-html">${it.html}</div>`;
       return `<div class="uc-el t-${it.type}" style="left:${pct(p.x, W)}%;top:${pct(p.y, H)}%;width:${pct(p.w, W)}%;height:${pct(p.h, H)}%;z-index:${p.z || 1};aspect-ratio:${p.w}/${p.h}">${inner}</div>`;
     }).join('');
@@ -875,8 +893,8 @@ ${links ? links + '\n' : ''}<style>${css}</style>
   if (code.length > 1.5 * 1048576) warnings.push(`โค้ดมีขนาด ${(code.length / 1048576).toFixed(1)} MB — ระบบจัดการเนื้อหาบางระบบจำกัดขนาด ถ้าวางไม่ได้ให้ย่อภาพหรือแยกส่งออกทีละส่วน`);
   return { code, bytes: Buffer.byteLength(code), warnings, id };
 }
-function widgetFonts(w) { return [w, ...tabChildren(w)].flatMap(x => (x.items || []).map(i => i.style && i.style.font)).filter(Boolean); }
-function needsFa(w) { return [w, ...tabChildren(w)].some(x => (x.items || []).some(i => i.iconFa) || (x.tabs || []).some(t => t.iconFa)); }
+function widgetFonts(w) { return [w, ...tabChildren(w)].flatMap(x => (x.items || []).flatMap(i => [i.style && i.style.font, i.ts && i.ts.font])).filter(Boolean); }
+function needsFa(w) { return [w, ...tabChildren(w)].some(x => (x.items || []).some(i => i.iconFa || (i.ts && i.ts.iconFa)) || (x.tabs || []).some(t => t.iconFa)); }
 function renderWidgetDoc(w, opts = {}) {
   return `<!DOCTYPE html><html lang="th"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>${esc(w.name)}</title><base target="_top">

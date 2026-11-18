@@ -151,7 +151,100 @@
     return `<div class="${cls}" style="${style}"${title}>${ic}${text}</div>`;
   }
 
-  const CSS = `
+
+  /* ---------------- ข้อความ / เส้นคั่น / ช่องว่าง ---------------- */
+  const TDEF = {
+    content: 'พิมพ์ข้อความที่นี่', tag: 'p', font: '', size: 18, sizeM: 0, weight: 400, color: '#1e293b', align: 'left', vAlign: 'top',
+    lineH: 1.6, letter: 0, italic: false, underline: false, upper: false, bg: '', pad: 0, radius: 0, border: 0, borderColor: '#cbd5e1',
+    borderSide: 'all', shadow: 'none', tShadow: false, maxW: 0, iconFa: '', iconColor: '', full: true,
+    // เส้นคั่น
+    lineStyle: 'solid', thick: 2, widthPct: 100, mTop: 12, mBot: 12,
+    // ช่องว่าง
+    h: 32, hM: 0,
+  };
+  const TOPT = { tag: ['p', 'h2', 'h3', 'h4', 'div'], align: ['left', 'center', 'right', 'justify'], vAlign: ['top', 'middle', 'bottom'],
+    borderSide: ['all', 'left', 'bottom', 'top'], shadow: ['none', 'soft', 'strong'], lineStyle: ['solid', 'dashed', 'dotted', 'double'] };
+  const TPRESETS = [
+    { id: 'h1', name: 'หัวข้อใหญ่', s: { tag: 'h2', size: 32, sizeM: 24, weight: 700, color: '#1e3a5f', lineH: 1.3 } },
+    { id: 'h2', name: 'หัวข้อรอง', s: { tag: 'h3', size: 22, sizeM: 19, weight: 600, color: '#1e3a5f', lineH: 1.4 } },
+    { id: 'body', name: 'เนื้อหา', s: { tag: 'p', size: 17, sizeM: 15, weight: 400, color: '#334155', lineH: 1.75 } },
+    { id: 'bar', name: 'หัวข้อแถบซ้าย', s: { tag: 'h3', size: 22, weight: 700, color: '#1e3a5f', border: 5, borderSide: 'left', borderColor: '#b8862b', pad: 10, lineH: 1.3 } },
+    { id: 'badge', name: 'ป้ายเน้น', s: { tag: 'div', size: 15, weight: 600, color: '#ffffff', bg: '#b8862b', pad: 10, radius: 999, align: 'center', full: false } },
+    { id: 'notice', name: 'กล่องประกาศ', s: { tag: 'div', size: 16, weight: 400, color: '#7c2d12', bg: '#fff7ed', pad: 16, radius: 12, border: 1, borderColor: '#fdba74', lineH: 1.7, iconFa: 'fa-solid fa-bullhorn', iconColor: '#ea580c' } },
+    { id: 'quote', name: 'คำโปรย', s: { tag: 'p', size: 19, weight: 400, italic: true, color: '#475569', align: 'center', lineH: 1.7 } },
+    { id: 'hero', name: 'ข้อความบนภาพ', s: { tag: 'h2', size: 40, sizeM: 26, weight: 700, color: '#ffffff', align: 'center', tShadow: true, lineH: 1.25 } },
+  ];
+  function normText(t) {
+    t = t && typeof t === 'object' ? t : {};
+    const o = {};
+    for (const k in TDEF) {
+      const d = TDEF[k], v = t[k];
+      if (TOPT[k]) o[k] = pick(v, TOPT[k], d);
+      else if (typeof d === 'boolean') o[k] = v === undefined ? d : !!v;
+      else if (typeof d === 'number') o[k] = num(v, k === 'letter' ? -5 : 0, { size: 160, sizeM: 160, weight: 900, lineH: 4, letter: 20, pad: 120, radius: 999, border: 20, maxW: 3000, thick: 30, widthPct: 100, mTop: 200, mBot: 200, h: 1000, hM: 1000 }[k] || 999, d);
+      else if (k === 'content') o[k] = String(v ?? d).slice(0, 20000);
+      else if (k === 'font') o[k] = FONT_NAMES.includes(v) ? v : '';
+      else if (k === 'iconFa') o[k] = /^[a-z0-9\- ]{3,80}$/i.test(String(v || '')) ? String(v).trim() : '';
+      else if (k === 'bg' || k === 'iconColor') o[k] = isColor(v) ? v : '';
+      else o[k] = isColor(v) ? v : d;
+    }
+    if (o.weight < 100) o.weight = 400;
+    return o;
+  }
+  /** ข้อความแบบง่าย: **ตัวหนา** *เอียง* __ขีดเส้นใต้__ [ข้อความ](ลิงก์) และลิงก์ https:// คลิกได้ ขึ้นบรรทัดใหม่ได้ */
+  function richText(src) {
+    let h = esc(src);
+    const links = [];
+    h = h.replace(/\[([^\]\n]+)\]\(((?:https?:\/\/|\/|#|mailto:|tel:)[^\s)]+)\)/g, (m, t, u) => { links.push(`<a href="${u}" target="_blank" rel="noopener">${t}</a>`); return `\u0000${links.length - 1}\u0000`; });
+    h = h.replace(/(^|[\s(])(https?:\/\/[^\s<]+[^\s<.,;:!?)])/g, (m, pre, u) => { links.push(`<a href="${u}" target="_blank" rel="noopener">${u}</a>`); return `${pre}\u0000${links.length - 1}\u0000`; });
+    h = h.replace(/\*\*([^*\n]+)\*\*/g, '<b>$1</b>').replace(/__([^_\n]+)__/g, '<u>$1</u>').replace(/(^|[^*])\*([^*\n]+)\*/g, '$1<i>$2</i>');
+    h = h.replace(/\u0000(\d+)\u0000/g, (m, i) => links[+i]);
+    return h.replace(/\r?\n/g, '<br>');
+  }
+  const TSH = { none: 'none', soft: '0 2px 10px rgba(15,23,42,.08),0 1px 3px rgba(15,23,42,.06)', strong: '0 10px 30px rgba(15,23,42,.18),0 3px 8px rgba(15,23,42,.1)' };
+  /** opts.cw = ความกว้างผืนผ้าใบ (ปรับขนาดตามจอ) · opts.link = {href, target} */
+  function textHtml(t, opts = {}) {
+    t = normText(t);
+    const cw = opts.cw, px = v => cw ? `calc(${v} * 100cqw / ${cw})` : `${v}px`;
+    const fs = px(t.size), fsm = `${t.sizeM || Math.max(12, Math.round(t.size * (t.size > 24 ? .78 : .92)))}px`;
+    const bw = t.border ? `${px(t.border)} solid ${t.borderColor}` : '';
+    const border = !t.border ? '' : t.borderSide === 'all' ? `border:${bw};` : `border-${t.borderSide}:${bw};`;
+    const style = [`--tfs:${fs}`, `--tfsm:${fsm}`, t.font ? `font-family:'${t.font}',var(--uwf,inherit)` : '', `font-weight:${t.weight}`, `color:${t.color}`,
+      `text-align:${t.align}`, `line-height:${t.lineH}`, t.letter ? `letter-spacing:${px(t.letter)}` : '', t.italic ? 'font-style:italic' : '',
+      t.underline ? 'text-decoration:underline' : '', t.upper ? 'text-transform:uppercase' : '', t.bg ? `background:${t.bg}` : '',
+      t.pad ? `padding:${px(t.pad)} ${px(Math.round(t.pad * (t.radius >= 99 ? 1.8 : 1.25)))}` : '', t.radius ? `border-radius:${t.radius >= 999 ? '999px' : px(t.radius)}` : '', border,
+      t.shadow !== 'none' ? `box-shadow:${TSH[t.shadow]}` : '', t.tShadow ? 'text-shadow:0 2px 12px rgba(0,0,0,.45),0 1px 2px rgba(0,0,0,.35)' : '',
+      t.maxW ? `max-width:${px(t.maxW)}` : '', `--tva:${t.vAlign === 'middle' ? 'center' : t.vAlign === 'bottom' ? 'flex-end' : 'flex-start'}`].filter(Boolean).join(';');
+    const icon = t.iconFa ? `<i class="${esc(t.iconFa)} ux-ic"${t.iconColor ? ` style="color:${t.iconColor}"` : ''}></i>` : '';
+    const body = `<${t.tag} class="ux-t">${icon}<span>${richText(t.content)}</span></${t.tag}>`;
+    const cls = `ux${t.full ? '' : ' fit'} al-${t.align}${t.maxW ? ' mw' : ''}`;
+    if (opts.link && opts.link.href) return `<a class="${cls} ux-a" style="${style}" href="${esc(opts.link.href)}"${opts.link.target ? ` target="${opts.link.target}"${opts.link.target === '_blank' ? ' rel="noopener"' : ''}` : ''}>${body}</a>`;
+    return `<div class="${cls}" style="${style}">${body}</div>`;
+  }
+  function dividerHtml(t, opts = {}) {
+    t = normText(t);
+    const cw = opts.cw, px = v => cw ? `calc(${v} * 100cqw / ${cw})` : `${v}px`;
+    const m = t.align === 'center' ? 'auto' : t.align === 'right' ? 'auto 0 auto auto' : '0';
+    return `<div class="ux-hr" style="padding:${px(t.mTop)} 0 ${px(t.mBot)}"><hr style="border:0;border-top:${t.lineStyle === 'double' ? Math.max(3, t.thick) : t.thick}px ${t.lineStyle} ${t.color};width:${t.widthPct}%;margin:${m === 'auto' ? '0 auto' : m === '0' ? '0' : '0 0 0 auto'}"></div>`;
+  }
+  function spacerHtml(t, opts = {}) {
+    t = normText(t);
+    return `<div class="ux-sp" style="--sph:${opts.cw ? `calc(${t.h} * 100cqw / ${opts.cw})` : t.h + 'px'};--sphm:${(t.hM || t.h)}px" aria-hidden="true"></div>`;
+  }
+  const TEXT_CSS = `
+.ux{box-sizing:border-box;display:block;font-size:var(--tfs);overflow-wrap:anywhere;text-decoration:none}
+.ux.fit{display:table;max-width:100%}.ux.fit.al-center{margin-left:auto;margin-right:auto}.ux.fit.al-right{margin-left:auto}
+.ux.mw.al-center{margin-left:auto;margin-right:auto}.ux.mw.al-right{margin-left:auto}
+.ux .ux-t{margin:0;padding:0;font:inherit;color:inherit;letter-spacing:inherit;line-height:inherit;text-align:inherit;border:0;background:none}
+.ux .ux-t a{color:inherit;text-decoration:underline}.ux b{font-weight:700}
+.ux .ux-ic{margin-right:.45em}
+a.ux-a{color:inherit;cursor:pointer;transition:filter .2s,transform .2s}a.ux-a:hover{filter:brightness(.92)}
+.ux-hr hr{display:block;height:0;background:none}
+.ux-sp{height:var(--sph)}
+@media(max-width:639px){.ux{font-size:var(--tfsm)}.ux-sp{height:var(--sphm)}}
+`;
+
+  const CSS = TEXT_CSS + `
 .ub{position:relative;box-sizing:border-box;display:flex;align-items:center;justify-content:center;gap:var(--gi);width:100%;height:100%;min-height:0;padding:var(--pad);
   background:var(--bgi);color:var(--fg);border:var(--bw) solid var(--bc);border-radius:var(--r);box-shadow:var(--sh);font-family:var(--ff,inherit);font-size:var(--fs);font-weight:var(--fw);
   line-height:1.3;text-decoration:none;text-align:center;overflow:hidden;cursor:pointer;-webkit-tap-highlight-color:transparent;
@@ -189,5 +282,6 @@ a.ub:focus-visible{outline:3px solid var(--glow);outline-offset:2px}
 @media (prefers-reduced-motion:reduce){.ub,.ub *{animation:none!important;transition:none!important}}
 `;
   const FA_CSS = 'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css';
-  return { DEF, OPT, LABEL, PRESETS, FONTS, fontUrl, norm, fromLegacy, shade, vars, buttonHtml, CSS, FA_CSS, esc };
+  return { DEF, OPT, LABEL, PRESETS, FONTS, fontUrl, norm, fromLegacy, shade, vars, buttonHtml, CSS, FA_CSS, esc,
+    TDEF, TOPT, TPRESETS, normText, richText, textHtml, dividerHtml, spacerHtml };
 });

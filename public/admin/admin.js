@@ -749,6 +749,9 @@ function mountCanvas(host, w, hooks) {
     if (it.type === 'button') inner = UB.buttonHtml({ ...it, title: it.title || 'ปุ่ม', style: it.style || UB.fromLegacy(it.btnStyle, w.accent) }, { tag: 'div', cw: W() });
     else if (it.type === 'image') inner = it.src ? `<img src="${esc(it.src)}" style="width:100%;height:100%;object-fit:${w.fit};border-radius:${w.radius}px;display:block" draggable="false">` : `<div class="w-full h-full grid place-items-center bg-slate-100 text-slate-400">${icon('image', 'w-8 h-8')}</div>`;
     else if (it.type === 'video') inner = `<div class="w-full h-full grid place-items-center bg-slate-900 text-white" style="border-radius:${w.radius}px">${icon('video', 'w-10 h-10')}</div>`;
+    else if (it.type === 'text') { ensureFont(it.ts && it.ts.font); inner = UB.textHtml(it.ts, { cw: W() }); }
+    else if (it.type === 'divider') inner = `<div class="h-full flex flex-col justify-center">${UB.dividerHtml(it.ts, { cw: W() })}</div>`;
+    else if (it.type === 'spacer') inner = `<div class="w-full h-full border border-dashed border-slate-400/70"></div>`;
     else inner = `<div class="w-full h-full overflow-hidden">${it.html}</div>`;
     return `<div class="cv-el${p.locked ? ' locked' : ''}${it.active ? '' : ' off'}" data-id="${it.id}" style="left:${p.x}px;top:${p.y}px;width:${p.w}px;height:${p.h}px;z-index:${p.z || 1}">
       <div class="cv-in">${inner}</div>${p.locked ? `<span class="cv-lock">🔒</span>` : ''}</div>`;
@@ -815,7 +818,7 @@ function mountCanvas(host, w, hooks) {
       const url = await pickMedia('image'); if (!url) return;
       it = { ...base, type: 'image', src: url, title: decodeURIComponent(url.split('/').pop()).replace(/\.[^.]+$/, ''), pos: { x: g, y: g, w: snap(320), h: snap(200), z: n + 1, locked: false } };
     } else if (type === 'text') {
-      it = { ...base, type: 'button', title: 'หัวข้อ / ข้อความ', link: '', style: UB.norm(UB.PRESETS.find(p => p.id === 'text').style), pos: { x: g, y: g, w: snap(400), h: snap(60), z: n + 1, locked: false } };
+      it = { ...base, type: 'text', link: '', ts: UB.normText({ ...UB.TPRESETS.find(p => p.id === 'h2').s, content: 'หัวข้อ / ข้อความ' }), pos: { x: g, y: g, w: snap(400), h: snap(80), z: n + 1, locked: false } };
     } else {
       it = { ...base, type: 'button', title: 'ปุ่มใหม่', iconFa: 'fa-solid fa-circle-arrow-right', style: UB.norm(UB.PRESETS[0].style), pos: { x: g, y: g, w: snap(240), h: snap(60), z: n + 1, locked: false } };
     }
@@ -895,6 +898,7 @@ function mountCanvas(host, w, hooks) {
   return { redraw, select: id => { sel = id; redraw(); } };
 }
 const CANVAS_CSS = `
+.cv-in>.ux{height:100%;display:flex;flex-direction:column;justify-content:var(--tva)}.cv-in>.ux.fit{display:flex;max-width:none}.cv-in>.ux-hr{height:100%}
 .cv-el{position:absolute;box-sizing:border-box;cursor:move;user-select:none;touch-action:none}
 .cv-el.locked{cursor:default}.cv-el.off{opacity:.35}
 .cv-el .cv-in{width:100%;height:100%;pointer-events:none}
@@ -921,8 +925,89 @@ const TYPE_META = {
   image: { name: 'ภาพ', ic: 'image', cls: 'bg-sky-50 text-sky-700' },
   video: { name: 'วีดีโอ', ic: 'video', cls: 'bg-rose-50 text-rose-700' },
   button: { name: 'ปุ่มลิงก์', ic: 'link', cls: 'bg-emerald-50 text-emerald-700' },
+  text: { name: 'ข้อความ', ic: 'text', cls: 'bg-amber-50 text-amber-700' },
+  divider: { name: 'เส้นคั่น', ic: 'minus', cls: 'bg-slate-100 text-slate-600' },
+  spacer: { name: 'ช่องว่าง', ic: 'menu', cls: 'bg-slate-100 text-slate-500' },
   html: { name: 'HTML', ic: 'html', cls: 'bg-violet-50 text-violet-700' },
 };
+const TEXTY = ['text', 'divider', 'spacer'];
+const textTitle = it => it.type === 'text' ? String((it.ts && it.ts.content) || '').replace(/[*_\[\]]|\(https?:[^)]*\)/g, '').split('\n')[0].trim().slice(0, 60) : TYPE_META[it.type].name;
+
+/* ---------------- ตัวออกแบบข้อความ / เส้นคั่น / ช่องว่าง ---------------- */
+function textPreviewHtml(it) {
+  const ts = it.ts;
+  if (it.type === 'divider') return UB.dividerHtml(ts);
+  if (it.type === 'spacer') return `<div class="relative border border-dashed border-slate-400 bg-slate-100/70 grid place-items-center text-xs text-slate-500" style="height:${ts.h}px">ช่องว่าง ${ts.h}px${ts.hM ? ` (มือถือ ${ts.hM}px)` : ''}</div>`;
+  ensureFont(ts.font);
+  return UB.textHtml(ts);
+}
+/** วาดตัวควบคุมลงใน box · onChange เรียกเมื่อค่าเปลี่ยน (อัปเดตตัวอย่าง) */
+function mountTextDesigner(box, it, onChange) {
+  const W8 = [[300, 'บาง'], [400, 'ปกติ'], [500, 'กลาง'], [600, 'กึ่งหนา'], [700, 'หนา'], [800, 'หนามาก'], [900, 'ดำ']];
+  const draw = () => {
+    const t = it.ts = UB.normText(it.ts);
+    const seg = (k, list) => `<div class="seg flex-wrap">${list.map(([v, l]) => `<button type="button" data-tseg="${k}" data-v="${v}" class="${String(t[k]) === String(v) ? 'on' : ''}">${l}</button>`).join('')}</div>`;
+    const nm = (k, l, min, max, step = 1, unit = 'px') => `<div><label class="lbl">${l}</label><div class="flex items-center gap-1.5"><input type="number" class="inp !py-1.5" data-ts="${k}" min="${min}" max="${max}" step="${step}" value="${t[k]}"><span class="text-xs text-slate-500 w-6">${unit}</span></div></div>`;
+    const rg = (k, l, min, max, step = 1, unit = 'px') => `<div><div class="flex justify-between"><label class="lbl">${l}</label><span class="text-xs text-slate-500"><span data-tout="${k}">${t[k]}</span>${unit}</span></div><input type="range" class="w-full accent-navy-800" data-ts="${k}" min="${min}" max="${max}" step="${step}" value="${t[k]}"></div>`;
+    const col = (k, l, empty) => `<div><label class="lbl">${l}</label><div class="flex gap-1.5 items-center"><input type="color" class="h-9 w-11 rounded border border-slate-300 cursor-pointer flex-none" data-tsc="${k}" value="${/^#[0-9a-f]{6}$/i.test(t[k] || '') ? t[k] : '#ffffff'}">${empty ? `<button type="button" class="btn btn-light btn-sm flex-1 ${!t[k] ? '!border-navy-700 !text-navy-800' : ''}" data-tclr="${k}">${empty}</button>` : `<input class="inp !py-1.5 font-mono text-xs" data-tsx="${k}" value="${esc(t[k])}">`}</div></div>`;
+    const tgl = (k, l) => `<label class="flex items-center justify-between gap-2 py-1 cursor-pointer text-sm text-slate-700">${l}<input type="checkbox" class="tgl" data-ts="${k}" ${t[k] ? 'checked' : ''}></label>`;
+    const sec = (title, body) => `<div class="p-3 rounded-xl border border-slate-200 space-y-3"><div class="text-xs font-bold uppercase tracking-wider text-slate-400">${title}</div>${body}</div>`;
+    let html;
+    if (it.type === 'divider') html = sec('เส้นคั่น', `<div><label class="lbl">ลายเส้น</label>${seg('lineStyle', [['solid', 'เส้นทึบ'], ['dashed', 'เส้นประ'], ['dotted', 'จุด'], ['double', 'เส้นคู่']])}</div>
+        <div class="grid grid-cols-2 gap-3">${rg('thick', 'ความหนา', 1, 12)}${col('color', 'สีเส้น')}</div>
+        ${rg('widthPct', 'ความยาวเส้น', 5, 100, 1, '%')}<div><label class="lbl">ตำแหน่ง</label>${seg('align', [['left', 'ชิดซ้าย'], ['center', 'กึ่งกลาง'], ['right', 'ชิดขวา']])}</div>
+        <div class="grid grid-cols-2 gap-3">${nm('mTop', 'ระยะห่างด้านบน', 0, 200)}${nm('mBot', 'ระยะห่างด้านล่าง', 0, 200)}</div>`);
+    else if (it.type === 'spacer') html = sec('ช่องว่าง', `<div class="grid grid-cols-2 gap-3">${nm('h', 'ความสูง (จอใหญ่)', 0, 1000)}${nm('hM', 'บนมือถือ (0 = เท่ากัน)', 0, 1000)}</div>${rg('h', 'ปรับละเอียด', 0, 300)}<p class="text-xs text-slate-500">ใช้เว้นระยะระหว่างรายการ เช่น ระหว่างหัวข้อกับกลุ่มปุ่ม</p>`);
+    else html = `
+      <div><label class="lbl">รูปแบบสำเร็จรูป</label><div class="flex flex-wrap gap-1.5">${UB.TPRESETS.map(p => `<button type="button" class="px-2.5 py-1 rounded-md text-xs border border-slate-300 hover:bg-slate-50" data-tpre="${p.id}">${esc(p.name)}</button>`).join('')}</div></div>
+      <div><div class="flex items-center justify-between mb-1"><label class="lbl !mb-0">ข้อความ</label>
+        <div class="flex gap-1"><button type="button" class="btn btn-light btn-sm !px-2 font-bold" data-wrap="**" title="ตัวหนา">B</button><button type="button" class="btn btn-light btn-sm !px-2 italic" data-wrap="*" title="ตัวเอียง">I</button><button type="button" class="btn btn-light btn-sm !px-2 underline" data-wrap="__" title="ขีดเส้นใต้">U</button><button type="button" class="btn btn-light btn-sm !px-2" data-tlink title="ใส่ลิงก์ในข้อความ">${icon('link', 'w-3.5 h-3.5')}</button></div></div>
+        <textarea class="inp" rows="4" data-ts="content">${esc(t.content)}</textarea>
+        <p class="text-xs text-slate-500 mt-1">กด Enter เพื่อขึ้นบรรทัดใหม่ · เลือกคำแล้วกด B / I / U เพื่อทำตัวหนา เอียง ขีดเส้นใต้ · ลิงก์ https:// คลิกได้อัตโนมัติ</p></div>
+      ${sec('ตัวอักษร', `<div class="grid grid-cols-2 gap-3"><div><label class="lbl">ฟอนต์</label><select class="inp !py-1.5" data-ts="font">${UB.FONTS.map(([v, l]) => `<option value="${v}" ${t.font === v ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
+          <div><label class="lbl">ความหนา</label><select class="inp !py-1.5" data-ts="weight">${W8.map(([v, l]) => `<option value="${v}" ${t.weight == v ? 'selected' : ''}>${l} (${v})</option>`).join('')}</select></div></div>
+        <div class="grid grid-cols-3 gap-3">${nm('size', 'ขนาด', 8, 160)}${nm('sizeM', 'บนมือถือ (0=อัตโนมัติ)', 0, 160)}${col('color', 'สีตัวอักษร')}</div>
+        ${rg('size', 'ปรับขนาดละเอียด', 10, 96)}
+        <div class="grid grid-cols-2 gap-3">${rg('lineH', 'ระยะห่างบรรทัด', 1, 3, 0.05, '')}${rg('letter', 'ระยะห่างตัวอักษร', -2, 10, 0.5)}</div>
+        <div class="grid grid-cols-2 gap-x-4">${tgl('italic', 'ตัวเอียงทั้งหมด')}${tgl('underline', 'ขีดเส้นใต้ทั้งหมด')}${tgl('upper', 'ตัวพิมพ์ใหญ่ (A–Z)')}${tgl('tShadow', 'เงาตัวอักษร (บนภาพ)')}</div>`)}
+      ${sec('การจัดวาง', `<div><label class="lbl">จัดแนวนอน</label>${seg('align', [['left', 'ชิดซ้าย'], ['center', 'กึ่งกลาง'], ['right', 'ชิดขวา'], ['justify', 'เต็มบรรทัด']])}</div>
+        <div><label class="lbl">จัดแนวตั้ง (ใช้ในผืนผ้าใบอิสระ)</label>${seg('vAlign', [['top', 'บน'], ['middle', 'กลาง'], ['bottom', 'ล่าง']])}</div>
+        <div><label class="lbl">ความกว้างกล่อง</label>${seg('full', [['true', 'เต็มแถว'], ['false', 'พอดีข้อความ']])}</div>
+        <div class="grid grid-cols-2 gap-3">${nm('maxW', 'กว้างสูงสุด (0 = ไม่จำกัด)', 0, 3000)}<div><label class="lbl">ประเภทข้อความ (SEO)</label><select class="inp !py-1.5" data-ts="tag">${[['p', 'ย่อหน้า'], ['h2', 'หัวข้อ H2'], ['h3', 'หัวข้อ H3'], ['h4', 'หัวข้อ H4'], ['div', 'ทั่วไป']].map(([v, l]) => `<option value="${v}" ${t.tag === v ? 'selected' : ''}>${l}</option>`).join('')}</select></div></div>`)}
+      ${sec('กล่องและพื้นหลัง', `<div class="grid grid-cols-2 gap-3">${col('bg', 'พื้นหลัง', 'โปร่งใส')}<div><label class="lbl">เงากล่อง</label>${seg('shadow', [['none', 'ไม่มี'], ['soft', 'อ่อน'], ['strong', 'เข้ม']])}</div></div>
+        <div class="grid grid-cols-2 gap-3">${rg('pad', 'ระยะขอบใน', 0, 60)}${rg('radius', 'มุมมน', 0, 40)}</div>
+        <div class="grid grid-cols-3 gap-3">${nm('border', 'เส้นขอบ', 0, 20)}${col('borderColor', 'สีเส้นขอบ')}<div><label class="lbl">ด้าน</label><select class="inp !py-1.5" data-ts="borderSide">${[['all', 'รอบกล่อง'], ['left', 'ซ้าย'], ['bottom', 'ล่าง'], ['top', 'บน']].map(([v, l]) => `<option value="${v}" ${t.borderSide === v ? 'selected' : ''}>${l}</option>`).join('')}</select></div></div>`)}
+      ${sec('ไอคอนหน้าข้อความ', `<div class="flex items-center gap-2">${t.iconFa ? `<span class="w-9 h-9 grid place-items-center rounded-lg border border-slate-200 text-lg" style="color:${t.iconColor || t.color}"><i class="${esc(t.iconFa)}"></i></span>` : '<span class="text-xs text-slate-400">ไม่มี</span>'}
+        <button type="button" class="btn btn-light btn-sm" data-ticon>${t.iconFa ? 'เปลี่ยนไอคอน' : 'เลือกไอคอน'}</button>${t.iconFa ? `<button type="button" class="btn btn-light btn-sm" data-tnoicon>${icon('x', 'w-3.5 h-3.5')}</button>` : ''}
+        ${t.iconFa ? `<input type="color" class="h-9 w-11 rounded border border-slate-300 cursor-pointer ml-auto" data-tsc="iconColor" value="${/^#[0-9a-f]{6}$/i.test(t.iconColor || '') ? t.iconColor : t.color}" title="สีไอคอน">` : ''}</div>`)}`;
+    box.innerHTML = `<div class="space-y-3">${html}</div>`;
+    const set = (k, v) => { it.ts[k] = v; const o = $(`[data-tout="${k}"]`, box); if (o) o.textContent = v; $$(`[data-ts="${k}"]`, box).forEach(x => { if (x !== document.activeElement && x.type !== 'checkbox') x.value = v; }); onChange(); };
+    $$('[data-ts]', box).forEach(el => el.addEventListener('input', () => {
+      const k = el.dataset.ts, d = UB.TDEF[k];
+      set(k, el.type === 'checkbox' ? el.checked : typeof d === 'number' ? Number(el.value) : el.value);
+    }));
+    $$('[data-tsc]', box).forEach(el => el.addEventListener('input', () => { set(el.dataset.tsc, el.value); const m = $(`[data-tsx="${el.dataset.tsc}"]`, box); if (m) m.value = el.value; }));
+    $$('[data-tsx]', box).forEach(el => el.addEventListener('input', () => { if (/^#[0-9a-f]{3,8}$/i.test(el.value)) set(el.dataset.tsx, el.value); }));
+    $$('[data-tclr]', box).forEach(b => b.onclick = () => { it.ts[b.dataset.tclr] = ''; onChange(); draw(); });
+    $$('[data-tsc="bg"]', box).forEach(el => el.addEventListener('change', draw));
+    $$('[data-tseg]', box).forEach(b => b.onclick = () => { const k = b.dataset.tseg, d = UB.TDEF[k]; it.ts[k] = typeof d === 'boolean' ? b.dataset.v === 'true' : typeof d === 'number' ? Number(b.dataset.v) : b.dataset.v; onChange(); draw(); });
+    $$('[data-tpre]', box).forEach(b => b.onclick = () => { const p = UB.TPRESETS.find(x => x.id === b.dataset.tpre); it.ts = UB.normText({ ...UB.TDEF, content: it.ts.content, font: it.ts.font, iconFa: p.s.iconFa || '', ...p.s }); onChange(); draw(); });
+    const ta = $('textarea[data-ts="content"]', box);
+    $$('[data-wrap]', box).forEach(b => b.onclick = () => {
+      const m = b.dataset.wrap, a = ta.selectionStart, z = ta.selectionEnd, v = ta.value, sel = v.slice(a, z) || 'ข้อความ';
+      ta.value = v.slice(0, a) + m + sel + m + v.slice(z); ta.focus(); ta.setSelectionRange(a + m.length, a + m.length + sel.length); set('content', ta.value);
+    });
+    const tl = $('[data-tlink]', box); if (tl) tl.onclick = async () => {
+      const a = ta.selectionStart, z = ta.selectionEnd, v = ta.value, sel = v.slice(a, z) || 'คลิกที่นี่';
+      const r = await Swal.fire({ title: 'ใส่ลิงก์', input: 'url', inputValue: 'https://', inputLabel: `ข้อความ: ${sel}`, showCancelButton: true, confirmButtonText: 'ใส่ลิงก์', cancelButtonText: 'ยกเลิก', reverseButtons: true });
+      if (!r.isConfirmed || !r.value) return;
+      ta.value = v.slice(0, a) + `[${sel}](${r.value})` + v.slice(z); set('content', ta.value);
+    };
+    const ti = $('[data-ticon]', box); if (ti) ti.onclick = async () => { const c = await pickIcon(it.ts.iconFa); if (c) { it.ts.iconFa = c; onChange(); draw(); } };
+    const tn = $('[data-tnoicon]', box); if (tn) tn.onclick = () => { it.ts.iconFa = ''; onChange(); draw(); };
+  };
+  draw();
+}
 function itemStatus(i) {
   const n = new Date();
   if (!i.active) return ['ปิด', 'bg-slate-100 text-slate-500'];
@@ -947,7 +1032,7 @@ async function viewWidgetEditor(id) {
   <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5">
     <div class="flex items-center gap-3 min-w-0">
       <a href="#/widgets" class="p-2 rounded-lg hover:bg-white border border-transparent hover:border-slate-200">${icon('back', 'w-5 h-5')}</a>
-      <div class="min-w-0"><div class="text-xs text-slate-500">ส่วนแสดงผล</div><h1 class="text-xl font-bold text-slate-900 truncate" id="wTitle">${esc(w.name)}</h1></div>
+      <div class="min-w-0"><div class="text-xs text-slate-500">ส่วนแสดงผล</div><div class="flex items-center gap-1.5 min-w-0"><h1 class="text-xl font-bold text-slate-900 truncate" id="wTitle">${esc(w.name)}</h1><button class="p-1.5 rounded-lg text-slate-400 hover:text-navy-800 hover:bg-slate-100 flex-none" id="renameW" title="เปลี่ยนชื่อส่วนแสดงผล">${icon('edit', 'w-4 h-4')}</button></div></div>
       <span id="dirtyDot" class="hidden text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-800">ยังไม่บันทึก</span>
     </div>
     <div class="flex flex-wrap gap-2">
@@ -1033,6 +1118,14 @@ async function viewWidgetEditor(id) {
   $('#exportBtn').onclick = async () => {
     if (state.dirty) { if (!(await confirmBox('ยังไม่ได้บันทึก', 'โค้ดจะสร้างจากข้อมูลที่บันทึกล่าสุด ต้องการบันทึกก่อนหรือไม่?', 'บันทึกแล้วส่งออก', false))) return; await $('#saveBtn').onclick(); }
     showExport(w);
+  };
+  $('#renameW').onclick = async () => {
+    const r = await Swal.fire({ title: 'เปลี่ยนชื่อส่วนแสดงผล', input: 'text', inputValue: w.name, showCancelButton: true, confirmButtonText: 'ตกลง', cancelButtonText: 'ยกเลิก', reverseButtons: true,
+      inputValidator: v => !String(v || '').trim() && 'กรุณากรอกชื่อ' });
+    if (!r.isConfirmed) return;
+    w.name = String(r.value).trim(); $('#wTitle').textContent = w.name; markDirty();
+    if (tab === 'info') drawPanel();
+    Toast.fire({ icon: 'info', title: 'อย่าลืมกดบันทึก' });
   };
   $('#embedBtn').onclick = () => { if (state.dirty) Toast.fire({ icon: 'info', title: 'อย่าลืมกดบันทึกก่อนนำไปใช้' }); showEmbed(w); };
   document.onkeydown = e => { if ((e.ctrlKey || e.metaKey) && e.key === 's' && $('#saveBtn')) { e.preventDefault(); $('#saveBtn').click(); } };
@@ -1293,13 +1386,14 @@ async function viewWidgetEditor(id) {
       <div class="flex items-center justify-between text-xs text-slate-500 mb-2 px-1"><span>${items.length} รายการ · ลากเพื่อจัดลำดับ</span>${w.limit ? `<span class="text-amber-700">แสดงจริง ${w.limit} รายการแรก</span>` : ''}</div>
       <div id="itemList" class="space-y-2">${items.map((it, idx) => {
       const tm = TYPE_META[it.type], [st, stc] = itemStatus(it);
-      const thumb = it.type === 'image' && it.src ? `<img src="${esc(it.src)}" class="w-full h-full object-cover">` : it.type === 'button' ? `<span class="w-full h-full p-1 block">${UB.buttonHtml({ title: it.iconFa || it.iconImg ? '' : (it.icon || 'Aa'), iconFa: it.iconFa, iconImg: it.iconImg, style: { ...(it.style || UB.fromLegacy(it.btnStyle, w.accent)), fontSize: 11, iconSize: 15, padX: 2, padY: 2, iconPos: it.iconFa || it.iconImg ? 'only' : 'left', radius: Math.min((it.style || {}).radius ?? 6, 8), hover: 'none', idle: 'none', depth: 'flat' } }, { tag: 'div' })}</span>` : icon(tm.ic, 'w-5 h-5');
+      const thumb = it.type === 'text' ? `<span class="font-bold text-base" style="${it.ts && it.ts.font ? `font-family:'${esc(it.ts.font)}'` : ''}">Aa</span>` : it.type === 'image' && it.src ? `<img src="${esc(it.src)}" class="w-full h-full object-cover">` : it.type === 'button' ? `<span class="w-full h-full p-1 block">${UB.buttonHtml({ title: it.iconFa || it.iconImg ? '' : (it.icon || 'Aa'), iconFa: it.iconFa, iconImg: it.iconImg, style: { ...(it.style || UB.fromLegacy(it.btnStyle, w.accent)), fontSize: 11, iconSize: 15, padX: 2, padY: 2, iconPos: it.iconFa || it.iconImg ? 'only' : 'left', radius: Math.min((it.style || {}).radius ?? 6, 8), hover: 'none', idle: 'none', depth: 'flat' } }, { tag: 'div' })}</span>` : icon(tm.ic, 'w-5 h-5');
       const hidden = w.limit && idx >= w.limit;
       return `<div class="group flex items-center gap-2.5 p-2 rounded-xl border ${hidden ? 'border-dashed border-slate-300 bg-slate-50/70' : 'border-slate-200 bg-white'} hover:border-navy-300" draggable="true" data-idx="${idx}">
           <span class="cursor-grab text-slate-300 hover:text-slate-500">${icon('grip')}</span>
           <span class="w-14 h-11 rounded-lg overflow-hidden grid place-items-center flex-none ${tm.cls}">${thumb}</span>
-          <button class="flex-1 min-w-0 text-left" data-edit="${idx}"><span class="block text-sm font-medium truncate ${it.active ? '' : 'text-slate-400 line-through'}">${esc(it.title || '(ไม่มีชื่อ)')}</span>
+          <button class="flex-1 min-w-0 text-left" data-edit="${idx}"><span class="block text-sm font-medium truncate ${it.active ? '' : 'text-slate-400 line-through'}">${esc(it.title || (TEXTY.includes(it.type) ? textTitle(it) : '') || '(ไม่มีชื่อ)')}</span>
             <span class="flex items-center gap-1.5 mt-0.5"><span class="text-[11px] px-1.5 rounded ${tm.cls}">${tm.name}</span><span class="text-[11px] px-1.5 rounded ${stc}">${st}</span>${it.end ? `<span class="text-[11px] text-slate-400">ถึง ${esc(it.end)}</span>` : ''}${hidden ? '<span class="text-[11px] text-slate-400">เกินจำนวน</span>' : ''}</span></button>
+          <button class="p-1.5 rounded-lg text-slate-400 hover:text-navy-800 hover:bg-slate-100" data-rn="${idx}" title="เปลี่ยนชื่อ">${icon('edit', 'w-4 h-4')}</button>
           <input type="checkbox" class="tgl" data-act="${idx}" ${it.active ? 'checked' : ''} title="เปิด/ปิดการแสดง">
           <div class="flex flex-col"><button class="text-slate-400 hover:text-navy-800 disabled:opacity-20" data-mv="${idx}:-1" ${idx === 0 ? 'disabled' : ''}>${icon('up', 'w-4 h-4')}</button><button class="text-slate-400 hover:text-navy-800 disabled:opacity-20" data-mv="${idx}:1" ${idx === items.length - 1 ? 'disabled' : ''}>${icon('down', 'w-4 h-4')}</button></div>
           <button class="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50" data-rm="${idx}">${icon('trash')}</button>
@@ -1308,7 +1402,7 @@ async function viewWidgetEditor(id) {
 
     $('#addBtn').onclick = e => { e.stopPropagation(); $('#addMenu').classList.toggle('hidden'); };
     document.addEventListener('click', () => $('#addMenu') && $('#addMenu').classList.add('hidden'), { once: true });
-    $$('[data-add]', P).forEach(b => b.onclick = () => editItem({ id: rid(), type: b.dataset.add, title: '', subtitle: '', src: '', link: '', newTab: true, icon: '', btnStyle: 'primary', html: '', active: true, start: '', end: '' }, true));
+    $$('[data-add]', P).forEach(b => b.onclick = () => editItem({ id: rid(), type: b.dataset.add, title: '', subtitle: '', src: '', link: '', newTab: true, icon: '', btnStyle: 'primary', html: '', active: true, start: '', end: '', ...(TEXTY.includes(b.dataset.add) ? { ts: UB.normText(b.dataset.add === 'text' ? { ...UB.TPRESETS.find(p => p.id === 'h2').s, content: 'หัวข้อ / ข้อความ' } : b.dataset.add === 'divider' ? { color: '#cbd5e1' } : {}) } : {}) }, true));
     $('#bulkUp').onchange = async e => {
       const files = [...e.target.files]; e.target.value = '';
       if (!files.length) return;
@@ -1329,6 +1423,12 @@ async function viewWidgetEditor(id) {
       if (ups.length) { markDirty(); drawPanel(); }
     };
     $$('[data-edit]', P).forEach(b => b.onclick = () => editItem(clone(items[+b.dataset.edit]), false, +b.dataset.edit));
+    $$('[data-rn]', P).forEach(b => b.onclick = async () => {
+      const it = items[+b.dataset.rn];
+      const r = await Swal.fire({ title: 'เปลี่ยนชื่อรายการ', input: 'text', inputValue: it.title || '', inputPlaceholder: 'ชื่อ / หัวข้อ', showCancelButton: true, confirmButtonText: 'บันทึกชื่อ', cancelButtonText: 'ยกเลิก', reverseButtons: true });
+      if (!r.isConfirmed) return;
+      it.title = String(r.value || '').trim(); markDirty(); drawPanel();
+    });
     $$('[data-act]', P).forEach(c => c.onchange = () => { items[+c.dataset.act].active = c.checked; markDirty(); drawPanel(); });
     $$('[data-mv]', P).forEach(b => b.onclick = () => { const [i, d] = b.dataset.mv.split(':').map(Number); [items[i], items[i + d]] = [items[i + d], items[i]]; markDirty(); drawPanel(); });
     $$('[data-rm]', P).forEach(b => b.onclick = async () => {
@@ -1361,7 +1461,9 @@ async function viewWidgetEditor(id) {
         const draw = () => {
           const t = it.type;
           F.innerHTML = `<div class="space-y-4">
-            <div><label class="lbl">ประเภท</label><div class="seg">${Object.entries(TYPE_META).map(([k, mm]) => `<button data-ty="${k}" class="${t === k ? 'on' : ''} flex items-center justify-center gap-1.5">${icon(mm.ic, 'w-3.5 h-3.5')} ${mm.name}</button>`).join('')}</div></div>
+            <div><label class="lbl">ประเภท</label><div class="seg flex-wrap">${Object.entries(TYPE_META).map(([k, mm]) => `<button data-ty="${k}" class="${t === k ? 'on' : ''} flex items-center justify-center gap-1.5">${icon(mm.ic, 'w-3.5 h-3.5')} ${mm.name}</button>`).join('')}</div></div>
+            ${TEXTY.includes(t) ? `<div class="rounded-xl border border-slate-200 overflow-hidden sticky -top-5 z-20 shadow-sm bg-white"><div class="px-3 py-1.5 text-xs text-slate-500 bg-slate-50 border-b border-slate-200">ตัวอย่าง (ติดอยู่ด้านบนขณะเลื่อนปรับค่า)</div><div class="p-4 bg-white" style="${it.ts && it.ts.tShadow ? 'background:#334155' : ''}" data-txpv>${textPreviewHtml(it)}</div></div>
+              <div data-txd></div>` : ''}
             ${t === 'image' ? `<div><label class="lbl">ภาพ</label>
               <div class="flex gap-3 items-start"><div class="w-36 aspect-[4/3] rounded-lg overflow-hidden border border-slate-200 chk-pattern grid place-items-center flex-none">${it.src ? `<img src="${esc(it.src)}" class="w-full h-full object-contain">` : icon('image', 'w-7 h-7 text-slate-300')}</div>
               <div class="flex-1 space-y-2"><button class="btn btn-primary btn-sm w-full" data-pick="image">${icon('media', 'w-3.5 h-3.5')} เลือก / อัปโหลดภาพ</button><input class="inp text-xs font-mono" data-f="src" value="${esc(it.src)}" placeholder="หรือวาง URL ภาพ"></div></div></div>` : ''}
@@ -1369,7 +1471,7 @@ async function viewWidgetEditor(id) {
               <p class="text-xs text-slate-500 mt-1">รองรับ youtube.com/watch?v=..., youtu.be/..., YouTube Shorts, วีดีโอ Facebook และไฟล์ mp4/webm</p>
               <div class="mt-2"><label class="lbl">ภาพหน้าปก (เฉพาะไฟล์วีดีโอ — ไม่บังคับ)</label><div class="flex gap-2"><input class="inp text-xs font-mono" data-f="poster" value="${esc(it.poster || '')}"><button class="btn btn-light btn-sm" data-pick="poster">${icon('media', 'w-3.5 h-3.5')}</button></div></div></div>` : ''}
             ${t === 'html' ? `<div><label class="lbl">โค้ด HTML</label><textarea class="inp font-mono text-xs" rows="8" data-f="html" placeholder="<div>...</div>">${esc(it.html)}</textarea><p class="text-xs text-amber-700 mt-1">⚠ HTML จะแสดงผลตามที่ใส่ ควรใช้โค้ดจากแหล่งที่เชื่อถือได้เท่านั้น</p></div>` : ''}
-            ${t !== 'html' ? `<div class="grid gap-3">
+            ${TEXTY.includes(t) ? `<div><label class="lbl">ชื่อ (ใช้ภายใน · เว้นว่างได้)</label><input class="inp" data-f="title" value="${esc(it.title)}" placeholder="${esc(textTitle(it))}"></div>` : t !== 'html' ? `<div class="grid gap-3">
 
               <div><label class="lbl">${t === 'button' ? 'ข้อความบนปุ่ม' : 'ชื่อ / หัวข้อ'}</label><input class="inp" data-f="title" value="${esc(it.title)}"></div></div>
               <div><label class="lbl">${t === 'button' ? 'ข้อความรอง (ไม่บังคับ)' : 'คำบรรยาย (ไม่บังคับ)'}</label><input class="inp" data-f="subtitle" value="${esc(it.subtitle)}"></div>` : `<div><label class="lbl">ชื่อ (ใช้ภายใน)</label><input class="inp" data-f="title" value="${esc(it.title)}"></div>`}
@@ -1384,8 +1486,8 @@ async function viewWidgetEditor(id) {
             ${t === 'image' && w.items.some(i => i.type === 'button' && i.id !== it.id) ? `<div class="p-3 rounded-xl bg-amber-50 border border-amber-200 text-sm text-amber-900 flex items-center gap-3">
               <span class="flex-1">รายการนี้เป็น <b>การ์ดภาพ</b> จึงแสดงเป็นภาพเต็มการ์ด ถ้าต้องการให้เป็นปุ่มมีโลโก้ + ข้อความเหมือนปุ่มอื่น</span>
               <button class="btn btn-primary btn-sm" data-tologo>แปลงเป็นปุ่มโลโก้</button></div>` : ''}
-            ${t !== 'html' ? `<div class="p-3 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
-              <label class="lbl !mb-0">${icon('link', 'w-3.5 h-3.5 inline')} ลิงก์เมื่อคลิก ${t === 'video' ? '(ไม่ใช้กับวีดีโอ)' : '(ไม่บังคับ)'}</label>
+            ${t !== 'html' && t !== 'divider' && t !== 'spacer' ? `<div class="p-3 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
+              <label class="lbl !mb-0">${icon('link', 'w-3.5 h-3.5 inline')} ${t === 'text' ? 'ลิงก์เมื่อคลิกทั้งกล่องข้อความ' : 'ลิงก์เมื่อคลิก'} ${t === 'video' ? '(ไม่ใช้กับวีดีโอ)' : '(ไม่บังคับ)'}</label>
               ${t !== 'video' ? `<div class="flex gap-2"><input class="inp" data-f="link" value="${esc(it.link)}" placeholder="https://... หรือ /p/ชื่อหน้า"><button class="btn btn-light btn-sm" data-pp title="เลือกหน้าเว็บในระบบ">${icon('page', 'w-3.5 h-3.5')}</button><button class="btn btn-light btn-sm" data-pick="file" title="ลิงก์ไปไฟล์เอกสาร">${icon('file', 'w-3.5 h-3.5')}</button></div>
               <label class="flex items-center gap-2 text-sm text-slate-600"><input type="checkbox" class="tgl" data-f="newTab" ${it.newTab ? 'checked' : ''}> เปิดในแท็บใหม่</label>` : ''}
               ${t === 'image' ? `<div class="pt-2 border-t border-slate-200"><label class="lbl">ลิงก์ที่ 2 ใต้ภาพ (ไม่บังคับ) เช่น “ดาวน์โหลดแบบฟอร์ม”</label>
@@ -1403,6 +1505,10 @@ async function viewWidgetEditor(id) {
             if (from === 'image' && to === 'button') toLogoButton(it); // ภาพเดิมกลายเป็นโลโก้บนปุ่ม
             else { if (from === 'button' && to === 'image' && it.iconImg && !it.src) it.src = it.iconImg; it.type = to; }
             if (it.type === 'button' && !it.btnStyle) it.btnStyle = 'primary';
+            if (TEXTY.includes(it.type)) {
+              const seed = it.type === 'text' ? { ...UB.TPRESETS.find(p => p.id === 'h2').s, content: it.title || it.subtitle || 'หัวข้อ / ข้อความ' } : it.type === 'divider' ? { color: '#cbd5e1' } : {};
+              it.ts = UB.normText(it.ts && it.ts.content ? it.ts : seed);
+            }
             draw();
           });
           $$('[data-bs]', F).forEach(b => b.onclick = () => { it.btnStyle = b.dataset.bs; draw(); });
@@ -1418,13 +1524,17 @@ async function viewWidgetEditor(id) {
             draw();
           });
           const pp = $('[data-pp]', F); if (pp) pp.onclick = async () => { const s = await choosePage(); if (s) { it.link = `/p/${s}`; it.newTab = false; draw(); } };
+          const txd = $('[data-txd]', F);
+          if (txd) mountTextDesigner(txd, it, () => { const pv = $('[data-txpv]', F); if (pv) { pv.innerHTML = textPreviewHtml(it); pv.style.background = it.ts.tShadow ? '#334155' : ''; } });
         };
         draw();
         $('[data-ok]', el).onclick = () => {
           if ((it.type === 'image' || it.type === 'video') && !it.src) return Swal.fire({ icon: 'warning', title: `กรุณาเลือก${tm().name}`, confirmButtonText: 'ตกลง' });
           if (it.type === 'button' && !it.title) return Swal.fire({ icon: 'warning', title: 'กรุณากรอกข้อความบนปุ่ม', confirmButtonText: 'ตกลง' });
+          if (it.type === 'text' && !String(it.ts.content || '').trim()) return Swal.fire({ icon: 'warning', title: 'กรุณาพิมพ์ข้อความ', confirmButtonText: 'ตกลง' });
+          if (!TEXTY.includes(it.type)) delete it.ts;
           if (it.start && it.end && it.start > it.end) return Swal.fire({ icon: 'warning', title: 'วันเริ่มต้องไม่เกินวันสิ้นสุด', confirmButtonText: 'ตกลง' });
-          if (isNew) { if (w.layout === 'canvas' && !it.pos) { const g = w.gridSize || 20; it.pos = { x: g, y: g, w: it.type === 'button' ? 240 : 320, h: it.type === 'button' ? 60 : 200, z: w.items.length + 1, locked: false }; } w.items.push(it); } else w.items[idx] = it;
+          if (isNew) { if (w.layout === 'canvas' && !it.pos) { const g = w.gridSize || 20; it.pos = { x: g, y: g, w: it.type === 'button' ? 240 : it.type === 'text' ? 400 : 320, h: it.type === 'button' ? 60 : it.type === 'text' ? 80 : TEXTY.includes(it.type) ? 40 : 200, z: w.items.length + 1, locked: false }; } w.items.push(it); } else w.items[idx] = it;
           close(); markDirty(); drawPanel();
         };
       },
