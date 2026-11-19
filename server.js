@@ -577,10 +577,12 @@ function normItem(i) {
   return {
     id: i.id || uid(), type,
     title: String(i.title || '').slice(0, 300), subtitle: String(i.subtitle || '').slice(0, 500),
-    src: safeUrl(i.src), poster: safeUrl(i.poster), link: safeUrl(i.link), newTab: i.newTab !== false, full: !!i.full,
+    src: type === 'video' && /^\s*<iframe/i.test(String(i.src || '')) ? safeUrl(UB.iframeSrc(i.src)) : safeUrl(i.src), poster: safeUrl(i.poster), link: safeUrl(i.link), newTab: i.newTab !== false, full: !!i.full,
     pdf: type === 'pdf' ? normPdf(i.pdf) : undefined,
     tb: type === 'table' ? UB.normTable(i.tb) : undefined,
     qr: type === 'qr' ? normQrSafe(i.qr) : undefined,
+    vp: type === 'video' && i.vp ? UB.normVPanel(i.vp) : undefined,
+    vo: type === 'video' ? UB.normVideo({ ...(i.vo || {}), frame: (i.vo && i.vo.frame) || /^\s*<iframe/i.test(String(i.src || '')) }) : undefined,
     iconImg: safeUrl(i.iconImg), link2: safeUrl(i.link2), link2Text: String(i.link2Text || '').slice(0, 120),
     iconFa: safeFa(i.iconFa), style: i.style && typeof i.style === 'object' ? UB.norm(i.style) : null,
     pos: i.pos && typeof i.pos === 'object' ? { x: clamp(i.pos.x, 0, 4000, 0), y: clamp(i.pos.y, 0, 4000, 0), w: clamp(i.pos.w, 4, 4000, 200), h: clamp(i.pos.h, 4, 4000, 60), z: clamp(i.pos.z, 0, 999, 1), locked: !!i.pos.locked } : null,
@@ -669,13 +671,11 @@ function youtubeId(u) {
   const m = /(?:youtube\.com\/(?:watch\?v=|embed\/|shorts\/|live\/)|youtu\.be\/)([\w-]{11})/.exec(String(u || ''));
   return m ? m[1] : null;
 }
-function videoHtml(src, poster, cls = '') {
-  const yt = youtubeId(src);
-  if (yt) return `<iframe class="${cls}" src="https://www.youtube-nocookie.com/embed/${yt}?rel=0" title="YouTube video" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen loading="lazy"></iframe>`;
-  const fb = /facebook\.com\/.+\/videos\//.test(src) ? `https://www.facebook.com/plugins/video.php?href=${encodeURIComponent(src)}&show_text=false` : null;
-  if (fb) return `<iframe class="${cls}" src="${esc(fb)}" frameborder="0" allowfullscreen loading="lazy"></iframe>`;
-  return `<video class="${cls}" src="${esc(src)}" ${poster ? `poster="${esc(poster)}"` : ''} controls preload="metadata" playsinline></video>`;
+function videoHtml(src, poster, cls = '', vo) {
+  return UB.videoEmbed(src, vo, { cls, poster }) || `<div class="uw-empty">ยังไม่ได้ใส่วีดีโอ</div>`;
 }
+/** อัตราส่วนกรอบวีดีโอ (แนวตั้งสำหรับ Shorts / TikTok / Reels) */
+function vRatio(it, fallback) { return UB.videoRatio(it.src, it.vo) || fallback; }
 function isVisible(item, at = new Date()) {
   if (!item.active) return false;
   if (item.start && new Date(item.start) > at) return false;
@@ -698,6 +698,7 @@ a.uw-card:hover{transform:translateY(-2px)}.uw.shadow a.uw-card:hover{box-shadow
 .uw-media{position:relative;width:100%;aspect-ratio:var(--ratio);background:#f1f5f9;overflow:hidden}
 .uw-media.auto{aspect-ratio:auto}
 .uw-media img,.uw-media video,.uw-media iframe{display:block;width:100%;height:100%;object-fit:var(--fit);border:0}
+.uw-vpw{min-width:0}.uw-media.uw-vid{background:#000}.uw-media.uw-vid video{object-fit:contain}.uw-grid>.uw-card .uw-media.uw-vid[style*='9/16']{max-height:80vh}
 .uw-media.auto img,.uw-media.auto video{height:auto}.uw-media.auto iframe{aspect-ratio:16/9;height:auto}
 .uw-cap{padding:10px 12px}.uw-cap b{display:block;font-weight:600;font-size:.95rem;line-height:1.4}
 .uw-cap small{display:block;margin-top:2px;color:#64748b;font-size:.82rem;line-height:1.45}
@@ -732,7 +733,7 @@ a.uw-row:hover{border-color:var(--accent);background:#f8fafc}
 .uw-row .ic{flex:0 0 auto;width:40px;height:40px;display:grid;place-items:center;border-radius:10px;background:color-mix(in srgb,var(--accent) 10%,#fff);font-size:1.2rem}
 .uw-row .tx{flex:1;min-width:0}.uw-row .tx b{display:block;font-weight:600;line-height:1.4}.uw-row .tx small{display:block;color:#64748b;font-size:.85rem;margin-top:2px}
 .uw-row .ar{flex:0 0 auto;display:flex;color:#94a3b8;transition:transform .2s}a.uw-row:hover .ar{transform:translateX(3px);color:var(--accent)}
-.uw-row.video{display:block;padding:0;overflow:hidden}
+.uw-row.video{display:block;padding:0;overflow:hidden}.uw-row.video .uw-vid[style*="9/16"]{max-width:420px;margin:0 auto}
 .uw-car{position:relative;overflow:hidden;border-radius:var(--radius)}
 .uw.shadow .uw-car{box-shadow:0 1px 3px rgba(15,23,42,.08),0 4px 14px rgba(15,23,42,.06)}
 .uw-track{display:flex;transition:transform var(--tms,.6s) var(--tease,cubic-bezier(.4,0,.2,1)),height var(--tms,.6s) var(--tease,ease)}
@@ -857,7 +858,9 @@ function cardHtml(it, w) {
     return `<div class="uw-card ci${lk ? ' lk' : ''}${cbx}">${head}${l2}</div>`;
   }
   if (it.type === 'video') {
-    return `<div class="uw-card"><div class="uw-media${ratioCls === ' auto' ? '' : ''}" style="${w.ratio === 'auto' ? 'aspect-ratio:16/9' : ''}">${videoHtml(it.src, it.poster)}</div>${w.captionPos === 'overlay' ? cap.replace(' overlay', '') : cap}</div>`;
+    if (it.vp && it.vp.on) return `<div class="uw-vpw">${UB.videoPanelHtml(it, { ratio: w.ratio === 'auto' ? '16/9' : ratioVal(w) })}</div>`;
+    const vr = vRatio(it, w.ratio === 'auto' ? '16/9' : '');
+    return `<div class="uw-card"><div class="uw-media uw-vid" style="${vr ? `aspect-ratio:${vr}` : ''}">${videoHtml(it.src, it.poster, '', it.vo)}</div>${w.captionPos === 'overlay' ? cap.replace(' overlay', '') : cap}</div>`;
   }
   if (it.type === 'button') return `<div class="uw-bw">${btnHtml(it, w)}</div>`;
   if (TEXTY.includes(it.type)) return textItemHtml(it);
@@ -880,7 +883,8 @@ function rowHtml(it, w) {
   if (it.type === 'pdf') return `<div class="uw-row-pdf">${pdfHtml(it)}</div>`;
   if (it.type === 'table') return `<div class="uw-tbl">${UB.tableHtml(it)}</div>`;
   if (it.type === 'qr') return `<div class="uw-qr">${UB.qrHtml(it)}</div>`;
-  if (it.type === 'video') return `<div class="uw-row video"><div class="uw-media" style="aspect-ratio:16/9">${videoHtml(it.src, it.poster)}</div>${it.title ? `<div class="uw-cap"><b>${esc(it.title)}</b>${it.subtitle ? `<small>${esc(it.subtitle)}</small>` : ''}</div>` : ''}</div>`;
+  if (it.type === 'video' && it.vp && it.vp.on) return `<div class="uw-vpw">${UB.videoPanelHtml(it)}</div>`;
+  if (it.type === 'video') return `<div class="uw-row video"><div class="uw-media uw-vid" style="aspect-ratio:${vRatio(it, '16/9')}">${videoHtml(it.src, it.poster, '', it.vo)}</div>${it.title ? `<div class="uw-cap"><b>${esc(it.title)}</b>${it.subtitle ? `<small>${esc(it.subtitle)}</small>` : ''}</div>` : ''}</div>`;
   if (it.type === 'html') return `<div class="uw-html">${it.html}</div>`;
   if (TEXTY.includes(it.type)) return textItemHtml(it);
   const lead = it.type === 'image' && it.src
@@ -903,7 +907,8 @@ function canvasHtml(items, w) {
         const r = it.style ? `calc(${it.style.radius} * 100cqw / ${W})` : `${w.radius}px`;
         const img = `<img src="${esc(it.src)}" alt="${esc(it.title)}" loading="lazy" style="width:100%;height:100%;object-fit:${w.fit};border-radius:${r};display:block">`;
         inner = it.link ? `<a ${linkAttrs(it)} class="uc-img">${img}</a>` : img;
-      } else if (it.type === 'video') inner = `<div class="uw-media" style="height:100%;border-radius:${w.radius}px">${videoHtml(it.src, it.poster)}</div>`;
+      } else if (it.type === 'video' && it.vp && it.vp.on) inner = UB.videoPanelHtml(it, { cw: W, fill: true });
+      else if (it.type === 'video') inner = `<div class="uw-media uw-vid" style="height:100%;border-radius:${w.radius}px">${videoHtml(it.src, it.poster, '', it.vo)}</div>`;
       else if (it.type === 'pdf') inner = pdfHtml(it, { fill: true });
       else if (it.type === 'table') inner = UB.tableHtml(it, { cw: W, fill: true });
       else if (it.type === 'qr') inner = UB.qrHtml(it, { cw: W, fill: true });
@@ -971,6 +976,14 @@ o.addEventListener('click',function(e){if(e.target!==a)close();});document.addEv
 function runtimeJs(rootExpr, embed) {
   return `(function(){var R=${rootExpr};if(!R)return;
   var showLB=${LIGHTBOX_FN};
+  /* กรอบวีดีโอ: กดแถบหัวข้อเพื่อยุบ/ขยาย — ยุบแล้วหยุดเล่น */
+  [].forEach.call(R.querySelectorAll('.uvp-bar[data-uvp]'),function(b){var P=b.parentNode;b.addEventListener('click',function(){var c=!P.classList.contains('closed');P.classList.toggle('closed',c);b.setAttribute('aria-expanded',c?'false':'true');
+    [].forEach.call(P.querySelectorAll('video'),function(v){if(c)try{v.pause();}catch(e){}});
+    [].forEach.call(P.querySelectorAll('iframe'),function(f){if(c){var s=f.getAttribute('src');if(s){f.setAttribute('data-src',s);setTimeout(function(){if(P.classList.contains('closed'))f.removeAttribute('src');},parseInt(getComputedStyle(P).getPropertyValue('--vpms'))||300);}}else{var d=f.getAttribute('data-src');if(d&&!f.getAttribute('src'))f.setAttribute('src',d);}});
+    if(typeof post==='function')setTimeout(post,(parseInt(getComputedStyle(P).getPropertyValue('--vpms'))||300)+30);});});
+  /* วีดีโอสตรีม HLS (.m3u8): Safari เล่นได้เอง เบราว์เซอร์อื่นโหลด hls.js */
+  (function(){var vs=[].slice.call(R.querySelectorAll('video[data-hls]'));if(!vs.length)return;var t=document.createElement('video');if(t.canPlayType('application/vnd.apple.mpegurl')){vs.forEach(function(v){v.src=v.getAttribute('data-hls');});return;}
+    var s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/hls.js@1.5.17/dist/hls.min.js';s.onload=function(){if(!window.Hls||!Hls.isSupported())return;vs.forEach(function(v){var h=new Hls();h.loadSource(v.getAttribute('data-hls'));h.attachMedia(v);});};document.head.appendChild(s);})();
   function narrow(){return (R.clientWidth||innerWidth)<640;}
   var PDFJS='https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/build/pdf.min.mjs',PDFW='https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/build/pdf.worker.min.mjs',pdfLib=null;
   function getPdf(){if(!pdfLib)pdfLib=import(PDFJS).then(function(m){m.GlobalWorkerOptions.workerSrc=PDFW;return m;});return pdfLib;}
@@ -1120,7 +1133,7 @@ ${scope} h2.uw-title{font-size:1.15rem;font-weight:700;color:var(--accent);paddi
   const css = reset + scopeCss(WIDGET_CSS + UB.CSS, scope);
   const html = abs(renderWidgetInner(w, { full }));
   let js = '';
-  if (/uw-car|ut-bar|data-lb|data-tilt|data-enter|data-pdf|utb-q|data-sort/.test(html)) js = `\n<script>${runtimeJs(`document.getElementById('${id}')`, false)}</script>`;
+  if (/uw-car|ut-bar|data-lb|data-tilt|data-enter|data-pdf|utb-q|data-sort|data-hls|data-uvp/.test(html)) js = `\n<script>${runtimeJs(`document.getElementById('${id}')`, false)}</script>`;
   const links = [font ? '<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700&display=swap">' : '',
     needsFa(w) ? `<link rel="stylesheet" href="${UB.FA_CSS}">` : '',
     UB.fontUrl(widgetFonts(w)) ? `<link rel="stylesheet" href="${UB.fontUrl(widgetFonts(w))}">` : ''].filter(Boolean).join('\n');
@@ -1143,8 +1156,8 @@ ${links ? links + '\n' : ''}<style>${css}</style>
   if (code.length > 1.5 * 1048576) warnings.push(`โค้ดมีขนาด ${(code.length / 1048576).toFixed(1)} MB — ระบบจัดการเนื้อหาบางระบบจำกัดขนาด ถ้าวางไม่ได้ให้ย่อภาพหรือแยกส่งออกทีละส่วน`);
   return { code, bytes: Buffer.byteLength(code), warnings, id };
 }
-function widgetFonts(w) { return [w, ...tabChildren(w)].flatMap(x => (x.items || []).flatMap(i => [i.style && i.style.font, i.ts && i.ts.font, i.tb && i.tb.st && i.tb.st.font])).filter(Boolean); }
-function needsFa(w) { return [w, ...tabChildren(w)].some(x => (x.items || []).some(i => i.iconFa || (i.ts && i.ts.iconFa)) || (x.tabs || []).some(t => t.iconFa)); }
+function widgetFonts(w) { return [w, ...tabChildren(w)].flatMap(x => (x.items || []).flatMap(i => [i.style && i.style.font, i.ts && i.ts.font, i.tb && i.tb.st && i.tb.st.font, i.vp && i.vp.on && i.vp.font])).filter(Boolean); }
+function needsFa(w) { return [w, ...tabChildren(w)].some(x => (x.items || []).some(i => i.iconFa || (i.ts && i.ts.iconFa) || (i.type === 'video' && i.vp && i.vp.on && i.vp.icon !== '')) || (x.tabs || []).some(t => t.iconFa)); }
 function renderWidgetDoc(w, opts = {}) {
   return `<!DOCTYPE html><html lang="th"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>${esc(w.name)}</title><base target="_top">
@@ -1431,7 +1444,7 @@ function renderBlock(b) {
       const img = `<img src="${esc(b.src)}" alt="${esc(b.caption)}" class="w-full rounded-xl border border-slate-200" loading="lazy">`;
       return `<figure class="${wd} mx-auto">${b.link ? `<a href="${esc(b.link)}" target="_blank" rel="noopener">${img}</a>` : img}${b.caption ? `<figcaption class="text-sm text-slate-500 text-center mt-2">${esc(b.caption)}</figcaption>` : ''}</figure>`;
     }
-    case 'video': return b.src ? `<figure><div class="aspect-video rounded-xl overflow-hidden bg-black">${videoHtml(b.src, '', 'w-full h-full')}</div>${b.caption ? `<figcaption class="text-sm text-slate-500 text-center mt-2">${esc(b.caption)}</figcaption>` : ''}</figure>` : '';
+    case 'video': return b.src ? `<figure><div class="rounded-xl overflow-hidden bg-black mx-auto" style="aspect-ratio:${UB.videoRatio(b.src) || '16/9'};${UB.videoRatio(b.src) === '9/16' ? 'max-width:420px' : ''}">${videoHtml(b.src, '', 'w-full h-full')}</div>${b.caption ? `<figcaption class="text-sm text-slate-500 text-center mt-2">${esc(b.caption)}</figcaption>` : ''}</figure>` : '';
     case 'button': {
       if (b.btn) return `<div class="flex ${jal[b.align]}">${UB.buttonHtml({ title: b.label || 'ลิงก์', iconFa: b.iconFa, link: b.link || '#', newTab: b.newTab, style: b.btn }, { cls: 'auto', target: '_self' })}</div>`;
       const st = { primary: 'text-white shadow-sm hover:opacity-90" style="background:var(--primary)', accent: 'text-white shadow-sm hover:opacity-90" style="background:var(--accent)', outline: 'border-2 hover:bg-slate-50" style="border-color:var(--primary);color:var(--primary)' }[b.style];

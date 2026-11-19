@@ -164,7 +164,7 @@ function pickMedia(kind = 'image') {
       title: `เลือก${label}`, size: 'max-w-4xl',
       body: `<div class="flex flex-col sm:flex-row gap-3 mb-4">
           <label class="btn btn-primary cursor-pointer">${icon('upload')} อัปโหลด${label}ใหม่<input type="file" ${accept ? `accept="${accept}"` : ''} class="hidden" data-up></label>
-          <div class="flex-1 flex gap-2"><input class="inp" placeholder="หรือวาง URL ${kind === 'video' ? '(รองรับ YouTube / Facebook / ไฟล์ .mp4)' : ''}" data-url><button class="btn btn-light" data-useurl>ใช้ URL</button></div>
+          <div class="flex-1 flex gap-2"><input class="inp" placeholder="หรือวาง URL ${kind === 'video' ? '/ โค้ดฝัง — YouTube, Facebook, TikTok, Vimeo, Google Drive, .mp4' : ''}" data-url><button class="btn btn-light" data-useurl>ใช้ URL</button></div>
         </div>
         <div class="grid grid-cols-3 sm:grid-cols-5 gap-3" data-grid><div class="col-span-full text-center py-10 text-slate-400">กำลังโหลด...</div></div>`,
       onMount: async (el, close) => {
@@ -1044,6 +1044,122 @@ function editTable(it0, onDone) {
   });
 }
 
+/* ---------------- วีดีโอจาก URL ---------------- */
+const VKIND_IC = { youtube: 'fa-brands fa-youtube text-red-600', ytlist: 'fa-brands fa-youtube text-red-600', vimeo: 'fa-brands fa-vimeo-v text-sky-500', facebook: 'fa-brands fa-facebook text-blue-600', tiktok: 'fa-brands fa-tiktok text-slate-900', instagram: 'fa-brands fa-instagram text-pink-600', gdrive: 'fa-brands fa-google-drive text-emerald-600', dailymotion: 'fa-solid fa-circle-play text-slate-800', streamable: 'fa-solid fa-circle-play text-sky-700', hls: 'fa-solid fa-tower-broadcast text-rose-600', file: 'fa-solid fa-file-video text-slate-600', iframe: 'fa-solid fa-code text-slate-600' };
+const VKIND_NOTE = {
+  facebook: 'วีดีโอต้องตั้งเป็น “สาธารณะ” จึงจะแสดงได้ · คลิปบางประเภทของ Facebook อาจไม่ยอมให้ฝัง',
+  instagram: 'โพสต์ต้องเป็นบัญชีสาธารณะ · ตัวเลือกเล่นอัตโนมัติ/วนซ้ำใช้ไม่ได้กับ Instagram',
+  tiktok: 'ตัวเลือกเล่นอัตโนมัติ/วนซ้ำใช้ไม่ได้กับ TikTok',
+  gdrive: 'ต้องตั้งการแชร์ไฟล์เป็น “ทุกคนที่มีลิงก์” · Google Drive ไม่รองรับเล่นอัตโนมัติ',
+  hls: 'สตรีมสด .m3u8 — Safari เล่นได้ทันที เบราว์เซอร์อื่นโหลดตัวเล่น hls.js อัตโนมัติ',
+  iframe: 'ใช้โค้ดฝังจากเว็บต้นทางโดยตรง — ตัวเลือกเล่นอัตโนมัติ/วนซ้ำขึ้นกับเว็บต้นทาง',
+};
+function videoSection(it) {
+  const vo = UB.normVideo(it.vo), info = UB.videoInfo(it.src, vo.frame), isFile = info.kind === 'file' || info.kind === 'hls';
+  const tg = (k, l, dis) => `<label class="flex items-center justify-between gap-2 text-sm ${dis ? 'opacity-50' : 'text-slate-700'}">${l}<input type="checkbox" class="tgl" data-vo="${k}" ${vo[k] ? 'checked' : ''} ${dis ? 'disabled' : ''}></label>`;
+  const noCtl = ['tiktok', 'instagram', 'gdrive', 'facebook', 'iframe'].includes(info.kind);
+  return `<div class="p-3 rounded-xl border border-slate-200 bg-slate-50 space-y-3">
+    <div><label class="lbl">ลิงก์วีดีโอ หรือโค้ดฝัง</label>
+      <div class="flex gap-2"><textarea class="inp text-sm font-mono !py-2" rows="2" data-vsrc placeholder="วางลิงก์ เช่น https://www.youtube.com/watch?v=… , https://youtu.be/… , Facebook, TikTok, Vimeo หรือโค้ด <iframe …>">${esc(vo.frame && it.src ? it.src : it.src)}</textarea>
+      <div class="flex flex-col gap-1.5"><button class="btn btn-light btn-sm whitespace-nowrap" data-vpaste title="วางจากคลิปบอร์ด">${icon('copy', 'w-3.5 h-3.5')} วาง</button><button class="btn btn-primary btn-sm whitespace-nowrap" data-pick="video">${icon('upload', 'w-3.5 h-3.5')} อัปโหลด</button></div></div>
+      <div data-vinfo class="mt-2"></div></div>
+    <div data-vprevbox class="${it.src ? '' : 'hidden'}"><div class="flex items-center justify-between mb-1"><span class="lbl !mb-0">ตัวอย่าง</span><button class="btn btn-light btn-sm" data-vprevbtn>${icon('eye', 'w-3.5 h-3.5')} โหลดตัวอย่าง</button></div>
+      <div data-vprev class="rounded-lg overflow-hidden bg-slate-900 mx-auto grid place-items-center text-slate-400 text-xs" style="aspect-ratio:${UB.videoRatio(it.src, vo) || '16/9'};max-height:340px">${info.thumb ? `<img src="${esc(info.thumb)}" class="w-full h-full object-cover opacity-80" alt="">` : 'กด “โหลดตัวอย่าง” เพื่อทดลองเล่น'}</div></div>
+    <div class="grid sm:grid-cols-2 gap-x-4 gap-y-2">${tg('autoplay', 'เล่นอัตโนมัติ (ปิดเสียงให้)', noCtl && info.kind !== 'facebook')}${tg('mute', 'ปิดเสียง', noCtl && info.kind !== 'facebook')}${tg('loop', 'เล่นวนซ้ำ', noCtl)}${tg('controls', 'แสดงปุ่มควบคุม', noCtl)}</div>
+    <div class="grid grid-cols-2 gap-3"><div><label class="lbl">เริ่มเล่นที่ (นาที:วินาที)</label><input class="inp" data-vstart value="${vo.start ? `${Math.floor(vo.start / 60)}:${String(vo.start % 60).padStart(2, '0')}` : ''}" placeholder="เช่น 1:30" ${noCtl ? 'disabled' : ''}></div>
+      <div><label class="lbl">สัดส่วนกรอบ</label><select class="inp" data-vratio>${[['auto', 'อัตโนมัติ' + (info.vertical ? ' (แนวตั้ง 9:16)' : '')], ['16/9', '16:9 แนวนอน'], ['9/16', '9:16 แนวตั้ง (Shorts/Reels)'], ['4/3', '4:3'], ['1/1', '1:1 จัตุรัส'], ['21/9', '21:9 จอกว้าง']].map(([v, l]) => `<option value="${v}" ${vo.ratio === v ? 'selected' : ''}>${l}</option>`).join('')}</select></div></div>
+    <div class="rounded-lg border ${UB.normVPanel(it.vp).on ? 'border-navy-300 bg-navy-50' : 'border-slate-200 bg-white'} p-2.5 flex items-center gap-3">
+      <div class="flex-1 text-sm"><b class="text-slate-800">กรอบและแถบหัวข้อ</b><div class="text-xs text-slate-500">${UB.normVPanel(it.vp).on ? `เปิดใช้ · ${UB.normVPanel(it.vp).toggle ? (UB.normVPanel(it.vp).open ? 'กดแถบเพื่อยุบได้ (เริ่มแบบเปิด)' : 'เริ่มแบบยุบ กดแถบเพื่อเปิด') : 'แถบหัวข้อคงที่'}` : 'ใส่ชื่อเรื่อง แถบหัวข้อที่กดยุบ/ขยายได้ และตกแต่งกรอบ'}</div></div>
+      <button class="btn btn-gold btn-sm" data-vpdesign>🎨 ออกแบบกรอบ / แถบหัวข้อ</button></div>
+    ${isFile ? `<div><label class="lbl">ภาพหน้าปก (ไม่บังคับ)</label><div class="flex gap-2"><input class="inp text-xs font-mono" data-f="poster" value="${esc(it.poster || '')}"><button class="btn btn-light btn-sm" data-pick="poster">${icon('media', 'w-3.5 h-3.5')}</button></div></div>` : ''}
+  </div>`;
+}
+function bindVideoSection(F, it, redraw) {
+  const ta = $('[data-vsrc]', F), box = $('[data-vinfo]', F);
+  it.vo = UB.normVideo(it.vo);
+  const show = () => {
+    const raw = ta.value.trim(), frame = /^<iframe/i.test(raw), url = frame ? UB.iframeSrc(raw) : raw, info = UB.videoInfo(url, frame || it.vo.frame);
+    if (!raw) { box.innerHTML = '<p class="text-xs text-slate-500">รองรับ YouTube (วีดีโอ / Shorts / Live / Playlist), Facebook (วีดีโอ / Reels / fb.watch), TikTok, Instagram Reels, Vimeo, Google Drive, Dailymotion, ไฟล์ .mp4/.webm, สตรีม .m3u8 และโค้ดฝัง &lt;iframe&gt; จากเว็บอื่น</p>'; return; }
+    const bad = frame && !url ? 'ไม่พบลิงก์ในโค้ด iframe' : !/^(https?:\/\/|\/)/i.test(url) ? 'ลิงก์ต้องขึ้นต้นด้วย https://' : '';
+    box.innerHTML = bad ? `<div class="text-xs p-2 rounded-lg bg-rose-50 border border-rose-200 text-rose-700">⚠ ${bad}</div>`
+      : `<div class="flex items-start gap-2 text-xs p-2 rounded-lg ${info.unknown ? 'bg-amber-50 border border-amber-200 text-amber-900' : 'bg-emerald-50 border border-emerald-200 text-emerald-900'}"><i class="${VKIND_IC[info.kind] || 'fa-solid fa-circle-play'} text-base leading-none mt-0.5"></i><div><b>${info.unknown ? 'ไม่รู้จักเว็บนี้ — จะลองเล่นเป็นไฟล์วีดีโอ' : 'ตรวจพบ: ' + esc(info.name)}</b>${info.vertical ? ' · แนวตั้ง' : ''}${info.start ? ` · เริ่มที่ ${info.start} วินาที (จากลิงก์)` : ''}
+        ${info.unknown ? '<div class="mt-0.5">ถ้าเป็นหน้าเว็บที่มีวีดีโอ ให้คัดลอก “โค้ดฝัง (Embed)” &lt;iframe&gt; จากเว็บนั้นมาวางแทน</div>' : VKIND_NOTE[info.kind] ? `<div class="mt-0.5 opacity-80">${VKIND_NOTE[info.kind]}</div>` : ''}</div></div>`;
+  };
+  ta.addEventListener('input', () => {
+    const raw = ta.value.trim(), frame = /^<iframe/i.test(raw);
+    it.src = frame ? UB.iframeSrc(raw) : raw; it.vo.frame = frame || (it.vo.frame && !UB.videoInfo(it.src).kind.match(/youtube|vimeo|facebook|tiktok|instagram|gdrive|dailymotion|streamable/));
+    show(); $('[data-vprevbox]', F).classList.toggle('hidden', !it.src);
+  });
+  ta.addEventListener('change', () => { if (/^<iframe/i.test(ta.value.trim())) ta.value = it.src; setTimeout(redraw, 0); });
+  show();
+  const ps = $('[data-vpaste]', F); if (ps) ps.onclick = async () => { try { const t = await navigator.clipboard.readText(); if (t) { ta.value = t.trim(); ta.dispatchEvent(new Event('input')); ta.dispatchEvent(new Event('change')); } } catch (e) { fail('เบราว์เซอร์ไม่อนุญาตให้อ่านคลิปบอร์ด — กด Ctrl+V ในช่องแทน'); } };
+  $$('[data-vo]', F).forEach(c => c.onchange = () => { it.vo[c.dataset.vo] = c.checked; if (c.dataset.vo === 'autoplay' && c.checked) it.vo.mute = true; it.vo = UB.normVideo(it.vo); redraw(); });
+  const st = $('[data-vstart]', F); if (st) st.onchange = () => { it.vo.start = UB.normVideo({ start: (s => { s = s.trim(); if (!s) return 0; const c = s.split(':').map(Number); return c.reduce((a, b) => a * 60 + (b || 0), 0); })(st.value) }).start; };
+  const rt = $('[data-vratio]', F); if (rt) rt.onchange = () => { it.vo.ratio = rt.value; redraw(); };
+  const vd = $('[data-vpdesign]', F); if (vd) vd.onclick = () => designVPanel(it, n => { it.vp = n.vp; if (n.title != null) it.title = n.title; redraw(); });
+  const pb = $('[data-vprevbtn]', F); if (pb) pb.onclick = () => { const h = UB.videoEmbed(it.src, it.vo, { poster: it.poster }); const pv = $('[data-vprev]', F); pv.innerHTML = h ? h.replace(/^<(iframe|video)/, '<$1 style="width:100%;height:100%;display:block;border:0;background:#000"') : 'ไม่พบวีดีโอ'; };
+}
+
+function designVPanel(it0, onDone) {
+  const it = clone(it0); it.vp = UB.normVPanel({ ...(it.vp || {}), on: true }); if (!it.vp.title) it.vp.title = it.title || '';
+  const V = () => it.vp, info = UB.videoInfo(it.src, it.vo && it.vo.frame);
+  const ph = `<div class="uvp-ph" style="background:#0f172a ${info.thumb ? `url('${esc(info.thumb)}') center/cover` : ''};display:grid;place-items:center"><div style="width:64px;height:64px;border-radius:99px;background:rgba(0,0,0,.55);display:grid;place-items:center;color:#fff;font-size:26px">▶</div></div>`;
+  let tab = 'bar';
+  openModal({
+    title: 'ออกแบบกรอบวีดีโอ และแถบหัวข้อ', size: 'max-w-6xl',
+    body: `<div class="grid lg:grid-cols-[1fr_400px] gap-5"><div class="min-w-0 space-y-2 lg:sticky lg:top-0 self-start">
+        <div class="rounded-2xl chk-pattern border border-slate-200 p-5"><div data-pv></div></div>
+        <p class="text-xs text-slate-500">ตัวอย่างใช้ภาพแทนตัวเล่นจริง · กดที่แถบหัวข้อในตัวอย่างเพื่อลองยุบ/ขยาย</p></div>
+      <div class="space-y-3 min-w-0"><div class="seg flex-wrap"><button data-tb="bar">🏷 แถบหัวข้อ</button><button data-tb="frame">🖼 กรอบ</button><button data-tb="act">↕ ยุบ/ขยาย</button></div><div data-panel class="space-y-3"></div></div></div>`,
+    footer: `<label class="mr-auto flex items-center gap-2 text-sm text-slate-600"><input type="checkbox" class="tgl" data-off> ไม่ใช้กรอบ (แสดงวีดีโออย่างเดียว)</label><button class="btn btn-light" data-close>ยกเลิก</button><button class="btn btn-primary" data-apply>${icon('check')} ใช้การออกแบบนี้</button>`,
+    onMount: (el, close) => {
+      const pv = $('[data-pv]', el), panel = $('[data-panel]', el);
+      const paint = () => { if (V().font && typeof ensureFont === 'function') ensureFont(V().font); pv.innerHTML = UB.videoPanelHtml(it, { preview: ph }); const b = $('[data-uvp]', pv); if (b) b.onclick = () => { const P = b.parentNode, c = !P.classList.contains('closed'); P.classList.toggle('closed', c); b.setAttribute('aria-expanded', !c); }; };
+      const set = (k, v, re) => { V()[k] = v; it.vp = UB.normVPanel(V()); const o = $(`[data-vout="${k}"]`, panel); if (o) o.textContent = v; paint(); if (re) draw(); };
+      const sec = (t, b) => `<div class="rounded-xl border border-slate-200 bg-white p-3 space-y-3"><div class="text-sm font-semibold text-slate-700">${t}</div>${b}</div>`;
+      const seg = (k, l) => `<div class="seg flex-wrap">${l.map(([v, t]) => `<button type="button" data-vseg="${k}" data-v="${v}" class="${String(V()[k]) === String(v) ? 'on' : ''}">${t}</button>`).join('')}</div>`;
+      const rg = (k, l, a, b, u = 'px', st = 1) => `<div><div class="flex justify-between"><label class="lbl !mb-0">${l}</label><span class="text-xs text-slate-500"><span data-vout="${k}">${V()[k]}</span>${u}</span></div><input type="range" class="w-full accent-navy-800" data-vr="${k}" min="${a}" max="${b}" step="${st}" value="${V()[k]}"></div>`;
+      const col = (k, l, tr, opt) => `<label class="flex items-center justify-between gap-2 text-sm text-slate-600">${l}<span class="flex items-center gap-1">${tr ? `<button type="button" class="text-[11px] px-1.5 py-0.5 rounded border ${V()[k] === 'transparent' ? 'border-navy-700 bg-navy-50 text-navy-800' : 'border-slate-300 text-slate-500'}" data-vtr="${k}">โปร่งใส</button>` : ''}${opt ? `<button type="button" class="text-[11px] px-1.5 py-0.5 rounded border ${!V()[k] ? 'border-navy-700 bg-navy-50 text-navy-800' : 'border-slate-300 text-slate-500'}" data-vclr="${k}">${opt}</button>` : ''}<input type="color" class="h-8 w-10 rounded border border-slate-300 cursor-pointer" data-vc="${k}" value="${/^#[0-9a-f]{6}$/i.test(V()[k] || '') ? V()[k] : '#ffffff'}"></span></label>`;
+      function draw() {
+        $$('[data-tb]', el).forEach(b => b.classList.toggle('on', b.dataset.tb === tab));
+        const v = V();
+        if (tab === 'bar') panel.innerHTML = sec('ธีมสำเร็จรูป', `<div class="grid grid-cols-2 gap-1.5">${UB.VPPRESETS.map(p => `<button type="button" class="flex items-center gap-2 px-2 py-1.5 rounded-lg border border-slate-200 hover:border-navy-400 text-xs text-left" data-vpre="${p.id}"><span class="w-7 h-5 rounded flex-none border" style="background:${p.s.barBg2 ? `linear-gradient(135deg,${p.s.barBg},${p.s.barBg2})` : p.s.barBg};border-color:${p.s.bw ? p.s.bc : '#e2e8f0'}"></span>${esc(p.name)}</button>`).join('')}</div>`)
+          + sec('ชื่อเรื่อง', `<div><label class="lbl">หัวข้อ</label><input class="inp" data-vx="title" value="${esc(v.title)}" placeholder="เช่น วีดีโอแนะนำการติดต่อศาล"></div><div><label class="lbl">คำอธิบายรอง (ไม่บังคับ)</label><input class="inp" data-vx="sub" value="${esc(v.sub)}" placeholder="เช่น ความยาว 3 นาที"></div>
+            <div><label class="lbl">ไอคอนหน้าหัวข้อ</label><div class="flex gap-2"><select class="inp" data-vicon>${[['auto', 'อัตโนมัติ (ตามแหล่งวีดีโอ)'], ['', 'ไม่มีไอคอน'], ['fa-solid fa-circle-play', '▶ ปุ่มเล่น'], ['fa-solid fa-film', '🎞 ฟิล์ม'], ['fa-solid fa-video', '📹 กล้อง'], ['fa-solid fa-scale-balanced', '⚖ ตราชั่ง'], ['fa-solid fa-bullhorn', '📢 ประกาศ'], ['fa-solid fa-circle-info', 'ℹ ข้อมูล'], ['fa-brands fa-youtube', 'YouTube'], ['fa-brands fa-facebook', 'Facebook']].map(([a, b]) => `<option value="${a}" ${v.icon === a ? 'selected' : ''}>${b}</option>`).join('')}${!['auto', '', 'fa-solid fa-circle-play', 'fa-solid fa-film', 'fa-solid fa-video', 'fa-solid fa-scale-balanced', 'fa-solid fa-bullhorn', 'fa-solid fa-circle-info', 'fa-brands fa-youtube', 'fa-brands fa-facebook'].includes(v.icon) ? `<option value="${esc(v.icon)}" selected>${esc(v.icon)}</option>` : ''}</select><button class="btn btn-light btn-sm" data-vipick title="เลือกไอคอนอื่น">${icon('sparkle', 'w-3.5 h-3.5')}</button></div></div>`)
+          + sec('รูปแบบแถบ', `<div class="grid grid-cols-2 gap-3"><div><label class="lbl">ตำแหน่งแถบ</label>${seg('barPos', [['top', 'ด้านบน'], ['bottom', 'ด้านล่าง']])}</div><div><label class="lbl">จัดข้อความ</label>${seg('align', [['left', 'ชิดซ้าย'], ['center', 'กลาง']])}</div></div>
+            ${col('barBg', v.barBg2 ? 'สีแถบ (เริ่ม)' : 'สีแถบ', true)}${col('barBg2', 'สีไล่ระดับ (ปลาย)', false, 'ไม่ไล่สี')}${col('barFg', 'สีตัวอักษร')}${col('subFg', 'สีคำอธิบายรอง', false, 'ตามตัวอักษร')}
+            <div><label class="lbl">ฟอนต์</label><select class="inp" data-vfont><option value="">ตามเว็บไซต์</option>${UB.FONTS.map(([a, b]) => `<option value="${a}" ${v.font === a ? 'selected' : ''}>${b}</option>`).join('')}</select></div>
+            <div class="grid grid-cols-2 gap-3">${rg('fs', 'ขนาดตัวอักษร', 10, 40)}${rg('bpad', 'ความสูงแถบ (ระยะขอบ)', 2, 32)}</div>
+            <div><label class="lbl">ความหนาตัวอักษร</label>${seg('fw', [[400, 'ปกติ'], [600, 'หนา'], [700, 'หนามาก'], [800, 'หนาพิเศษ']])}</div>`);
+        else if (tab === 'frame') panel.innerHTML = sec('ขนาดกรอบ', `${rg('maxW', 'ความกว้างสูงสุด (0 = เต็มพื้นที่)', 0, 1600)}<div><label class="lbl">จัดตำแหน่งกรอบ</label>${seg('falign', [['left', 'ซ้าย'], ['center', 'กลาง'], ['right', 'ขวา']])}</div>
+            <div><label class="lbl">สัดส่วนวีดีโอ</label><select class="inp" data-vratio2>${[['auto', 'อัตโนมัติ'], ['16/9', '16:9'], ['9/16', '9:16 แนวตั้ง'], ['4/3', '4:3'], ['1/1', '1:1'], ['21/9', '21:9']].map(([a, b]) => `<option value="${a}" ${UB.normVideo(it.vo).ratio === a ? 'selected' : ''}>${b}</option>`).join('')}</select></div>`)
+          + sec('เส้นขอบและมุม', `${rg('bw', 'ความหนาเส้นขอบ', 0, 12)}${v.bw ? col('bc', 'สีเส้นขอบ') : ''}${rg('radius', 'ความมนของมุม', 0, 40)}<div><label class="lbl">เงา</label>${seg('shadow', [['none', 'ไม่มี'], ['soft', 'นุ่ม'], ['md', 'กลาง'], ['strong', 'เข้ม']])}</div>`)
+          + sec('พื้นหลังรอบวีดีโอ', `${col('bg', 'สีพื้น', true)}${rg('pad', 'ระยะขอบรอบวีดีโอ', 0, 40)}`);
+        else panel.innerHTML = sec('การยุบ / ขยาย', `<label class="flex items-center justify-between text-sm text-slate-700">กดแถบหัวข้อเพื่อยุบ/ขยายวีดีโอ<input type="checkbox" class="tgl" data-vt="toggle" ${v.toggle ? 'checked' : ''}></label>
+            ${v.toggle ? `<div><label class="lbl">สถานะเริ่มต้น</label>${seg('open', [['true', '▼ เปิดแสดงวีดีโอ (กดเพื่อยุบ)'], ['false', '▶ ยุบไว้ (แสดงเฉพาะแถบ กดเพื่อเปิด)']])}</div>
+            <div><label class="lbl">สัญลักษณ์ที่แถบ</label>${seg('chev', [['chevron', '⌄ ลูกศร'], ['caret', '▾ สามเหลี่ยม'], ['plus', '＋ บวก/ลบ'], ['none', 'ไม่แสดง']])}</div>
+            ${rg('ms', 'ความเร็วการยุบ/ขยาย', 0, 1200, ' ms', 50)}
+            <p class="text-xs text-slate-500">เมื่อยุบ วีดีโอจะหยุดเล่นอัตโนมัติ · ถ้าเริ่มแบบยุบ ตัวเล่นจะยังไม่โหลดจนกว่าผู้ชมจะกดเปิด (หน้าเว็บโหลดเร็วขึ้น)</p>` : '<p class="text-xs text-slate-500">แถบหัวข้อแสดงคงที่ ไม่ยุบ/ขยาย</p>'}`);
+        $$('[data-vpre]', panel).forEach(b => b.onclick = () => { const p = UB.VPPRESETS.find(x => x.id === b.dataset.vpre); it.vp = UB.normVPanel({ ...V(), ...p.s }); paint(); draw(); });
+        $$('[data-vx]', panel).forEach(i => i.oninput = () => set(i.dataset.vx, i.value));
+        $$('[data-vseg]', panel).forEach(b => b.onclick = () => set(b.dataset.vseg, b.dataset.vseg === 'open' ? b.dataset.v === 'true' : b.dataset.vseg === 'fw' ? Number(b.dataset.v) : b.dataset.v, true));
+        $$('[data-vr]', panel).forEach(i => i.oninput = () => set(i.dataset.vr, Number(i.value)));
+        $$('[data-vc]', panel).forEach(i => { i.oninput = () => set(i.dataset.vc, i.value); i.onchange = () => draw(); });
+        $$('[data-vtr]', panel).forEach(b => b.onclick = () => set(b.dataset.vtr, 'transparent', true));
+        $$('[data-vclr]', panel).forEach(b => b.onclick = () => set(b.dataset.vclr, '', true));
+        $$('[data-vt]', panel).forEach(i => i.onchange = () => set(i.dataset.vt, i.checked, true));
+        const ic = $('[data-vicon]', panel); if (ic) ic.onchange = () => set('icon', ic.value);
+        const ip = $('[data-vipick]', panel); if (ip && typeof pickIcon === 'function') ip.onclick = async () => { const c = await pickIcon(V().icon); if (c) set('icon', c, true); }; else if (ip) ip.remove();
+        const fo = $('[data-vfont]', panel); if (fo) fo.onchange = () => set('font', fo.value);
+        const r2 = $('[data-vratio2]', panel); if (r2) r2.onchange = () => { it.vo = UB.normVideo({ ...(it.vo || {}), ratio: r2.value }); paint(); };
+      }
+      $$('[data-tb]', el).forEach(b => b.onclick = () => { tab = b.dataset.tb; draw(); });
+      paint(); draw();
+      $('[data-apply]', el).onclick = () => { const off = $('[data-off]', el).checked; it.vp = UB.normVPanel({ ...V(), on: !off }); if (it.vo) it0.vo = it.vo; onDone({ vp: it.vp, title: it.vp.title || it0.title }); close(); };
+    },
+  });
+}
+
 /* ---------------- ตัวสร้างและออกแบบ QR Code ---------------- */
 const QR_KINDS = [
   ['url', '🔗 ลิงก์เว็บไซต์', [['url', 'ที่อยู่เว็บ (URL)', 'https://udtc.coj.go.th/']]],
@@ -1313,6 +1429,7 @@ function mountCanvas(host, w, hooks) {
       <button class="btn btn-primary btn-sm" data-add="button">${icon('plus', 'w-3.5 h-3.5')} ปุ่ม</button>
       <button class="btn btn-light btn-sm" data-add="text">${icon('text', 'w-3.5 h-3.5')} ข้อความ</button>
       <button class="btn btn-light btn-sm" data-add="image">${icon('image', 'w-3.5 h-3.5')} ภาพ</button>
+      <button class="btn btn-light btn-sm" data-add="video">${icon('video', 'w-3.5 h-3.5')} วีดีโอ</button>
       <button class="btn btn-light btn-sm" data-add="pdf">${icon('file', 'w-3.5 h-3.5')} PDF</button>
       <button class="btn btn-light btn-sm" data-add="table">${icon('table', 'w-3.5 h-3.5')} ตาราง</button>
       <button class="btn btn-light btn-sm" data-add="qr">${icon('qr', 'w-3.5 h-3.5')} QR Code</button>
@@ -1347,7 +1464,8 @@ function mountCanvas(host, w, hooks) {
     if (it.type === 'button') inner = UB.buttonHtml({ ...it, title: it.title || 'ปุ่ม', style: it.style || UB.fromLegacy(it.btnStyle, w.accent) }, { tag: 'div', cw: W() });
     else if (it.type === 'image' && it.fx && it.src) inner = UB.imageHtml(it, { cw: W(), noLink: true });
     else if (it.type === 'image') inner = it.src ? `<img src="${esc(it.src)}" style="width:100%;height:100%;object-fit:${w.fit};border-radius:${w.radius}px;display:block" draggable="false">` : `<div class="w-full h-full grid place-items-center bg-slate-100 text-slate-400">${icon('image', 'w-8 h-8')}</div>`;
-    else if (it.type === 'video') inner = `<div class="w-full h-full grid place-items-center bg-slate-900 text-white" style="border-radius:${w.radius}px">${icon('video', 'w-10 h-10')}</div>`;
+    else if (it.type === 'video' && it.vp && it.vp.on) { const vi = UB.videoInfo(it.src, it.vo && it.vo.frame); inner = UB.videoPanelHtml({ ...it, vp: { ...it.vp, open: true } }, { cw: W(), fill: true, preview: `<div class="uvp-ph" style="background:#0f172a ${vi.thumb ? `url('${esc(vi.thumb)}') center/cover` : ''}"></div>` }).replace('data-uvp', 'data-uvp-off'); }
+    else if (it.type === 'video') { const vi = UB.videoInfo(it.src, it.vo && it.vo.frame); inner = `<div class="w-full h-full grid place-items-center bg-slate-900 text-white relative overflow-hidden" style="border-radius:${w.radius}px">${vi.thumb ? `<img src="${esc(vi.thumb)}" class="absolute inset-0 w-full h-full object-cover opacity-70" draggable="false" alt="">` : ''}<div class="relative text-center"><i class="${VKIND_IC[vi.kind] || 'fa-solid fa-circle-play'} !text-white text-4xl"></i><div class="text-[11px] mt-1 opacity-80">${esc(vi.name || 'วีดีโอ')}</div></div></div>`; }
     else if (it.type === 'text') { ensureFont(it.ts && it.ts.font); inner = UB.textHtml(it.ts, { cw: W() }); }
     else if (it.type === 'divider') inner = `<div class="h-full flex flex-col justify-center">${UB.dividerHtml(it.ts, { cw: W() })}</div>`;
     else if (it.type === 'table') { ensureFont(it.tb && it.tb.st && it.tb.st.font); inner = UB.tableHtml(it, { cw: W(), fill: true }); }
@@ -1434,6 +1552,11 @@ function mountCanvas(host, w, hooks) {
       it = { ...base, type: 'table', title: 'ตาราง', tb: newTable(), pos: { x: g, y: g, w: snap(640), h: snap(260), z: n + 1, locked: false } };
       const off = (n % 6) * g; it.pos.x += off; it.pos.y += off; clampPos(it.pos);
       return editTable(it, done => { w.items.push(done); sel = done.id; hooks.change(); });
+    } else if (type === 'video') {
+      const url = await pickMedia('video'); if (!url) return;
+      const vi = UB.videoInfo(url), vert = vi.vertical;
+      it = { ...base, type: 'video', title: vi.kind === 'file' ? decodeURIComponent(url.split('/').pop()).replace(/\.[^.]+$/, '') : (vi.name || 'วีดีโอ'), src: /^<iframe/i.test(url) ? UB.iframeSrc(url) : url, vo: UB.normVideo({ frame: /^<iframe/i.test(url) }), pos: { x: g, y: g, w: snap(vert ? 270 : 480), h: snap(vert ? 480 : 270), z: n + 1, locked: false } };
+      const off = (n % 6) * g; it.pos.x += off; it.pos.y += off; clampPos(it.pos);
     } else if (type === 'qr') {
       it = { ...base, type: 'qr', title: 'QR Code', qr: newQr(), pos: { x: g, y: g, w: snap(220), h: snap(220), z: n + 1, locked: false } };
       const off = (n % 6) * g; it.pos.x += off; it.pos.y += off; clampPos(it.pos);
@@ -2205,9 +2328,7 @@ async function viewWidgetEditor(id) {
             ${t === 'image' ? `<div><label class="lbl">ภาพ</label>
               <div class="flex gap-3 items-start"><div class="w-36 aspect-[4/3] rounded-lg overflow-hidden border border-slate-200 chk-pattern grid place-items-center flex-none">${it.src ? `<img src="${esc(it.src)}" class="w-full h-full object-contain">` : icon('image', 'w-7 h-7 text-slate-300')}</div>
               <div class="flex-1 space-y-2"><button class="btn btn-primary btn-sm w-full" data-pick="image">${icon('media', 'w-3.5 h-3.5')} เลือก / อัปโหลดภาพ</button><input class="inp text-xs font-mono" data-f="src" value="${esc(it.src)}" placeholder="หรือวาง URL ภาพ"></div></div></div>` : ''}
-            ${t === 'video' ? `<div><label class="lbl">วีดีโอ</label><div class="flex gap-2"><input class="inp text-sm" data-f="src" value="${esc(it.src)}" placeholder="ลิงก์ YouTube / Facebook หรือไฟล์ .mp4"><button class="btn btn-primary btn-sm" data-pick="video">${icon('upload', 'w-3.5 h-3.5')} อัปโหลด</button></div>
-              <p class="text-xs text-slate-500 mt-1">รองรับ youtube.com/watch?v=..., youtu.be/..., YouTube Shorts, วีดีโอ Facebook และไฟล์ mp4/webm</p>
-              <div class="mt-2"><label class="lbl">ภาพหน้าปก (เฉพาะไฟล์วีดีโอ — ไม่บังคับ)</label><div class="flex gap-2"><input class="inp text-xs font-mono" data-f="poster" value="${esc(it.poster || '')}"><button class="btn btn-light btn-sm" data-pick="poster">${icon('media', 'w-3.5 h-3.5')}</button></div></div></div>` : ''}
+            ${t === 'video' ? videoSection(it) : ''}
             ${t === 'table' ? `<div class="p-3 rounded-xl border border-slate-200 bg-slate-50 space-y-2">
               <div class="flex items-center justify-between"><label class="lbl !mb-0">ตาราง ${it.tb ? `(${it.tb.rows.length} แถว × ${it.tb.rows[0].length} คอลัมน์)` : ''}</label><button class="btn btn-primary btn-sm" data-tbedit>${icon('table', 'w-3.5 h-3.5')} แก้ไขข้อมูล / ออกแบบตาราง</button></div>
               <div class="bg-white rounded-lg border border-slate-200 p-3 overflow-auto" style="max-height:260px">${UB.tableHtml(it)}</div></div>` : ''}
@@ -2277,10 +2398,11 @@ async function viewWidgetEditor(id) {
             const k = b.dataset.pick; const url = await pickMedia(k === 'poster' ? 'image' : k === 'file2' ? 'any' : k);
             if (!url) return;
             if (k === 'file2') { it.link2 = url; if (!it.link2Text) it.link2Text = 'ดาวน์โหลด'; }
-            else if (k === 'file') it.link = url; else if (k === 'poster') it.poster = url; else { it.src = url; if (!it.title) it.title = decodeURIComponent(url.split('/').pop()).replace(/\.[^.]+$/, ''); }
+            else if (k === 'file') it.link = url; else if (k === 'poster') it.poster = url; else { it.src = url; if (!it.title && !(it.type === 'video' && UB.videoInfo(url).kind !== 'file')) it.title = decodeURIComponent(url.split('/').pop()).replace(/\.[^.]+$/, ''); }
             draw();
           });
           const pp = $('[data-pp]', F); if (pp) pp.onclick = async () => { const s = await choosePage(); if (s) { it.link = `/p/${s}`; it.newTab = false; draw(); } };
+          if (it.type === 'video') bindVideoSection(F, it, draw);
           const tbe = $('[data-tbedit]', F); if (tbe) tbe.onclick = () => editTable(it, n => { it.tb = n.tb; draw(); });
           const qre = $('[data-qredit]', F); if (qre) qre.onclick = () => designQr(it, n => { it.qr = n.qr; if (!it.title) it.title = n.title; draw(); });
           $$('[data-pm]', F).forEach(b => b.onclick = () => { it.pdf.mode = b.dataset.pm; draw(); });
@@ -2515,7 +2637,7 @@ async function viewPageEditor(id) {
         <div class="flex-1 space-y-2"><button class="btn btn-light btn-sm" data-pk="image">${icon('media', 'w-3.5 h-3.5')} เลือก / อัปโหลดภาพ</button>
         <input class="inp text-sm" data-b="caption" value="${esc(b.caption)}" placeholder="คำบรรยายใต้ภาพ"><input class="inp text-sm" data-b="link" value="${esc(b.link)}" placeholder="ลิงก์เมื่อคลิกภาพ (ไม่บังคับ)">
         <select class="inp text-sm" data-b="width">${[['full', 'เต็มความกว้าง'], ['wide', 'กว้าง'], ['medium', 'กลาง'], ['small', 'เล็ก']].map(([v, t]) => `<option value="${v}" ${b.width === v ? 'selected' : ''}>${t}</option>`).join('')}</select></div></div>`;
-      case 'video': return `<div class="flex gap-2"><input class="inp" data-b="src" value="${esc(b.src)}" placeholder="ลิงก์ YouTube / Facebook หรือไฟล์ mp4"><button class="btn btn-light btn-sm" data-pk="video">${icon('upload', 'w-3.5 h-3.5')} อัปโหลด</button></div><input class="inp text-sm mt-2" data-b="caption" value="${esc(b.caption)}" placeholder="คำบรรยาย (ไม่บังคับ)">`;
+      case 'video': return `<div class="flex gap-2"><input class="inp" data-b="src" value="${esc(b.src)}" placeholder="ลิงก์ YouTube / Facebook / TikTok / Vimeo / Google Drive / ไฟล์ mp4 หรือโค้ด <iframe>"><button class="btn btn-light btn-sm" data-pk="video">${icon('upload', 'w-3.5 h-3.5')} อัปโหลด</button></div><input class="inp text-sm mt-2" data-b="caption" value="${esc(b.caption)}" placeholder="คำบรรยาย (ไม่บังคับ)">`;
       case 'button': return `<div class="grid sm:grid-cols-2 gap-2"><input class="inp" data-b="label" value="${esc(b.label)}" placeholder="ข้อความบนปุ่ม"><input class="inp" data-b="link" value="${esc(b.link)}" placeholder="https://..."></div>
         <div class="flex flex-wrap items-center gap-2 mt-2">${b.btn ? `<div class="px-3 py-2 bg-slate-50 rounded-lg border border-slate-200">${UB.buttonHtml({ title: b.label || 'ลิงก์', iconFa: b.iconFa, style: b.btn }, { tag: 'div', cls: 'auto' })}</div><button class="btn btn-light btn-sm" data-bdel title="กลับไปใช้แบบพื้นฐาน">${icon('x', 'w-3.5 h-3.5')}</button>` : `<div class="seg !w-auto">${[['primary', 'สีหลัก'], ['accent', 'สีทอง'], ['outline', 'เส้นขอบ']].map(([v, t]) => `<button data-bst="${v}" class="${b.style === v ? 'on' : ''} !px-2.5">${t}</button>`).join('')}</div>`}
           <button class="btn btn-primary btn-sm" data-bdesign>🎨 ออกแบบปุ่ม / ไอคอน</button>${alignSeg(b)}

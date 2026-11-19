@@ -525,6 +525,152 @@ a.ub:focus-visible{outline:3px solid var(--glow);outline-offset:2px}
 .utb-w[data-sort] thead th[aria-sort=ascending]::after{content:'▲';opacity:.9}.utb-w[data-sort] thead th[aria-sort=descending]::after{content:'▼';opacity:.9}
 .utb tr.utb-hide{display:none}
 `;
+  /* ---------------- วีดีโอจาก URL (YouTube, Vimeo, Facebook, TikTok, Instagram, Google Drive, Dailymotion, ไฟล์) ---------------- */
+  const VDEF = { autoplay: false, mute: false, loop: false, controls: true, start: 0, ratio: 'auto', frame: false };
+  const VRATIOS = ['auto', '16/9', '9/16', '4/3', '1/1', '21/9'];
+  function normVideo(v) {
+    const o = Object.assign({}, VDEF, v && typeof v === 'object' ? v : {});
+    for (const k of ['autoplay', 'mute', 'loop', 'controls', 'frame']) o[k] = !!o[k];
+    if (o.autoplay) o.mute = true; // เบราว์เซอร์อนุญาตเล่นอัตโนมัติเฉพาะเมื่อปิดเสียง
+    o.start = Math.max(0, Math.min(86400, Math.round(Number(o.start) || 0)));
+    if (!VRATIOS.includes(o.ratio)) o.ratio = 'auto';
+    return o;
+  }
+  /** แปลงเวลาแบบ 1:23, 1m23s, 83 เป็นวินาที */
+  function toSec(t) {
+    t = String(t || '').trim(); if (!t) return 0;
+    if (/^\d+$/.test(t)) return +t;
+    const hms = t.match(/^(?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s)?$/); if (hms && (hms[1] || hms[2] || hms[3])) return (+hms[1] || 0) * 3600 + (+hms[2] || 0) * 60 + (+hms[3] || 0);
+    const c = t.split(':').map(Number); if (c.every(n => Number.isFinite(n))) return c.reduce((a, b) => a * 60 + b, 0);
+    return 0;
+  }
+  /** ดึง src จากโค้ดฝัง <iframe ...> ที่คัดลอกมาจากเว็บต้นทาง */
+  function iframeSrc(code) { const m = String(code || '').match(/<iframe[^>]*\ssrc=["']([^"']+)["']/i); return m ? m[1].replace(/&amp;/g, '&') : ''; }
+  /** วิเคราะห์ URL วีดีโอ: แหล่งที่มา, รหัส, ภาพปก, แนวตั้งหรือไม่ */
+  function videoInfo(src, frame) {
+    let u = String(src || '').trim();
+    if (/^<iframe/i.test(u)) { u = iframeSrc(u); frame = true; }
+    if (!u) return { kind: '', url: '' };
+    let m;
+    if ((m = /(?:youtube(?:-nocookie)?\.com\/(?:watch\?(?:.*&)?v=|embed\/|shorts\/|live\/|v\/)|youtu\.be\/)([\w-]{11})/.exec(u))) {
+      const t = (u.match(/[?&#](?:t|start)=([\dhms:]+)/) || [])[1];
+      return { kind: 'youtube', name: 'YouTube', id: m[1], url: u, start: toSec(t), vertical: /\/shorts\//.test(u), thumb: `https://i.ytimg.com/vi/${m[1]}/hqdefault.jpg` };
+    }
+    if ((m = /youtube\.com\/(?:playlist\?|watch\?.*?)list=([\w-]+)/.exec(u))) return { kind: 'ytlist', name: 'YouTube Playlist', id: m[1], url: u };
+    if ((m = /vimeo\.com\/(?:video\/|channels\/[\w-]+\/|groups\/[\w-]+\/videos\/|showcase\/\d+\/video\/)?(\d{5,})(?:\/([\da-f]{6,}))?/.exec(u))) {
+      const h = m[2] || (u.match(/[?&]h=([\da-f]+)/) || [])[1] || '';
+      return { kind: 'vimeo', name: 'Vimeo', id: m[1], h, url: u, start: toSec((u.match(/#t=([\dhms:]+)/) || [])[1]) };
+    }
+    if (/(?:facebook\.com|fb\.watch|fb\.com)\//.test(u) && !/plugins\/(?!video)/.test(u)) {
+      const href = /plugins\/video\.php/.test(u) ? decodeURIComponent((u.match(/[?&]href=([^&]+)/) || [])[1] || '') : u;
+      return { kind: 'facebook', name: 'Facebook', url: href, vertical: /\/reel\/|\/reels\//.test(href) };
+    }
+    if ((m = /tiktok\.com\/(?:@[\w.-]+\/video\/|embed\/(?:v2\/)?|v\/)(\d{8,})/.exec(u))) return { kind: 'tiktok', name: 'TikTok', id: m[1], url: u, vertical: true };
+    if ((m = /instagram\.com\/(?:[\w.]+\/)?(p|reel|reels|tv)\/([\w-]+)/.exec(u))) return { kind: 'instagram', name: 'Instagram', id: m[2], t: m[1] === 'reels' ? 'reel' : m[1], url: u, vertical: m[1] !== 'p' };
+    if ((m = /drive\.google\.com\/(?:file\/d\/|open\?id=|uc\?(?:.*&)?id=)([\w-]{10,})/.exec(u))) return { kind: 'gdrive', name: 'Google Drive', id: m[1], url: u };
+    if ((m = /(?:dailymotion\.com\/(?:video|embed\/video)\/|dai\.ly\/)([a-z0-9]+)/i.exec(u))) return { kind: 'dailymotion', name: 'Dailymotion', id: m[1], url: u, thumb: `https://www.dailymotion.com/thumbnail/video/${m[1]}` };
+    if ((m = /streamable\.com\/(?:e\/)?([a-z0-9]+)/i.exec(u))) return { kind: 'streamable', name: 'Streamable', id: m[1], url: u };
+    if (/\.m3u8(\?|#|$)/i.test(u)) return { kind: 'hls', name: 'สตรีม HLS (.m3u8)', url: u };
+    if (/\.(mp4|webm|ogv|ogg|mov|m4v)(\?|#|$)/i.test(u) || /^\/uploads\//.test(u) || /blob\.vercel-storage\.com\//.test(u)) return { kind: 'file', name: 'ไฟล์วีดีโอ', url: u };
+    if (frame && /^https:\/\//i.test(u)) return { kind: 'iframe', name: 'โค้ดฝัง (iframe)', url: u };
+    return { kind: 'file', name: 'ลิงก์ไฟล์วีดีโอ', url: u, unknown: true };
+  }
+  /** อัตราส่วนที่ควรใช้ (คืน '' = ให้ผู้เรียกตัดสินเอง) */
+  function videoRatio(src, v) { const o = normVideo(v); if (o.ratio !== 'auto') return o.ratio; const i = videoInfo(src, o.frame); return i.vertical ? '9/16' : ''; }
+  /** HTML สำหรับแสดงวีดีโอ */
+  function videoEmbed(src, v, opts = {}) {
+    const o = normVideo(v), i = videoInfo(src, o.frame), cls = opts.cls ? ` class="${esc(opts.cls)}"` : '', title = esc(opts.title || i.name || 'วีดีโอ');
+    const start = o.start || i.start || 0, ap = o.autoplay ? 1 : 0, mu = o.mute ? 1 : 0, lp = o.loop ? 1 : 0, ct = o.controls ? 1 : 0;
+    const ifr = (url, extra = '') => `<iframe${cls} src="${esc(url)}" title="${title}" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen" allowfullscreen referrerpolicy="strict-origin-when-cross-origin" loading="lazy"${extra}></iframe>`;
+    switch (i.kind) {
+      case 'youtube': return ifr(`https://www.youtube-nocookie.com/embed/${i.id}?rel=0&playsinline=1${ap ? '&autoplay=1' : ''}${mu ? '&mute=1' : ''}${lp ? `&loop=1&playlist=${i.id}` : ''}${ct ? '' : '&controls=0'}${start ? `&start=${start}` : ''}`);
+      case 'ytlist': return ifr(`https://www.youtube-nocookie.com/embed/videoseries?list=${encodeURIComponent(i.id)}&rel=0${ap ? '&autoplay=1' : ''}${mu ? '&mute=1' : ''}${lp ? '&loop=1' : ''}`);
+      case 'vimeo': return ifr(`https://player.vimeo.com/video/${i.id}?dnt=1${i.h ? `&h=${i.h}` : ''}${ap ? '&autoplay=1' : ''}${mu ? '&muted=1' : ''}${lp ? '&loop=1' : ''}${ct ? '' : '&controls=0'}${start ? `#t=${start}s` : ''}`);
+      case 'facebook': return ifr(`https://www.facebook.com/plugins/video.php?href=${encodeURIComponent(i.url)}&show_text=false${ap ? '&autoplay=true' : ''}${mu ? '&mute=1' : ''}`);
+      case 'tiktok': return ifr(`https://www.tiktok.com/embed/v2/${i.id}`);
+      case 'instagram': return ifr(`https://www.instagram.com/${i.t}/${i.id}/embed/`);
+      case 'gdrive': return ifr(`https://drive.google.com/file/d/${i.id}/preview`);
+      case 'dailymotion': return ifr(`https://geo.dailymotion.com/player.html?video=${i.id}${ap ? '&autoplay=1' : ''}${mu ? '&mute=true' : ''}${lp ? '&loop=true' : ''}${start ? `&startTime=${start}` : ''}`);
+      case 'streamable': return ifr(`https://streamable.com/e/${i.id}${ap ? '?autoplay=1' : ''}${mu ? (ap ? '&' : '?') + 'muted=1' : ''}${lp ? (ap || mu ? '&' : '?') + 'loop=1' : ''}`);
+      case 'iframe': return ifr(i.url);
+      case 'hls': case 'file': {
+        const attrs = `${o.controls ? ' controls' : ''}${o.autoplay ? ' autoplay' : ''}${o.mute ? ' muted' : ''}${o.loop ? ' loop' : ''} playsinline preload="metadata"${opts.poster ? ` poster="${esc(opts.poster)}"` : ''}`;
+        const url = i.url + (start && i.kind === 'file' && !/#t=/.test(i.url) ? `#t=${start}` : '');
+        return i.kind === 'hls' ? `<video${cls} data-hls="${esc(url)}"${attrs}><source src="${esc(url)}" type="application/x-mpegURL"></video>`
+          : `<video${cls} src="${esc(url)}"${attrs}><a href="${esc(i.url)}" target="_blank" rel="noopener">เปิดวีดีโอ</a></video>`;
+      }
+    }
+    return '';
+  }
+
+  /* ---------------- กรอบวีดีโอ + แถบหัวข้อ (กดยุบ/ขยายได้) ---------------- */
+  const VPDEF = { on: false, title: '', sub: '', icon: 'auto', barPos: 'top', barBg: '#1e3a5f', barBg2: '', barFg: '#ffffff', font: '', fs: 17, fw: 700, align: 'left', bpad: 12,
+    toggle: true, open: true, chev: 'chevron', ms: 350, bw: 0, bc: '#e2e8f0', radius: 14, shadow: 'soft', bg: '#000000', pad: 0, maxW: 0, falign: 'center', subFg: '' };
+  const VPOPT = { icon: null, barPos: ['top', 'bottom'], align: ['left', 'center'], chev: ['chevron', 'plus', 'caret', 'none'], shadow: ['none', 'soft', 'md', 'strong'], falign: ['left', 'center', 'right'] };
+  const VPPRESETS = [
+    { id: 'court', name: 'ศาล น้ำเงิน–ทอง', s: { barBg: '#1e3a5f', barBg2: '#2b5288', barFg: '#ffffff', subFg: '#f3d68b', bw: 3, bc: '#d4a72c', radius: 14, shadow: 'md', bg: '#000000', pad: 0, chev: 'chevron' } },
+    { id: 'light', name: 'สว่าง เรียบ', s: { barBg: '#ffffff', barBg2: '', barFg: '#0f172a', subFg: '#64748b', bw: 1, bc: '#e2e8f0', radius: 12, shadow: 'soft', bg: '#f8fafc', pad: 10, chev: 'chevron' } },
+    { id: 'cinema', name: 'โรงภาพยนตร์', s: { barBg: '#0b0f19', barBg2: '#1f2937', barFg: '#fbbf24', subFg: '#9ca3af', bw: 0, bc: '#000000', radius: 10, shadow: 'strong', bg: '#000000', pad: 0, chev: 'caret' } },
+    { id: 'grad', name: 'ไล่สีสดใส', s: { barBg: '#7c3aed', barBg2: '#db2777', barFg: '#ffffff', subFg: '#fde68a', bw: 0, bc: '#000000', radius: 18, shadow: 'md', bg: '#111827', pad: 0, chev: 'plus' } },
+    { id: 'line', name: 'กรอบเส้น', s: { barBg: '#f1f5f9', barBg2: '', barFg: '#1e3a5f', subFg: '#475569', bw: 2, bc: '#1e3a5f', radius: 8, shadow: 'none', bg: '#ffffff', pad: 8, chev: 'chevron' } },
+    { id: 'red', name: 'แดง YouTube', s: { barBg: '#dc2626', barBg2: '#991b1b', barFg: '#ffffff', subFg: '#fecaca', bw: 0, bc: '#000000', radius: 12, shadow: 'md', bg: '#000000', pad: 0, chev: 'chevron' } },
+  ];
+  const VICON = { youtube: 'fa-brands fa-youtube', ytlist: 'fa-brands fa-youtube', vimeo: 'fa-brands fa-vimeo-v', facebook: 'fa-brands fa-facebook', tiktok: 'fa-brands fa-tiktok', instagram: 'fa-brands fa-instagram', gdrive: 'fa-brands fa-google-drive', hls: 'fa-solid fa-tower-broadcast' };
+  function normVPanel(v) {
+    const o = Object.assign({}, VPDEF, v && typeof v === 'object' ? v : {}), hex = x => /^#[0-9a-f]{3,8}$/i.test(String(x || ''));
+    o.on = !!o.on; o.toggle = !!o.toggle; o.open = o.open !== false;
+    for (const k in VPOPT) if (VPOPT[k] && !VPOPT[k].includes(o[k])) o[k] = VPDEF[k];
+    for (const k of ['barFg', 'bc']) if (!hex(o[k])) o[k] = VPDEF[k];
+    for (const k of ['barBg', 'bg']) if (o[k] !== 'transparent' && !hex(o[k])) o[k] = VPDEF[k];
+    for (const k of ['barBg2', 'subFg']) if (o[k] && !hex(o[k])) o[k] = '';
+    const n = (k, a, b) => { const x = Number(o[k]); o[k] = Number.isFinite(x) ? Math.min(b, Math.max(a, x)) : VPDEF[k]; };
+    n('fs', 10, 48); n('fw', 300, 900); n('bpad', 2, 40); n('ms', 0, 2000); n('bw', 0, 16); n('radius', 0, 48); n('pad', 0, 60); n('maxW', 0, 3000);
+    o.title = String(o.title || '').slice(0, 200); o.sub = String(o.sub || '').slice(0, 300);
+    o.icon = o.icon === 'auto' || o.icon === '' ? o.icon : String(o.icon || '').replace(/[^\w -]/g, '').slice(0, 60);
+    o.font = String(o.font || '').replace(/[^\w ก-๙-]/g, '').slice(0, 60);
+    return o;
+  }
+  const VPSH = { none: 'none', soft: '0 4px 14px rgba(15,23,42,.10)', md: '0 12px 30px rgba(15,23,42,.18)', strong: '0 24px 60px rgba(0,0,0,.35)' };
+  /** วีดีโอพร้อมกรอบและแถบหัวข้อ · opts: { cw, fill, poster, preview(html แทนตัวเล่น) } */
+  function videoPanelHtml(it, opts = {}) {
+    const p = normVPanel(it.vp), vo = normVideo(it.vo), info = videoInfo(it.src, vo.frame), cw = opts.cw, px = v => cw ? `calc(${v} * 100cqw / ${cw})` : `${v}px`;
+    const ratio = videoRatio(it.src, vo) || opts.ratio || '16/9';
+    let media = opts.preview != null ? opts.preview : videoEmbed(it.src, vo, { poster: opts.poster || it.poster, title: p.title || it.title });
+    const startClosed = p.toggle && !p.open;
+    if (startClosed) media = media.replace(/<iframe([^>]*?)\ssrc="/, '<iframe$1 data-src="'); // ยังไม่โหลดจนกว่าจะกดเปิด
+    const title = p.title || it.title || '', ic = p.icon === 'auto' ? (VICON[info.kind] || 'fa-solid fa-circle-play') : p.icon;
+    const chev = { chevron: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>', plus: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path class="v" d="M12 5v14"/><path d="M5 12h14"/></svg>', caret: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 10l5 5 5-5z"/></svg>', none: '' }[p.chev];
+    const barBg = p.barBg === 'transparent' ? 'transparent' : p.barBg2 ? `linear-gradient(135deg,${p.barBg},${p.barBg2})` : p.barBg;
+    const vars = [`--vpmw:${p.maxW ? px(p.maxW) : '100%'}`, `--vpbar:${barBg}`, `--vpfg:${p.barFg}`, `--vpsub:${p.subFg || p.barFg}`, `--vpfs:${px(p.fs)}`, `--vpfw:${p.fw}`, `--vpbp:${px(p.bpad)}`, `--vpal:${p.align}`,
+      `--vpbw:${px(p.bw)}`, `--vpbc:${p.bc}`, `--vpr:${px(p.radius)}`, `--vpsh:${VPSH[p.shadow]}`, `--vpbg:${p.bg}`, `--vppad:${px(p.pad)}`, `--vpms:${p.ms}ms`, `--vr:${ratio}`, p.font ? `--vpf:'${p.font}',inherit` : '',
+      `margin:${p.falign === 'left' ? '0 auto 0 0' : p.falign === 'right' ? '0 0 0 auto' : '0 auto'}`].filter(Boolean).join(';');
+    const barInner = `${ic ? `<i class="uvp-ic ${esc(ic)}" aria-hidden="true"></i>` : ''}<span class="uvp-t"><b>${esc(title)}</b>${p.sub ? `<small>${esc(p.sub)}</small>` : ''}</span>${p.toggle && chev ? `<span class="uvp-chev c-${p.chev}" aria-hidden="true">${chev}</span>` : ''}`;
+    const bid = 'uvp' + Math.random().toString(36).slice(2, 8);
+    const bar = p.toggle ? `<button type="button" class="uvp-bar" data-uvp aria-expanded="${startClosed ? 'false' : 'true'}" aria-controls="${bid}">${barInner}</button>` : `<div class="uvp-bar">${barInner}</div>`;
+    const body = `<div class="uvp-body" id="${bid}"><div class="uvp-in"><div class="uvp-media">${media}</div></div></div>`;
+    return `<div class="uvp b-${p.barPos}${p.toggle ? ' tg' : ''}${startClosed ? ' closed' : ''}${opts.fill ? ' fill' : ''}" style="${vars}">${p.barPos === 'bottom' ? body + bar : bar + body}</div>`;
+  }
+  const VP_CSS = `
+.uvp{width:100%;max-width:var(--vpmw);border:var(--vpbw) solid var(--vpbc);border-radius:var(--vpr);overflow:hidden;box-shadow:var(--vpsh);background:var(--vpbg);box-sizing:border-box;display:flex;flex-direction:column;font-family:var(--vpf,inherit)}
+.uvp-bar{all:unset;box-sizing:border-box!important;display:flex!important;align-items:center;gap:.65em;width:100%!important;margin:0!important;border:0!important;border-radius:0!important;box-shadow:none!important;min-height:0!important;text-transform:none!important;letter-spacing:normal!important;padding:var(--vpbp) calc(var(--vpbp) * 1.35)!important;background:var(--vpbar)!important;color:var(--vpfg)!important;font-size:var(--vpfs)!important;font-weight:var(--vpfw)!important;line-height:1.3!important;text-align:var(--vpal)!important;flex:none;font-family:var(--vpf,inherit)!important}
+.uvp.tg>.uvp-bar{cursor:pointer;user-select:none;transition:filter .2s}.uvp.tg>.uvp-bar:hover{filter:brightness(1.08)}.uvp.tg>.uvp-bar:focus-visible{outline:3px solid #fbbf24;outline-offset:-3px}
+.uvp-ic{font-size:1.15em;flex:none;line-height:1}
+.uvp-t{flex:1;min-width:0;display:flex;flex-direction:column;gap:.1em}.uvp-t b{font-weight:inherit;overflow:hidden;text-overflow:ellipsis}
+.uvp-t small{font-size:.72em;font-weight:400;color:var(--vpsub);opacity:.95}
+.uvp-chev{flex:none;width:1.25em;height:1.25em;display:grid;place-items:center;transition:transform var(--vpms) ease}.uvp-chev svg{width:100%;height:100%;display:block}
+.uvp.b-bottom .uvp-chev.c-chevron,.uvp.b-bottom .uvp-chev.c-caret{transform:rotate(180deg)}
+.uvp.closed .uvp-chev.c-chevron,.uvp.closed .uvp-chev.c-caret{transform:rotate(-90deg)}
+.uvp-chev.c-plus .v{transition:opacity var(--vpms)}.uvp:not(.closed) .uvp-chev.c-plus .v{opacity:0}
+.uvp-body{display:grid;grid-template-rows:1fr;transition:grid-template-rows var(--vpms) ease;background:var(--vpbg)}
+.uvp.closed .uvp-body{grid-template-rows:0fr}
+.uvp-in{overflow:hidden;min-height:0}
+.uvp-media{position:relative;aspect-ratio:var(--vr);margin:var(--vppad);border-radius:calc(var(--vpr) * .5);overflow:hidden;background:#000}
+.uvp-media iframe,.uvp-media video,.uvp-media img,.uvp-media .uvp-ph{position:absolute;inset:0;width:100%!important;height:100%!important;border:0;display:block;object-fit:contain}
+.uvp:not(.closed)>.uvp-body .uvp-media{transition:none}
+.uvp.fill{height:100%;max-width:none}.uvp.fill .uvp-body{flex:1;min-height:0}.uvp.fill .uvp-in{height:100%}.uvp.fill .uvp-media{aspect-ratio:auto;height:calc(100% - var(--vppad) * 2)}
+.uvp.fill.closed{height:auto}.uvp.fill.closed .uvp-body{flex:0}
+@media (prefers-reduced-motion:reduce){.uvp-body,.uvp-chev{transition:none!important}}
+`;
   /* ---------------- QR Code (เข้ารหัสเอง รองรับภาษาไทย UTF-8) ---------------- */
   const QRENC = (() => {
   const ECC_CW = [
@@ -694,7 +840,7 @@ a.ub:focus-visible{outline:3px solid var(--glow);outline-offset:2px}
 a.uqr{transition:transform .25s}a.uqr:hover{transform:translateY(-3px)}
 `;
   const FA_CSS = 'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css';
-  return { DEF, OPT, LABEL, PRESETS, FONTS, fontUrl, norm, fromLegacy, shade, vars, buttonHtml, CSS: CSS + IMG_CSS + TB_CSS + QR_CSS, FA_CSS, esc,
+  return { DEF, OPT, LABEL, PRESETS, FONTS, fontUrl, norm, fromLegacy, shade, vars, buttonHtml, CSS: CSS + IMG_CSS + TB_CSS + QR_CSS + VP_CSS, FA_CSS, esc,
     TDEF, TOPT, TPRESETS, normText, richText, textHtml, dividerHtml, spacerHtml,
-    IDEF, IOPT, IPRESETS, normImg, imageHtml, TBDEF, TBOPT, TBPRESETS, normTable, tableHtml, tableCover, QDEF, QOPT, QPRESETS, normQr, qrSvg, qrHtml, qrEncode: (t, e) => QRENC.encode(t, e), ENTERS: ['none', 'fade', 'fade-up', 'fade-down', 'slide-left', 'slide-right', 'zoom', 'zoom-out', 'flip', 'blur', 'rotate'] };
+    IDEF, IOPT, IPRESETS, normImg, imageHtml, TBDEF, TBOPT, TBPRESETS, normTable, tableHtml, tableCover, VPDEF, VPPRESETS, normVPanel, videoPanelHtml, VDEF, VRATIOS, normVideo, videoInfo, videoEmbed, videoRatio, iframeSrc, QDEF, QOPT, QPRESETS, normQr, qrSvg, qrHtml, qrEncode: (t, e) => QRENC.encode(t, e), ENTERS: ['none', 'fade', 'fade-up', 'fade-down', 'slide-left', 'slide-right', 'zoom', 'zoom-out', 'flip', 'blur', 'rotate'] };
 });
