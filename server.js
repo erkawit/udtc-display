@@ -1314,7 +1314,10 @@ const INTRO_JS = `(function(){
   /* ถ้าหน้า Intro ถูกฝังใน iframe ให้เปลี่ยนหน้าทั้งหน้าต่าง (URL เปลี่ยนตาม กด refresh แล้วไม่ย้อนกลับมาหน้า Intro) */
   var framed=false;try{framed=window.top!==window.self;}catch(e){framed=true;}
   function abs(u){try{return new URL(u,location.href).href;}catch(e){return u;}}
-  function goTop(u){u=abs(u);if(!framed){location.href=u;return;}
+  /* แสดงอยู่ในหน้าจัดการ (หลังบ้าน) — ห้ามพาออกไปหน้าเว็บ */
+  var inAdmin=!!window.__uwPreview;try{if(framed&&window.top.location.pathname.indexOf('/admin')===0)inAdmin=true;}catch(e){}
+  if(inAdmin)document.addEventListener('click',function(e){var l=e.target.closest&&e.target.closest('a[href]');if(l&&l.getAttribute('href').charAt(0)!=='#'){e.preventDefault();}},true);
+  function goTop(u){if(inAdmin)return;u=abs(u);if(!framed){location.href=u;return;}
     try{parent.postMessage({type:'uw-intro-go',url:u},'*');}catch(e){}
     try{window.top.location.href=u;}catch(e){}
     setTimeout(function(){location.href=u;},700);}
@@ -1923,7 +1926,8 @@ async function route(req, res) {
       const slug = pathname.split('/')[2];
       const it = slug ? db.intros.find(x => x.slug === slug) : (db.intros.find(x => x.id === db.settings.mainIntroId) || db.intros[0]);
       if (!it) return notFound(res, 'ยังไม่มีหน้า Intro');
-      return send(res, 200, renderIntro(it), { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache' });
+      const pv = /[?&]preview=1\b/.test(req.url || '');
+      return send(res, 200, renderIntro(it, { preview: pv }), { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache' });
     }
     if (pathname.startsWith('/p/')) {
       const slug = pathname.split('/')[2];

@@ -2750,7 +2750,7 @@ async function viewIntros() {
   <div class="grid md:grid-cols-2 2xl:grid-cols-3 gap-4">${list.map(it => `
     <div class="card overflow-hidden flex flex-col ${it.isMain ? 'ring-2 ring-gold-400' : ''}">
       <div class="aspect-video bg-slate-900 relative overflow-hidden">
-        <iframe src="/intro/${esc(it.slug)}" class="absolute top-0 left-0 border-0 pointer-events-none origin-top-left" style="width:1440px;height:810px;transform:scale(var(--s,.3))" data-thumb loading="lazy" tabindex="-1"></iframe>
+        <iframe src="/intro/${esc(it.slug)}?preview=1" sandbox="allow-scripts allow-same-origin" class="absolute top-0 left-0 border-0 pointer-events-none origin-top-left" style="width:1440px;height:810px;transform:scale(var(--s,.3))" data-thumb loading="lazy" tabindex="-1"></iframe>
         <a href="#/intros/${it.id}" class="absolute inset-0"></a>
         ${it.isMain ? '<span class="absolute top-2 left-2 text-xs px-2 py-1 rounded-full bg-gold-500 text-white font-semibold">★ หน้า Intro หลัก</span>' : ''}
       </div>
