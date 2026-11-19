@@ -560,14 +560,16 @@ function carCfg(w) {
     bg: w.carBg === 'transparent' ? 'transparent' : color(w.carBg, ''),
   };
 }
+function normQrSafe(q) { const o = UB.normQr(q); o.logo = safeUrl(o.logo); return o; }
 function normItem(i) {
-  const type = ['image', 'video', 'button', 'html', 'text', 'divider', 'spacer', 'pdf', 'table'].includes(i.type) ? i.type : 'image';
+  const type = ['image', 'video', 'button', 'html', 'text', 'divider', 'spacer', 'pdf', 'table', 'qr'].includes(i.type) ? i.type : 'image';
   return {
     id: i.id || uid(), type,
     title: String(i.title || '').slice(0, 300), subtitle: String(i.subtitle || '').slice(0, 500),
     src: safeUrl(i.src), poster: safeUrl(i.poster), link: safeUrl(i.link), newTab: i.newTab !== false, full: !!i.full,
     pdf: type === 'pdf' ? normPdf(i.pdf) : undefined,
     tb: type === 'table' ? UB.normTable(i.tb) : undefined,
+    qr: type === 'qr' ? normQrSafe(i.qr) : undefined,
     iconImg: safeUrl(i.iconImg), link2: safeUrl(i.link2), link2Text: String(i.link2Text || '').slice(0, 120),
     iconFa: safeFa(i.iconFa), style: i.style && typeof i.style === 'object' ? UB.norm(i.style) : null,
     pos: i.pos && typeof i.pos === 'object' ? { x: clamp(i.pos.x, 0, 4000, 0), y: clamp(i.pos.y, 0, 4000, 0), w: clamp(i.pos.w, 4, 4000, 200), h: clamp(i.pos.h, 4, 4000, 60), z: clamp(i.pos.z, 0, 999, 1), locked: !!i.pos.locked } : null,
@@ -701,7 +703,7 @@ a.uw-card:hover{transform:translateY(-2px)}.uw.shadow a.uw-card:hover{box-shadow
 .upd-view canvas{display:block;max-width:100%;height:auto;background:#fff;box-shadow:0 2px 10px rgba(15,23,42,.18)}
 .upd-view iframe{flex:1;width:100%;border:0;background:#fff}
 .upd-msg{margin:auto;color:#475569;font-size:13px;text-align:center;padding:12px}.upd-msg a{color:#1d4ed8;text-decoration:underline!important}
-.uw-grid>.upd-card,.uw-list>.uw-row-pdf,.uw-grid>.uw-tbl,.uw-list>.uw-tbl{grid-column:1/-1}.uw-tbl{min-width:0}
+.uw-grid>.upd-card,.uw-list>.uw-row-pdf,.uw-grid>.uw-tbl,.uw-list>.uw-tbl{grid-column:1/-1}.uw-tbl{min-width:0}.uw-qr{min-width:0;padding:.5rem 0}
 .uc.stack .uc-el.t-table{aspect-ratio:auto!important;height:auto!important}.uc.stack .uc-el.t-table .utb-w.fill{height:auto}.upd-card{padding:0;overflow:visible;background:transparent;box-shadow:none}
 .uw-btn{display:flex;align-items:center;justify-content:center;gap:10px;min-height:52px;padding:12px 18px;border-radius:var(--radius);font-weight:600;text-decoration:none;text-align:center;transition:all .2s;line-height:1.35;height:100%}
 .uw-btn .ic{font-size:1.25em}.uw-btn small{display:block;font-weight:400;opacity:.8;font-size:.8rem}
@@ -754,6 +756,7 @@ a.uw-row:hover{border-color:var(--accent);background:#f8fafc}
 .uc.stack .uc-el{position:relative;left:auto!important;top:auto!important;width:100%!important;height:auto!important}
 .uc.stack .uc-el.t-button,.uc.stack .uc-el.t-text,.uc.stack .uc-el.t-divider,.uc.stack .uc-el.t-spacer{aspect-ratio:auto!important}
 .uc.stack .uc-el.t-text .ux{height:auto!important}
+.uc.stack .uc-el.t-qr{aspect-ratio:auto!important;height:auto!important}.uc.stack .uqr.fill{container-type:normal;height:auto;max-width:min(var(--qmw),320px);font-size:16px!important}.uc.stack .uqr.fill .uqr-frame,.uc.stack .uqr.fill>.uqr-code{width:100%!important}.uc.stack .uqr.fill .uqr-cap{white-space:normal}
 .uc.stack .ub{min-height:54px;font-size:16px!important;padding:12px 16px!important;border-radius:min(var(--r),14px)}
 .uc.stack .ub .ui{font-size:20px!important}.uc.stack .ub.pos-top .ui{font-size:28px!important}}
 .uw{border-radius:var(--prad,0)}
@@ -811,6 +814,7 @@ function cardHtml(it, w) {
   if (!w.lightbox) it = withFull(it);
   if (it.type === 'pdf') return `<div class="uw-card upd-card">${pdfHtml(it)}</div>`;
   if (it.type === 'table') return `<div class="uw-tbl">${UB.tableHtml(it)}</div>`;
+  if (it.type === 'qr') return `<div class="uw-qr">${UB.qrHtml(it)}</div>`;
   const ratioCls = ratioVal(w) === 'auto' || (w.layout === 'carousel' && carCfg(w).hMode !== 'ratio') ? ' auto' : '';
   const capOverlay = w.captionPos === 'overlay' && it.type === 'image';
   const cap = (w.showCaption && (it.title || it.subtitle))
@@ -847,6 +851,7 @@ function rowHtml(it, w) {
   it = withFull(it);
   if (it.type === 'pdf') return `<div class="uw-row-pdf">${pdfHtml(it)}</div>`;
   if (it.type === 'table') return `<div class="uw-tbl">${UB.tableHtml(it)}</div>`;
+  if (it.type === 'qr') return `<div class="uw-qr">${UB.qrHtml(it)}</div>`;
   if (it.type === 'video') return `<div class="uw-row video"><div class="uw-media" style="aspect-ratio:16/9">${videoHtml(it.src, it.poster)}</div>${it.title ? `<div class="uw-cap"><b>${esc(it.title)}</b>${it.subtitle ? `<small>${esc(it.subtitle)}</small>` : ''}</div>` : ''}</div>`;
   if (it.type === 'html') return `<div class="uw-html">${it.html}</div>`;
   if (TEXTY.includes(it.type)) return textItemHtml(it);
@@ -873,6 +878,7 @@ function canvasHtml(items, w) {
       } else if (it.type === 'video') inner = `<div class="uw-media" style="height:100%;border-radius:${w.radius}px">${videoHtml(it.src, it.poster)}</div>`;
       else if (it.type === 'pdf') inner = pdfHtml(it, { fill: true });
       else if (it.type === 'table') inner = UB.tableHtml(it, { cw: W, fill: true });
+      else if (it.type === 'qr') inner = UB.qrHtml(it, { cw: W, fill: true });
       else if (TEXTY.includes(it.type)) inner = it.type === 'text' ? textItemHtml(it, W) : it.type === 'divider' ? UB.dividerHtml(it.ts, { cw: W }) : '';
       else inner = `<div class="uw-html">${it.html}</div>`;
       const en = it.enter && it.enter.type ? ` data-enter="${it.enter.type}"` : '', ev = en ? `;--edel:${it.enter.delay}ms;--edur:${it.enter.dur}ms` : '';
@@ -1065,7 +1071,7 @@ function exportWidget(w, { base, full = false, font = true, inline = true }) {
   };
   const abs = html => html.replace(/(\s(src|href|poster|data-pdf))="(\/(?!\/)[^"]*)"/g, (m, attr, name, p, off, all) => {
     // href ฝังได้เฉพาะลิงก์ขยายภาพ (data-lb) — ลิงก์ทั่วไปแบบ data: เบราว์เซอร์ไม่ยอมเปิด · PDF ไม่ฝัง (ไฟล์ใหญ่)
-    const lb = name === 'data-pdf' ? false : (name !== 'href' || all.startsWith(' data-lb', off + m.length));
+    const lb = name === 'data-pdf' ? false : (name !== 'href' || all.startsWith(' data-lb', off + m.length) || all.slice(Math.max(0, off - 6), off) === '<image');
     if (inline && lb) { const d = toData(p); if (d) return `${attr}="${d}"`; }
     if (name === 'href') stat.external.add(p.split('/')[1]);
     else stat.external.add('img');

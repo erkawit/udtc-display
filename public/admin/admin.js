@@ -27,7 +27,7 @@ const IC = {
   media: '<rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.1-3.1a2 2 0 0 0-2.8 0L6 21"/>',
   users: '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/>',
   cog: '<path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/>',
-  plus: '<path d="M12 5v14M5 12h14"/>', table: '<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M3 15h18M9 3v18M15 3v18"/>', sparkle: '<path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/>', check: '<path d="M20 6 9 17l-5-5"/>', edit: '<path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/>',
+  plus: '<path d="M12 5v14M5 12h14"/>', qr: '<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3h-3zM20 14v.01M14 20h.01M17 20h4M20 17v3"/>', table: '<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M3 15h18M9 3v18M15 3v18"/>', sparkle: '<path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/>', check: '<path d="M20 6 9 17l-5-5"/>', edit: '<path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/>',
   trash: '<path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>',
   copy: '<rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>',
   code: '<path d="m16 18 6-6-6-6M8 6l-6 6 6 6"/>', eye: '<path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/>',
@@ -803,6 +803,7 @@ function editTable(it0, onDone) {
     T().colW.splice(at, 1);
   }
   const cellsIn = f => { const b = box(); for (let r = b.r0; r <= b.r1; r++) for (let c = b.c0; c <= b.c1; c++) f(T().rows[r][c], r, c); };
+  let pendingLink = null, pickP = null;
   openModal({
     title: 'ตาราง — แก้ไขข้อมูลและออกแบบ', size: 'max-w-[1400px]',
     body: `<div class="grid xl:grid-cols-[1fr_400px] gap-4">
@@ -820,12 +821,14 @@ function editTable(it0, onDone) {
           <label class="btn btn-light btn-sm !px-2 cursor-pointer" title="สีตัวอักษรในเซลล์"><span class="font-bold underline decoration-rose-500 decoration-2">A</span><input type="color" class="w-0 h-0 opacity-0" data-cellc="fg" value="#b91c1c"></label>
           <button class="btn btn-light btn-sm" data-op="clearfmt" title="ล้างรูปแบบเซลล์ที่เลือก">ล้างรูปแบบ</button>
           <span class="w-px h-6 bg-slate-300 mx-1"></span>
+          <button class="btn btn-light btn-sm !text-navy-800 font-semibold" data-op="img" title="แทรกภาพลงในช่องที่เลือก (ตำแหน่งเคอร์เซอร์)">🖼 แทรกภาพ</button><button class="btn btn-light btn-sm !text-navy-800 font-semibold" data-op="link" title="แทรกลิงก์ / ทำข้อความที่เลือกให้เป็นลิงก์">🔗 แทรกลิงก์</button>
+          <span class="w-px h-6 bg-slate-300 mx-1"></span>
           <button class="btn btn-light btn-sm" data-op="paste">📋 วางจาก Excel</button><label class="btn btn-light btn-sm cursor-pointer">📄 นำเข้า CSV<input type="file" accept=".csv,.tsv,.txt,text/csv" class="hidden" data-csv></label>
           <button class="btn btn-light btn-sm !text-rose-600" data-op="clearall">ล้างข้อมูล</button>
         </div>
         <div class="flex items-center gap-2 text-xs text-slate-500" data-selinfo></div>
         <div class="overflow-auto rounded-xl border border-slate-300 bg-white" style="max-height:46vh" data-gridwrap><table class="w-full border-collapse text-sm" data-grid></table></div>
-        <p class="text-xs text-slate-500">คลิกช่องเพื่อพิมพ์ · <b>Shift + คลิก</b> เลือกหลายช่อง (เพื่อรวมเซลล์/จัดรูปแบบพร้อมกัน) · <b>Tab</b> ไปช่องถัดไป · <b>วางข้อมูลที่คัดลอกจาก Excel/Google Sheets</b> ลงในช่องได้เลย · ใส่ลิงก์แบบ [ข้อความ](https://...) · ทำตัวหนาด้วย **ข้อความ**</p>
+        <p class="text-xs text-slate-500">คลิกช่องเพื่อพิมพ์ · <b>Shift + คลิก</b> เลือกหลายช่อง (เพื่อรวมเซลล์/จัดรูปแบบพร้อมกัน) · <b>Tab</b> ไปช่องถัดไป · <b>วางข้อมูลที่คัดลอกจาก Excel/Google Sheets</b> ลงในช่องได้เลย · ปุ่ม <b>🖼 แทรกภาพ</b> / <b>🔗 แทรกลิงก์</b> จะใส่ที่ตำแหน่งเคอร์เซอร์ในช่อง (ภาพแสดงเป็นโค้ด ![ชื่อ|กว้าง](url) ในช่องแก้ไข) · ทำตัวหนาด้วย **ข้อความ**</p>
         <div><div class="text-xs font-semibold text-slate-500 mb-1">ตัวอย่างการแสดงผลจริง</div><div class="rounded-xl chk-pattern border border-slate-200 p-4 overflow-auto" style="max-height:38vh" data-pv></div></div>
       </div>
       <div class="space-y-3 min-w-0"><div class="seg" data-side><button data-sd="design">🎨 ออกแบบ</button><button data-sd="struct">⚙ โครงสร้างและฟังก์ชัน</button></div><div data-panel class="space-y-3"></div></div></div>`,
@@ -851,6 +854,26 @@ function editTable(it0, onDone) {
         if (e.shiftKey) { e.preventDefault(); sel = { ...sel, r1: r + (cell.rs || 1) - 1, c1: c + (cell.cs || 1) - 1 }; } else sel = { r0: r, c0: c, r1: r + (cell.rs || 1) - 1, c1: c + (cell.cs || 1) - 1 };
         refreshSel(); drawPanel();
       });
+      // จำตำแหน่งเคอร์เซอร์/ข้อความที่เลือกในช่อง เพื่อแทรกภาพ/ลิงก์
+      let caret = null;
+      const offIn = (td, node, off) => { const r = document.createRange(); r.selectNodeContents(td); try { r.setEnd(node, off); } catch (e) { return td.innerText.length; } return r.toString().length; };
+      const onSelChange = () => {
+        if (!document.body.contains(grid)) return document.removeEventListener('selectionchange', onSelChange);
+        const s = window.getSelection(); if (!s || !s.rangeCount) return;
+        const rg = s.getRangeAt(0), td = rg.startContainer.nodeType === 1 ? rg.startContainer.closest && rg.startContainer.closest('td[data-r]') : rg.startContainer.parentElement && rg.startContainer.parentElement.closest('td[data-r]');
+        if (!td || !grid.contains(td)) return;
+        const a = offIn(td, rg.startContainer, rg.startOffset), b = offIn(td, rg.endContainer, rg.endOffset);
+        caret = { r: +td.dataset.r, c: +td.dataset.c, a: Math.min(a, b), b: Math.max(a, b) };
+      };
+      document.addEventListener('selectionchange', onSelChange);
+      const insertAt = (txt, replaceSel) => {
+        const b0 = box(), cell = T().rows[b0.r0][b0.c0];
+        const k = caret && caret.r === b0.r0 && caret.c === b0.c0 ? caret : { a: cell.t.length, b: cell.t.length };
+        const a = Math.min(k.a, cell.t.length), e = Math.min(replaceSel ? k.b : k.a, cell.t.length);
+        const pre = cell.t.slice(0, a), post = cell.t.slice(e);
+        cell.t = pre + (pre && !/\s$/.test(pre) && !replaceSel ? ' ' : '') + txt + (post && !/^\s/.test(post) && !replaceSel ? ' ' : '') + post;
+        caret = { r: b0.r0, c: b0.c0, a: a + txt.length + 1, b: a + txt.length + 1 };
+      };
       grid.addEventListener('input', e => { const td = e.target.closest('td[data-r]'); if (!td) return; T().rows[+td.dataset.r][+td.dataset.c].t = td.innerText.replace(/\n$/, ''); paint(); });
       grid.addEventListener('keydown', e => {
         const td = e.target.closest('td[data-r]'); if (!td || e.key !== 'Tab') return;
@@ -889,6 +912,40 @@ function editTable(it0, onDone) {
         if (op.startsWith('al-')) cellsIn(c => { c.al = op.slice(3); });
         if (op === 'bold') { const on = !T().rows[b.r0][b.c0].b; cellsIn(c => { if (on) c.b = 1; else delete c.b; }); }
         if (op === 'ital') { const on = !T().rows[b.r0][b.c0].i; cellsIn(c => { if (on) c.i = 1; else delete c.i; }); }
+        if (op === 'img') {
+          const url = await pickMedia('image'); if (!url) return;
+          const r = await Swal.fire({ title: 'แทรกภาพในตาราง', html: `<div style="text-align:left;font-size:14px;display:grid;gap:10px"><img src="${esc(url)}" style="max-height:110px;max-width:100%;margin:auto;border-radius:6px;border:1px solid #e2e8f0">
+            <label>คำอธิบายภาพ (alt)<input id="swAlt" class="swal2-input" style="margin:4px 0 0;width:100%" value="${esc(fileTitle ? fileTitle(url) : '')}"></label>
+            <label>ความกว้าง<div style="display:flex;gap:6px;margin-top:4px"><input id="swW" type="number" min="0" max="2000" value="80" class="swal2-input" style="margin:0;flex:1"><select id="swU" class="swal2-select" style="margin:0"><option value="">px</option><option value="%">% ของช่อง</option></select></div><small style="color:#64748b">0 = ขนาดจริง (ไม่เกินความกว้างช่อง)</small></label>
+            <label>ลิงก์เมื่อคลิกภาพ (เว้นว่างได้)<input id="swL" class="swal2-input" style="margin:4px 0 0;width:100%" placeholder="https://… หรือเลือก &quot;เปิดภาพขนาดเต็ม&quot; ด้านล่าง"></label>
+            <label style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="swFull"> คลิกแล้วเปิดภาพขนาดเต็ม</label></div>`,
+            showCancelButton: true, confirmButtonText: 'แทรกภาพ', cancelButtonText: 'ยกเลิก', reverseButtons: true, focusConfirm: false,
+            preConfirm: () => ({ alt: document.getElementById('swAlt').value.replace(/[\]|\[\n]/g, ' ').trim(), w: Math.max(0, Math.min(2000, +document.getElementById('swW').value || 0)), u: document.getElementById('swU').value, link: document.getElementById('swL').value.trim(), full: document.getElementById('swFull').checked }) });
+          if (!r.isConfirmed) return;
+          const v = r.value, w = v.w ? `|${v.u === '%' ? Math.min(100, v.w) + '%' : v.w}` : '';
+          let code = `![${v.alt}${w}](${url})`;
+          const lk = v.full ? url : v.link;
+          if (lk) { if (!/^(https?:\/\/|\/|mailto:|tel:|#)/i.test(lk)) return fail('ลิงก์ต้องขึ้นต้นด้วย https:// หรือ /'); code = `[${code}](${lk})`; }
+          insertAt(code); drawGrid(); paint(); return;
+        }
+        if (op === 'link') {
+          const cell = T().rows[b.r0][b.c0], k = caret && caret.r === b.r0 && caret.c === b.c0 && caret.b > caret.a ? caret : null;
+          const selTxt = k ? cell.t.slice(k.a, k.b) : '';
+          const r = await Swal.fire({ title: 'แทรกลิงก์ในตาราง', html: `<div style="text-align:left;font-size:14px;display:grid;gap:10px">
+            <label>ข้อความที่แสดง<input id="swT" class="swal2-input" style="margin:4px 0 0;width:100%" value="${esc(selTxt)}" placeholder="เช่น ดาวน์โหลดแบบฟอร์ม"></label>
+            <label>ที่อยู่ลิงก์ (URL)<input id="swU2" class="swal2-input" style="margin:4px 0 0;width:100%" placeholder="https://… · tel:042… · mailto:…"></label>
+            <button type="button" id="swPickF" class="swal2-styled" style="margin:0;background:#e2e8f0;color:#1e293b;font-size:13px">📎 เลือกไฟล์จากคลังสื่อ (PDF / ภาพ / เอกสาร)</button></div>`,
+            showCancelButton: true, confirmButtonText: 'แทรกลิงก์', cancelButtonText: 'ยกเลิก', reverseButtons: true, focusConfirm: false,
+            didOpen: () => { (selTxt ? document.getElementById('swU2') : document.getElementById('swT')).focus(); document.getElementById('swPickF').onclick = async () => { const keep = { t: document.getElementById('swT').value }; pickP = (async () => { Swal.close(); const u = await pickMedia('any'); pendingLink = u ? { t: keep.t, u } : null; })(); }; },
+            preConfirm: () => { const t = document.getElementById('swT').value.replace(/[\[\]\n]/g, ' ').trim(), u = document.getElementById('swU2').value.trim();
+              if (!/^(https?:\/\/|\/|mailto:|tel:|#)\S*$/i.test(u)) { Swal.showValidationMessage('ใส่ URL ที่ขึ้นต้นด้วย https:// , / , tel: หรือ mailto:'); return false; }
+              return { t: t || u, u }; } });
+          if (!r.isConfirmed && pickP) { await pickP; pickP = null; }
+          let v = r.isConfirmed ? r.value : null;
+          if (!v && pendingLink) { v = { t: pendingLink.t || fileTitle(pendingLink.u) || 'ไฟล์แนบ', u: pendingLink.u }; pendingLink = null; }
+          if (!v) return;
+          insertAt(`[${v.t}](${v.u.replace(/\s/g, '%20').replace(/\)/g, '%29')})`, !!(k && selTxt)); drawGrid(); paint(); return;
+        }
         if (op === 'clearfmt') cellsIn(c => { ['al', 'b', 'i', 'bg', 'fg'].forEach(k => delete c[k]); });
         if (op === 'clearall') { if (!(await confirmBox('ล้างข้อมูลทั้งตาราง?', 'ข้อความในทุกช่องจะถูกลบ (โครงสร้างและการออกแบบยังอยู่)', 'ล้างข้อมูล'))) return; T().rows.forEach(r => r.forEach(c => { c.t = ''; })); }
         if (op === 'paste') {
@@ -959,6 +1016,157 @@ function editTable(it0, onDone) {
       }
       redraw();
       $('[data-apply]', el).onclick = () => { it.tb = UB.normTable(T()); onDone(it); close(); };
+    },
+  });
+}
+
+/* ---------------- ตัวสร้างและออกแบบ QR Code ---------------- */
+const QR_KINDS = [
+  ['url', '🔗 ลิงก์เว็บไซต์', [['url', 'ที่อยู่เว็บ (URL)', 'https://udtc.coj.go.th/']]],
+  ['text', '📝 ข้อความ', [['text', 'ข้อความ', 'ศาลจังหวัดอุดรธานี', 'area']]],
+  ['tel', '📞 โทรออก', [['tel', 'หมายเลขโทรศัพท์', '042-xxx-xxx']]],
+  ['sms', '💬 ส่ง SMS', [['tel', 'หมายเลขผู้รับ', '08x-xxx-xxxx'], ['msg', 'ข้อความ', '', 'area']]],
+  ['mail', '✉️ อีเมล', [['to', 'อีเมลผู้รับ', 'saraban@coj.go.th'], ['sub', 'หัวเรื่อง', ''], ['body', 'ข้อความ', '', 'area']]],
+  ['line', '🟢 LINE', [['id', 'LINE ID / Official Account (เช่น @udtc)', '@'], ['url', 'หรือวางลิงก์ LINE (line.me/…) ทั้งลิงก์', '']]],
+  ['wifi', '📶 Wi-Fi', [['ssid', 'ชื่อเครือข่าย (SSID)', ''], ['pass', 'รหัสผ่าน', ''], ['sec', 'ความปลอดภัย', 'WPA', 'sel:WPA=WPA/WPA2/WPA3,WEP=WEP,nopass=ไม่มีรหัส'], ['hidden', 'เครือข่ายซ่อน', '', 'chk']]],
+  ['map', '📍 แผนที่ / ตำแหน่ง', [['q', 'ชื่อสถานที่ หรือพิกัด (lat,lng) หรือวางลิงก์ Google Maps', 'ศาลจังหวัดอุดรธานี']]],
+];
+function qrTextFrom(kind, f) {
+  const v = k => String(f[k] || '').trim(), wesc = x => x.replace(/([\;,:"])/g, '\\$1');
+  if (kind === 'url') { const u = v('url'); return u && !/^[a-z][\w+.-]*:/i.test(u) ? 'https://' + u : u; }
+  if (kind === 'text') return String(f.text || '');
+  if (kind === 'tel') return 'tel:' + v('tel').replace(/[^\d+*#]/g, '');
+  if (kind === 'sms') return `SMSTO:${v('tel').replace(/[^\d+]/g, '')}:${v('msg')}`;
+  if (kind === 'mail') { const q = [v('sub') && 'subject=' + encodeURIComponent(v('sub')), v('body') && 'body=' + encodeURIComponent(v('body'))].filter(Boolean).join('&'); return `mailto:${v('to')}${q ? '?' + q : ''}`; }
+  if (kind === 'line') { if (/^https?:\/\//i.test(v('url'))) return v('url'); const id = v('id').replace(/^@?/, '@'); return id.length > 1 ? `https://line.me/R/ti/p/${encodeURIComponent(id)}` : ''; }
+  if (kind === 'wifi') return `WIFI:T:${f.sec || 'WPA'};S:${wesc(v('ssid'))};${f.sec === 'nopass' ? '' : `P:${wesc(v('pass'))};`}${f.hidden ? 'H:true;' : ''};`;
+  if (kind === 'map') { const q = v('q'); if (/^https?:\/\//i.test(q)) return q; const ll = q.match(/^\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*$/); return ll ? `https://www.google.com/maps?q=${ll[1]},${ll[2]}` : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q)}`; }
+  return '';
+}
+const hexLum = h => { const m = String(h || '').match(/^#?([0-9a-f]{6})/i); if (!m) return 1; const n = parseInt(m[1], 16), c = [n >> 16, (n >> 8) & 255, n & 255].map(x => { x /= 255; return x <= .03928 ? x / 12.92 : ((x + .055) / 1.055) ** 2.4; }); return .2126 * c[0] + .7152 * c[1] + .0722 * c[2]; };
+async function toDataUrl(u) {
+  if (!u || /^data:/.test(u)) return u;
+  try { const r = await fetch(u, { mode: 'cors' }); if (!r.ok) return u; const b = await r.blob(); return await new Promise(res => { const fr = new FileReader(); fr.onload = () => res(fr.result); fr.onerror = () => res(u); fr.readAsDataURL(b); }); } catch (e) { return u; }
+}
+async function downloadQr(q, kind, name) {
+  const data = q.logo ? await toDataUrl(q.logo) : '';
+  let svg = UB.qrSvg(q).replace('<svg ', '<svg xmlns:xlink="http://www.w3.org/1999/xlink" ');
+  if (q.logo && data) svg = svg.split(`href="${esc(q.logo)}"`).join(`href="${data}"`);
+  const base = (name || 'qr-code').replace(/[\\/:*?"<>|]+/g, '').slice(0, 60) || 'qr-code';
+  const save = (blob, ext) => { const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `${base}.${ext}`; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 800); };
+  if (kind === 'svg') return save(new Blob([svg], { type: 'image/svg+xml' }), 'svg');
+  const size = kind === 'png-l' ? 2048 : 1024;
+  const img = new Image(); img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+  await new Promise((res, rej) => { img.onload = res; img.onerror = rej; });
+  const cv = document.createElement('canvas'); cv.width = cv.height = size; const ctx = cv.getContext('2d'); ctx.imageSmoothingEnabled = q.shape !== 'square';
+  ctx.drawImage(img, 0, 0, size, size);
+  try { cv.toBlob(b => b ? save(b, 'png') : fail('สร้างไฟล์ PNG ไม่ได้ — ลองดาวน์โหลดแบบ SVG'), 'image/png'); } catch (e) { fail('ภาพโลโก้มาจากโดเมนอื่นที่ไม่อนุญาตให้แปลงเป็น PNG — ดาวน์โหลดแบบ SVG แทนได้'); }
+}
+function newQr() { return UB.normQr({ kind: 'url', kf: { url: 'https://udtc.coj.go.th/' }, text: 'https://udtc.coj.go.th/', ...UB.QPRESETS[1].s, frame: 'none' }); }
+function designQr(it0, onDone) {
+  const it = clone(it0); it.qr = UB.normQr(it.qr || newQr());
+  let tab = 'content';
+  const Q = () => it.qr;
+  openModal({
+    title: 'QR Code — สร้างและออกแบบ', size: 'max-w-6xl',
+    body: `<div class="grid lg:grid-cols-[1fr_420px] gap-5">
+      <div class="min-w-0 space-y-3 lg:sticky lg:top-0 self-start">
+        <div class="rounded-2xl chk-pattern border border-slate-200 p-6 grid place-items-center" style="min-height:360px"><div data-pv class="w-full" style="max-width:340px"></div></div>
+        <div data-info class="text-xs rounded-xl border p-3 space-y-1"></div>
+        <div class="flex flex-wrap gap-2"><span class="text-xs font-semibold text-slate-500 self-center mr-1">ดาวน์โหลด</span><button class="btn btn-light btn-sm" data-dl="png">PNG 1024px</button><button class="btn btn-light btn-sm" data-dl="png-l">PNG 2048px (พิมพ์)</button><button class="btn btn-light btn-sm" data-dl="svg">SVG (เวกเตอร์)</button></div>
+      </div>
+      <div class="space-y-3 min-w-0">
+        <div class="seg flex-wrap" data-tabs><button data-tb="content">📝 เนื้อหา</button><button data-tb="style">🎨 สีและรูปทรง</button><button data-tb="logo">🖼 โลโก้กลาง</button><button data-tb="frame">🏷 กรอบ/คำบรรยาย</button></div>
+        <div data-panel class="space-y-3"></div>
+      </div></div>`,
+    footer: `<button class="btn btn-light" data-close>ยกเลิก</button><button class="btn btn-primary" data-apply>${icon('check')} ใช้ QR Code นี้</button>`,
+    onMount: (el, close) => {
+      const pv = $('[data-pv]', el), panel = $('[data-panel]', el), info = $('[data-info]', el);
+      const paint = () => {
+        const q = Q(); pv.innerHTML = UB.qrHtml({ qr: q }, { noLink: true });
+        const ecc = q.ecc === 'auto' ? (q.logo ? 'H' : 'M') : q.ecc; let m = null; try { m = UB.qrEncode(q.text || ' ', ecc); } catch (e) { }
+        const warn = [];
+        if (!q.text.trim()) warn.push('ยังไม่มีเนื้อหา');
+        if (!m) warn.push('ข้อมูลยาวเกินกว่าที่ QR Code รองรับ — ลดความยาวข้อความ หรือเลือกระดับแก้ไขข้อผิดพลาดต่ำลง');
+        if (q.logo && ['L', 'M'].includes(ecc)) warn.push('มีโลโก้แต่ระดับแก้ไขข้อผิดพลาดเป็น ' + ecc + ' — แนะนำ “อัตโนมัติ” หรือ H เพื่อให้สแกนได้แน่นอน');
+        if (q.logo && q.logoSize > 28) warn.push('โลโก้ใหญ่มาก — ควรทดสอบสแกนด้วยมือถือก่อนใช้งานจริง');
+        if (q.bg !== 'transparent' && hexLum(q.fg) > hexLum(q.bg)) warn.push('จุด QR สีอ่อนกว่าพื้น (สีกลับ) — มือถือบางรุ่น/บางแอปอาจสแกนไม่ได้');
+        else if (q.bg !== 'transparent' && (Math.max(hexLum(q.fg), hexLum(q.bg)) + .05) / (Math.min(hexLum(q.fg), hexLum(q.bg)) + .05) < 4) warn.push('สีจุดกับสีพื้นใกล้กันเกินไป อาจสแกนยาก');
+        if (q.bg === 'transparent') warn.push('พื้นโปร่งใส — ต้องวางบนพื้นสีอ่อน จุดจึงจะสแกนได้');
+        if (m && m.size > 73 && q.shape !== 'square') warn.push('ข้อมูลยาว จุดเล็กมาก — แนะนำรูปทรง “สี่เหลี่ยม” หรือแสดงขนาดใหญ่ขึ้น');
+        info.className = `text-xs rounded-xl border p-3 space-y-1 ${warn.length ? 'bg-amber-50 border-amber-200 text-amber-900' : 'bg-emerald-50 border-emerald-200 text-emerald-900'}`;
+        info.innerHTML = `<div class="font-semibold">${m ? `QR เวอร์ชัน ${m.ver} · ${m.size}×${m.size} จุด · แก้ไขข้อผิดพลาดระดับ ${ecc} (${{ L: '7', M: '15', Q: '25', H: '30' }[ecc]}%) · ${new TextEncoder().encode(q.text).length} ไบต์` : 'สร้าง QR ไม่ได้'}</div>
+          ${warn.length ? warn.map(x => `<div>⚠ ${esc(x)}</div>`).join('') : '<div>✓ พร้อมใช้งาน — สร้างในเครื่อง ไม่ส่งข้อมูลไปเว็บอื่น · ควรทดลองสแกนด้วยมือถือจากหน้าจอนี้ก่อนนำไปใช้</div>'}`;
+      };
+      const set = (k, v, redrawPanel) => { Q()[k] = v; it.qr = UB.normQr(Q()); const o = $(`[data-qout="${k}"]`, panel); if (o) o.textContent = v; paint(); if (redrawPanel) drawPanel(); };
+      $$('[data-tb]', el).forEach(b => b.onclick = () => { tab = b.dataset.tb; drawPanel(); });
+      $$('[data-dl]', el).forEach(b => b.onclick = () => downloadQr(Q(), b.dataset.dl, it.title || Q().cap || 'qr-code').catch(() => fail('ดาวน์โหลดไม่สำเร็จ')));
+      function drawPanel() {
+        $$('[data-tb]', el).forEach(b => b.classList.toggle('on', b.dataset.tb === tab));
+        const q = Q();
+        const seg = (k, list) => `<div class="seg flex-wrap">${list.map(([v, l]) => `<button type="button" data-qseg="${k}" data-v="${v}" class="${String(q[k]) === String(v) ? 'on' : ''}">${l}</button>`).join('')}</div>`;
+        const col = (k, l, allowT) => `<label class="flex items-center justify-between gap-2 text-sm text-slate-600">${l}<span class="flex items-center gap-1">${allowT ? `<button type="button" class="text-[11px] px-1.5 py-0.5 rounded border ${q[k] === 'transparent' ? 'border-navy-700 text-navy-800 bg-navy-50' : 'border-slate-300 text-slate-500'}" data-qtr="${k}">โปร่งใส</button>` : ''}<input type="color" class="h-8 w-10 rounded border border-slate-300 cursor-pointer" data-qc="${k}" value="${/^#[0-9a-f]{6}$/i.test(q[k] || '') ? q[k] : '#ffffff'}"></span></label>`;
+        const colOpt = (k, l, def) => `<label class="flex items-center justify-between gap-2 text-sm text-slate-600">${l}<span class="flex items-center gap-1"><button type="button" class="text-[11px] px-1.5 py-0.5 rounded border ${!q[k] ? 'border-navy-700 text-navy-800 bg-navy-50' : 'border-slate-300 text-slate-500'}" data-qclr="${k}">ตามสีจุด</button><input type="color" class="h-8 w-10 rounded border border-slate-300 cursor-pointer" data-qc="${k}" value="${q[k] || def}"></span></label>`;
+        const rg = (k, l, min, max, unit = '') => `<div><div class="flex justify-between"><label class="lbl !mb-0">${l}</label><span class="text-xs text-slate-500"><span data-qout="${k}">${q[k]}</span>${unit}</span></div><input type="range" class="w-full accent-navy-800" data-qr="${k}" min="${min}" max="${max}" value="${q[k]}"></div>`;
+        const sec = (title, body) => `<div class="rounded-xl border border-slate-200 bg-white p-3 space-y-3"><div class="text-sm font-semibold text-slate-700">${title}</div>${body}</div>`;
+        if (tab === 'content') {
+          const K = QR_KINDS.find(k => k[0] === q.kind) || QR_KINDS[0];
+          panel.innerHTML = sec('ประเภทข้อมูล', `<div class="grid grid-cols-2 gap-1.5">${QR_KINDS.map(([k, l]) => `<button type="button" class="px-2 py-1.5 rounded-lg border text-xs text-left ${q.kind === k ? 'border-navy-700 bg-navy-50 text-navy-900 font-semibold' : 'border-slate-200 hover:border-navy-400'}" data-qk="${k}">${l}</button>`).join('')}</div>`)
+            + sec('ข้อมูลใน QR Code', K[2].map(([f, l, ph, ty]) => {
+              const v = q.kf[f] != null ? q.kf[f] : '';
+              if (ty === 'area') return `<div><label class="lbl">${l}</label><textarea class="inp" rows="3" data-kf="${f}" placeholder="${esc(ph)}">${esc(v)}</textarea></div>`;
+              if (ty === 'chk') return `<label class="flex items-center justify-between text-sm text-slate-700">${l}<input type="checkbox" class="tgl" data-kf="${f}" ${v ? 'checked' : ''}></label>`;
+              if (ty && ty.startsWith('sel:')) return `<div><label class="lbl">${l}</label><select class="inp" data-kf="${f}">${ty.slice(4).split(',').map(o => { const [a, b] = o.split('='); return `<option value="${a}" ${(v || ph) === a ? 'selected' : ''}>${b}</option>`; }).join('')}</select></div>`;
+              return `<div><label class="lbl">${l}</label><input class="inp" data-kf="${f}" value="${esc(v)}" placeholder="${esc(ph)}"></div>`;
+            }).join('') + `<details class="text-xs"><summary class="cursor-pointer text-slate-500">ข้อมูลจริงที่เข้ารหัส</summary><code class="block mt-1 p-2 rounded bg-slate-100 break-all" data-raw>${esc(q.text)}</code></details>`)
+            + sec('ความทนทาน', `<div><label class="lbl">ระดับแก้ไขข้อผิดพลาด</label>${seg('ecc', [['auto', 'อัตโนมัติ'], ['L', 'L 7%'], ['M', 'M 15%'], ['Q', 'Q 25%'], ['H', 'H 30%']])}<p class="text-xs text-slate-500 mt-1">อัตโนมัติ = M ถ้าไม่มีโลโก้ / H ถ้ามีโลโก้ (ยิ่งสูงยิ่งทนต่อโลโก้/รอยเปื้อน แต่จุดหนาแน่นขึ้น)</p></div>
+              <div><label class="lbl">ขนาดแสดงผลสูงสุด (px) ในส่วนแสดงผลแบบการ์ด/รายการ</label><input type="number" class="inp" min="60" max="1200" data-qn="maxW" value="${q.maxW}"></div>
+              <label class="flex items-center justify-between text-sm text-slate-700">คลิกที่ QR แล้วเปิดลิงก์ในโค้ดด้วย (ลิงก์ / โทร / อีเมล)<input type="checkbox" class="tgl" data-qt="linkSelf" ${q.linkSelf ? 'checked' : ''}></label>`);
+        } else if (tab === 'style') {
+          panel.innerHTML = sec('ธีมสำเร็จรูป', `<div class="grid grid-cols-2 gap-1.5">${UB.QPRESETS.map(p => `<button type="button" class="flex items-center gap-2 px-2 py-1.5 rounded-lg border border-slate-200 hover:border-navy-400 text-xs text-left" data-qpre="${p.id}"><span class="w-7 h-7 rounded border border-black/10 flex-none overflow-hidden" style="background:${p.s.bg || '#fff'}">${UB.qrSvg({ text: 'UDTC', margin: 1, ...p.s, frame: 'none' })}</span>${esc(p.name)}</button>`).join('')}</div>`)
+            + sec('สี', `<div><label class="lbl">สีของจุด</label>${seg('grad', [['none', 'สีเดียว'], ['linear', 'ไล่สีแนวทแยง'], ['radial', 'ไล่สีจากกลาง']])}</div>
+              ${col('fg', q.grad === 'none' ? 'สีจุด' : 'สีที่ 1')}${q.grad !== 'none' ? col('fg2', 'สีที่ 2') : ''}${col('bg', 'สีพื้นหลัง', true)}
+              ${colOpt('eyeColor', 'สีกรอบตามุม', '#1e3a5f')}${colOpt('eyeInner', 'สีจุดกลางตามุม', '#b8862b')}`)
+            + sec('รูปทรง', `<div><label class="lbl">รูปทรงจุด</label>${seg('shape', [['square', '■ สี่เหลี่ยม'], ['rounded', '▢ มุมมน'], ['dots', '● จุดกลม'], ['diamond', '◆ เพชร'], ['vbar', '┃ แท่งตั้ง']])}</div>
+              <div><label class="lbl">รูปทรงตามุม (3 มุม)</label>${seg('eye', [['square', 'สี่เหลี่ยม'], ['rounded', 'มุมมน'], ['circle', 'วงกลม'], ['leaf', 'ใบไม้']])}</div>
+              <div class="grid grid-cols-2 gap-3">${rg('margin', 'ขอบว่างรอบ QR', 0, 8, ' จุด')}${rg('radius', 'มุมพื้นหลังมน', 0, 40)}</div>
+              <p class="text-xs text-slate-500">ขอบว่าง (quiet zone) อย่างน้อย 2 จุด ช่วยให้สแกนง่ายเมื่อวางบนพื้นที่มีลวดลาย</p>`);
+        } else if (tab === 'logo') {
+          panel.innerHTML = sec('โลโก้ตรงกลาง QR', `<div class="flex gap-3 items-center"><div class="w-20 h-20 rounded-xl border border-slate-200 chk-pattern grid place-items-center overflow-hidden flex-none">${q.logo ? `<img src="${esc(q.logo)}" class="max-w-full max-h-full object-contain">` : icon('image', 'w-7 h-7 text-slate-300')}</div>
+              <div class="flex-1 space-y-2"><button class="btn btn-primary btn-sm w-full" data-qlogo>${icon('media', 'w-3.5 h-3.5')} เลือก / อัปโหลดโลโก้</button>${q.logo ? `<button class="btn btn-light btn-sm w-full !text-rose-600" data-qnologo>นำโลโก้ออก</button>` : ''}</div></div>
+              <p class="text-xs text-slate-500">เมื่อใส่โลโก้ ระบบเลือกระดับแก้ไขข้อผิดพลาด <b>H (30%)</b> ให้อัตโนมัติ และเว้นจุดใต้โลโก้ออก เพื่อให้ยังสแกนได้ · แนะนำภาพ PNG พื้นโปร่งใส หรือ SVG</p>`)
+            + (q.logo ? sec('ขนาดและพื้นรองโลโก้', `${rg('logoSize', 'ขนาดโลโก้ (% ของ QR)', 8, 32, '%')}
+              <div><label class="lbl">พื้นรองหลังโลโก้</label>${seg('logoShape', [['rounded', 'มุมมน'], ['circle', 'วงกลม'], ['square', 'สี่เหลี่ยม'], ['none', 'ไม่มี (วางทับ)']])}</div>
+              ${q.logoShape !== 'none' ? `${col('logoBg', 'สีพื้นรอง')}${rg('logoPad', 'ระยะห่างรอบโลโก้', 0, 30, '%')}` : ''}`) : '');
+        } else {
+          panel.innerHTML = sec('กรอบป้าย', `<div>${seg('frame', [['none', 'ไม่มีกรอบ'], ['bottom', 'ป้ายด้านล่าง'], ['top', 'ป้ายด้านบน'], ['box', 'กรอบอย่างเดียว']])}</div>
+              ${q.frame !== 'none' ? `${col('frameColor', 'สีกรอบ/ป้าย')}${q.frame !== 'box' ? `<div><label class="lbl">ข้อความบนป้าย</label><input class="inp" data-qx="frameText" value="${esc(q.frameText)}" placeholder="สแกนเลย"></div>${col('frameFg', 'สีตัวอักษรบนป้าย')}` : ''}` : ''}
+              <div class="flex flex-wrap gap-1.5">${['สแกนเลย', 'สแกนเพื่อเข้าเว็บไซต์', 'สแกนเพื่อติดต่อ', 'แบบประเมินความพึงพอใจ', 'SCAN ME'].map(t => `<button type="button" class="px-2 py-1 rounded-full border border-slate-200 text-xs hover:border-navy-400" data-qft="${esc(t)}">${esc(t)}</button>`).join('')}</div>`)
+            + sec('คำบรรยายใต้ QR', `<div><input class="inp" data-qx="cap" value="${esc(q.cap)}" placeholder="เช่น ติดตามข่าวสารศาลจังหวัดอุดรธานี"></div><div class="grid grid-cols-2 gap-3 items-end">${rg('capSize', 'ขนาดตัวอักษร', 10, 48, 'px')}${col('capColor', 'สี')}</div>`);
+        }
+        $$('[data-qk]', panel).forEach(b => b.onclick = () => { if (q.kind === b.dataset.qk) return; q.kind = b.dataset.qk; const K = QR_KINDS.find(k => k[0] === q.kind); const kf = {}; K[2].forEach(([f, , ph, ty]) => { kf[f] = (ty === 'chk' ? false : ty && ty.startsWith('sel:') ? ph : (['url', 'text', 'id', 'q'].includes(f) ? ph : '')); }); q.kf = kf; q.text = qrTextFrom(q.kind, kf); it.qr = UB.normQr(q); paint(); drawPanel(); });
+        $$('[data-kf]', panel).forEach(i => i.addEventListener(i.type === 'checkbox' || i.tagName === 'SELECT' ? 'change' : 'input', () => { q.kf[i.dataset.kf] = i.type === 'checkbox' ? i.checked : i.value; q.text = qrTextFrom(q.kind, q.kf); const raw = $('[data-raw]', panel); if (raw) raw.textContent = q.text; paint(); }));
+        $$('[data-qseg]', panel).forEach(b => b.onclick = () => set(b.dataset.qseg, b.dataset.v, true));
+        $$('[data-qc]', panel).forEach(i => i.addEventListener('input', () => set(i.dataset.qc, i.value)));
+        $$('[data-qc]', panel).forEach(i => i.addEventListener('change', () => drawPanel()));
+        $$('[data-qtr]', panel).forEach(b => b.onclick = () => set(b.dataset.qtr, 'transparent', true));
+        $$('[data-qclr]', panel).forEach(b => b.onclick = () => set(b.dataset.qclr, '', true));
+        $$('[data-qr]', panel).forEach(i => i.addEventListener('input', () => set(i.dataset.qr, Number(i.value))));
+        $$('[data-qn]', panel).forEach(i => i.addEventListener('change', () => set(i.dataset.qn, Number(i.value))));
+        $$('[data-qt]', panel).forEach(i => i.addEventListener('change', () => set(i.dataset.qt, i.checked)));
+        $$('[data-qx]', panel).forEach(i => i.addEventListener('input', () => set(i.dataset.qx, i.value)));
+        $$('[data-qft]', panel).forEach(b => b.onclick = () => { set('frameText', b.dataset.qft); if (q.frame === 'none') set('frame', 'bottom'); drawPanel(); });
+        $$('[data-qpre]', panel).forEach(b => b.onclick = () => { const p = UB.QPRESETS.find(x => x.id === b.dataset.qpre); it.qr = UB.normQr({ ...Q(), eyeColor: '', eyeInner: '', grad: 'none', ...p.s, frame: p.s.frame || Q().frame }); paint(); drawPanel(); });
+        const lg = $('[data-qlogo]', panel); if (lg) lg.onclick = async () => { const u = await pickMedia('image'); if (u) { set('logo', u, true); } };
+        const nl = $('[data-qnologo]', panel); if (nl) nl.onclick = () => set('logo', '', true);
+      }
+      paint(); drawPanel();
+      $('[data-apply]', el).onclick = () => {
+        const q = UB.normQr(Q());
+        if (!q.text.trim()) return fail('กรุณาใส่ข้อมูลใน QR Code');
+        try { UB.qrEncode(q.text, q.ecc === 'auto' ? (q.logo ? 'H' : 'M') : q.ecc); } catch (e) { return fail('ข้อมูลยาวเกินไป'); }
+        it.qr = q; if (!it.title) it.title = q.cap || 'QR Code'; onDone(it); close();
+      };
     },
   });
 }
@@ -1083,6 +1291,7 @@ function mountCanvas(host, w, hooks) {
       <button class="btn btn-light btn-sm" data-add="image">${icon('image', 'w-3.5 h-3.5')} ภาพ</button>
       <button class="btn btn-light btn-sm" data-add="pdf">${icon('file', 'w-3.5 h-3.5')} PDF</button>
       <button class="btn btn-light btn-sm" data-add="table">${icon('table', 'w-3.5 h-3.5')} ตาราง</button>
+      <button class="btn btn-light btn-sm" data-add="qr">${icon('qr', 'w-3.5 h-3.5')} QR Code</button>
       <span class="w-px h-6 bg-slate-200 mx-1"></span>
       <label class="flex items-center gap-1.5 text-xs text-slate-600"><input type="checkbox" class="tgl !w-8 !h-[18px] after:!w-3 after:!h-3" data-grid checked> เส้นตาราง</label>
       <label class="flex items-center gap-1.5 text-xs text-slate-600"><input type="checkbox" class="tgl !w-8 !h-[18px] after:!w-3 after:!h-3" data-snap checked> ยึดตามตาราง</label>
@@ -1118,6 +1327,7 @@ function mountCanvas(host, w, hooks) {
     else if (it.type === 'text') { ensureFont(it.ts && it.ts.font); inner = UB.textHtml(it.ts, { cw: W() }); }
     else if (it.type === 'divider') inner = `<div class="h-full flex flex-col justify-center">${UB.dividerHtml(it.ts, { cw: W() })}</div>`;
     else if (it.type === 'table') { ensureFont(it.tb && it.tb.st && it.tb.st.font); inner = UB.tableHtml(it, { cw: W(), fill: true }); }
+    else if (it.type === 'qr') inner = UB.qrHtml(it, { cw: W(), fill: true, noLink: true });
     else if (it.type === 'pdf') inner = `<div class="w-full h-full flex flex-col rounded-lg overflow-hidden border border-slate-300 bg-slate-200"><div class="flex items-center gap-1.5 px-2 py-1 bg-slate-800 text-white text-xs flex-none" style="font-size:calc(var(--hs) * .95)">📄 <span class="truncate">${esc(it.title || 'PDF')}</span></div><div class="flex-1 relative overflow-hidden bg-white" data-pdfthumb="${esc(it.src)}" data-pages><div class="absolute inset-0 grid place-items-center text-slate-400 text-xs">กำลังโหลดตัวอย่าง PDF…</div></div></div>`;
     else if (it.type === 'spacer') inner = `<div class="w-full h-full border border-dashed border-slate-400/70"></div>`;
     else inner = `<div class="w-full h-full overflow-hidden">${it.html}</div>`;
@@ -1161,6 +1371,7 @@ function mountCanvas(host, w, hooks) {
       ${it.type === 'button' ? `<button class="btn btn-light btn-sm" data-act="design">🎨 ออกแบบ</button>` : ''}
       ${it.type === 'image' ? `<button class="btn btn-sm ${it.fx ? 'btn-gold' : 'btn-light'}" data-act="imgfx">🎨 ปรับแต่งภาพ</button>` : ''}
       ${it.type === 'table' ? `<button class="btn btn-sm btn-gold" data-act="table">${icon('table', 'w-3.5 h-3.5')} แก้ไขตาราง</button>` : ''}
+      ${it.type === 'qr' ? `<button class="btn btn-sm btn-gold" data-act="qr">${icon('qr', 'w-3.5 h-3.5')} ออกแบบ QR</button>` : ''}
       <button class="btn btn-sm ${it.enter ? 'btn-gold' : 'btn-light'}" data-act="enter" title="แอนิเมชันตอนเลื่อนมาถึง">✨ แอนิเมชัน</button>
       <button class="btn btn-light btn-sm" data-act="front" title="นำมาไว้หน้าสุด">⬆ หน้า</button><button class="btn btn-light btn-sm" data-act="back" title="ส่งไปหลังสุด">⬇ หลัง</button>
       <button class="btn btn-light btn-sm" data-act="dup">${icon('copy', 'w-3.5 h-3.5')}</button>
@@ -1184,6 +1395,7 @@ function mountCanvas(host, w, hooks) {
     if (a === 'design') return hooks.design(it);
     if (a === 'imgfx') return designImage(it, n => { Object.assign(it, n); if (!n.fx) delete it.fx; if (!n.enter) delete it.enter; hooks.change(); });
     if (a === 'table') return editTable(it, n => { Object.assign(it, n); hooks.change(); });
+    if (a === 'qr') return designQr(it, n => { Object.assign(it, n); hooks.change(); });
     if (a === 'enter') return editEnter(it, e => { if (e) it.enter = e; else delete it.enter; hooks.change(); });
     hooks.change();
   }
@@ -1198,6 +1410,10 @@ function mountCanvas(host, w, hooks) {
       it = { ...base, type: 'table', title: 'ตาราง', tb: newTable(), pos: { x: g, y: g, w: snap(640), h: snap(260), z: n + 1, locked: false } };
       const off = (n % 6) * g; it.pos.x += off; it.pos.y += off; clampPos(it.pos);
       return editTable(it, done => { w.items.push(done); sel = done.id; hooks.change(); });
+    } else if (type === 'qr') {
+      it = { ...base, type: 'qr', title: 'QR Code', qr: newQr(), pos: { x: g, y: g, w: snap(220), h: snap(220), z: n + 1, locked: false } };
+      const off = (n % 6) * g; it.pos.x += off; it.pos.y += off; clampPos(it.pos);
+      return designQr(it, done => { const q = done.qr, extra = (q.frame === 'top' || q.frame === 'bottom' ? 46 : 0) + (q.cap ? q.capSize * 1.6 + 8 : 0); done.pos.h = snap(done.pos.w + extra); clampPos(done.pos); w.items.push(done); sel = done.id; hooks.change(); });
     } else if (type === 'pdf') {
       const url = await pickMedia('pdf'); if (!url) return;
       it = { ...itemFromUpload({ url }), pos: { x: g, y: g, w: snap(480), h: snap(620), z: n + 1, locked: false } };
@@ -1261,7 +1477,7 @@ function mountCanvas(host, w, hooks) {
   const endDrag = () => { if (drag && drag.moved) hooks.change(); else if (drag) drawSel(); drag = null; const t = $('.cv-tip', cv); if (t) t.remove(); };
   cv.addEventListener('pointerup', endDrag); cv.addEventListener('pointercancel', endDrag);
   // pointer capture ทำให้ target ของ dblclick เป็นผืนผ้าใบ จึงใช้ชิ้นงานที่ถูกกดล่าสุดแทน
-  cv.addEventListener('dblclick', () => { const it = lastDown && byId(lastDown); if (!it) return; it.type === 'button' ? hooks.design(it) : it.type === 'image' ? act('imgfx') : it.type === 'table' ? act('table') : hooks.edit(it); });
+  cv.addEventListener('dblclick', () => { const it = lastDown && byId(lastDown); if (!it) return; it.type === 'button' ? hooks.design(it) : it.type === 'image' ? act('imgfx') : it.type === 'table' ? act('table') : it.type === 'qr' ? act('qr') : hooks.edit(it); });
   wrap.addEventListener('keydown', e => {
     const it = sel && byId(sel); if (!it || /INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)) return;
     const step = e.shiftKey ? 1 : G();
@@ -1361,6 +1577,7 @@ const TYPE_META = {
   button: { name: 'ปุ่มลิงก์', ic: 'link', cls: 'bg-emerald-50 text-emerald-700' },
   pdf: { name: 'PDF', ic: 'file', cls: 'bg-rose-50 text-rose-700' },
   table: { name: 'ตาราง', ic: 'table', cls: 'bg-cyan-50 text-cyan-700' },
+  qr: { name: 'QR Code', ic: 'qr', cls: 'bg-indigo-50 text-indigo-700' },
   text: { name: 'ข้อความ', ic: 'text', cls: 'bg-amber-50 text-amber-700' },
   divider: { name: 'เส้นคั่น', ic: 'minus', cls: 'bg-slate-100 text-slate-600' },
   spacer: { name: 'ช่องว่าง', ic: 'menu', cls: 'bg-slate-100 text-slate-500' },
@@ -1872,7 +2089,7 @@ async function viewWidgetEditor(id) {
 
     $('#addBtn').onclick = () => $('#addMenu').classList.toggle('hidden');
     $('#addClose').onclick = () => $('#addMenu').classList.add('hidden');
-    $$('[data-add]', P).forEach(b => b.onclick = () => editItem({ id: rid(), type: b.dataset.add, title: '', subtitle: '', src: '', link: '', newTab: true, icon: '', btnStyle: 'primary', html: '', active: true, start: '', end: '', ...(b.dataset.add === 'table' ? { title: 'ตาราง', tb: newTable() } : {}), ...(TEXTY.includes(b.dataset.add) ? { ts: UB.normText(b.dataset.add === 'text' ? { ...UB.TPRESETS.find(p => p.id === 'h2').s, content: 'หัวข้อ / ข้อความ' } : b.dataset.add === 'divider' ? { color: '#cbd5e1' } : {}) } : {}) }, true));
+    $$('[data-add]', P).forEach(b => b.onclick = () => editItem({ id: rid(), type: b.dataset.add, title: '', subtitle: '', src: '', link: '', newTab: true, icon: '', btnStyle: 'primary', html: '', active: true, start: '', end: '', ...(b.dataset.add === 'table' ? { title: 'ตาราง', tb: newTable() } : {}), ...(b.dataset.add === 'qr' ? { title: 'QR Code', qr: newQr() } : {}), ...(TEXTY.includes(b.dataset.add) ? { ts: UB.normText(b.dataset.add === 'text' ? { ...UB.TPRESETS.find(p => p.id === 'h2').s, content: 'หัวข้อ / ข้อความ' } : b.dataset.add === 'divider' ? { color: '#cbd5e1' } : {}) } : {}) }, true));
     $('#bulkUp').onchange = async e => {
       const files = [...e.target.files]; e.target.value = '';
       if (!files.length) return;
@@ -1943,6 +2160,7 @@ async function viewWidgetEditor(id) {
         const draw = () => {
           const t = it.type;
           if (t === 'table' && !it.tb) it.tb = newTable();
+          if (t === 'qr' && !it.qr) it.qr = newQr();
           if (t === 'pdf') it.pdf = Object.assign({ mode: 'single', h: 640, hM: 0, bar: true, dl: true }, it.pdf || {});
           F.innerHTML = `<div class="space-y-4">
             <div><label class="lbl">ประเภท</label><div class="seg flex-wrap">${Object.entries(TYPE_META).map(([k, mm]) => `<button data-ty="${k}" class="${t === k ? 'on' : ''} flex items-center justify-center gap-1.5">${icon(mm.ic, 'w-3.5 h-3.5')} ${mm.name}</button>`).join('')}</div></div>
@@ -1957,6 +2175,9 @@ async function viewWidgetEditor(id) {
             ${t === 'table' ? `<div class="p-3 rounded-xl border border-slate-200 bg-slate-50 space-y-2">
               <div class="flex items-center justify-between"><label class="lbl !mb-0">ตาราง ${it.tb ? `(${it.tb.rows.length} แถว × ${it.tb.rows[0].length} คอลัมน์)` : ''}</label><button class="btn btn-primary btn-sm" data-tbedit>${icon('table', 'w-3.5 h-3.5')} แก้ไขข้อมูล / ออกแบบตาราง</button></div>
               <div class="bg-white rounded-lg border border-slate-200 p-3 overflow-auto" style="max-height:260px">${UB.tableHtml(it)}</div></div>` : ''}
+            ${t === 'qr' ? `<div class="p-3 rounded-xl border border-slate-200 bg-slate-50 space-y-2">
+              <div class="flex items-center justify-between gap-2"><label class="lbl !mb-0">QR Code</label><button class="btn btn-primary btn-sm" data-qredit>${icon('qr', 'w-3.5 h-3.5')} สร้าง / ออกแบบ QR Code</button></div>
+              <div class="flex gap-3 items-center"><div class="w-36 flex-none chk-pattern rounded-lg p-2">${UB.qrHtml(it, { noLink: true })}</div><div class="text-xs text-slate-600 break-all">${esc(UB.normQr(it.qr).text)}</div></div></div>` : ''}
             ${t === 'pdf' ? `<div><label class="lbl">ไฟล์ PDF</label>
               <div class="flex gap-3 items-start"><div class="w-28 aspect-[3/4] rounded-lg overflow-hidden border border-slate-200 bg-white relative flex-none" ${it.src ? `data-pdfthumb="${esc(it.src)}" data-pages` : ''}>${icon('file', 'w-7 h-7 text-slate-300 m-auto mt-10')}</div>
               <div class="flex-1 space-y-2"><button class="btn btn-primary btn-sm w-full" data-pick="pdf">${icon('upload', 'w-3.5 h-3.5')} เลือก / อัปโหลด PDF</button><input class="inp text-xs font-mono" data-f="src" value="${esc(it.src)}" placeholder="หรือวาง URL ไฟล์ .pdf">
@@ -1983,7 +2204,7 @@ async function viewWidgetEditor(id) {
             ${t === 'image' && w.items.some(i => i.type === 'button' && i.id !== it.id) ? `<div class="p-3 rounded-xl bg-amber-50 border border-amber-200 text-sm text-amber-900 flex items-center gap-3">
               <span class="flex-1">รายการนี้เป็น <b>การ์ดภาพ</b> จึงแสดงเป็นภาพเต็มการ์ด ถ้าต้องการให้เป็นปุ่มมีโลโก้ + ข้อความเหมือนปุ่มอื่น</span>
               <button class="btn btn-primary btn-sm" data-tologo>แปลงเป็นปุ่มโลโก้</button></div>` : ''}
-            ${!['html', 'divider', 'spacer', 'table'].includes(t) ? `<div class="p-3 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
+            ${!['html', 'divider', 'spacer', 'table'].includes(t) ? `<div class="p-3 rounded-xl bg-slate-50 border border-slate-200 space-y-2">${t === 'qr' ? '<p class="text-xs text-slate-500">ลิงก์นี้ใช้เมื่อคลิกที่ QR บนหน้าเว็บ (ถ้าเว้นว่าง และเปิด “คลิกแล้วเปิดลิงก์ในโค้ด” ไว้ในตัวออกแบบ จะใช้ลิงก์ในโค้ดแทน)</p>' : ''}
               <label class="lbl !mb-0">${icon('link', 'w-3.5 h-3.5 inline')} ${t === 'text' ? 'ลิงก์เมื่อคลิกทั้งกล่องข้อความ' : 'ลิงก์เมื่อคลิก'} ${t === 'video' ? '(ไม่ใช้กับวีดีโอ)' : '(ไม่บังคับ)'}</label>
               ${t === 'image' ? `<label class="flex items-center justify-between gap-2 p-2 rounded-lg bg-white border border-slate-200 text-sm text-slate-700 cursor-pointer"><span>${icon('ext', 'w-3.5 h-3.5 inline')} <b>คลิกเพื่อเปิดภาพขนาดเต็ม</b> (ลิงก์ไปไฟล์ภาพต้นฉบับ · ใช้เมื่อไม่ได้ใส่ลิงก์อื่น)</span><input type="checkbox" class="tgl" data-f="full" ${it.full ? 'checked' : ''}></label>` : ''}
               ${t === 'pdf' ? '<p class="text-xs text-slate-500">PDF มีปุ่ม “เปิดเต็มจอ” ในตัวแสดงตัวอย่างอยู่แล้ว ลิงก์นี้ไม่จำเป็น</p>' : ''}
@@ -2025,6 +2246,7 @@ async function viewWidgetEditor(id) {
           });
           const pp = $('[data-pp]', F); if (pp) pp.onclick = async () => { const s = await choosePage(); if (s) { it.link = `/p/${s}`; it.newTab = false; draw(); } };
           const tbe = $('[data-tbedit]', F); if (tbe) tbe.onclick = () => editTable(it, n => { it.tb = n.tb; draw(); });
+          const qre = $('[data-qredit]', F); if (qre) qre.onclick = () => designQr(it, n => { it.qr = n.qr; if (!it.title) it.title = n.title; draw(); });
           $$('[data-pm]', F).forEach(b => b.onclick = () => { it.pdf.mode = b.dataset.pm; draw(); });
           $$('[data-pf]', F).forEach(i => i.addEventListener('input', () => { it.pdf[i.dataset.pf] = Number(i.value) || 0; }));
           $$('[data-pfc]', F).forEach(i => i.addEventListener('change', () => { it.pdf[i.dataset.pfc] = i.checked; }));
@@ -2040,6 +2262,7 @@ async function viewWidgetEditor(id) {
           if (it.type === 'text' && !String(it.ts.content || '').trim()) return Swal.fire({ icon: 'warning', title: 'กรุณาพิมพ์ข้อความ', confirmButtonText: 'ตกลง' });
           if (!TEXTY.includes(it.type)) delete it.ts;
           if (it.type !== 'table') delete it.tb;
+          if (it.type !== 'qr') delete it.qr;
           if (it.start && it.end && it.start > it.end) return Swal.fire({ icon: 'warning', title: 'วันเริ่มต้องไม่เกินวันสิ้นสุด', confirmButtonText: 'ตกลง' });
           if (isNew) { if (w.layout === 'canvas' && !it.pos) { const g = w.gridSize || 20; it.pos = { x: g, y: g, w: it.type === 'button' ? 240 : it.type === 'text' ? 400 : 320, h: it.type === 'button' ? 60 : it.type === 'text' ? 80 : TEXTY.includes(it.type) ? 40 : 200, z: w.items.length + 1, locked: false }; } w.items.push(it); } else w.items[idx] = it;
           close(); markDirty(); drawPanel();

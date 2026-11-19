@@ -195,10 +195,12 @@
   function richText(src) {
     let h = esc(src);
     const links = [];
+    // ภาพ: ![คำอธิบาย|กว้าง](url)  กว้าง = 120 หรือ 50%
+    h = h.replace(/!\[([^\]\n|]*)(?:\|(\d{1,4})(%|px)?)?\]\(((?:https?:\/\/|\/)[^\s)]+)\)/g, (m, alt, w, unit, u) => { links.push(`<img class="urt-img" src="${u}" alt="${alt}" loading="lazy"${w ? ` style="width:${Math.min(+w, unit === '%' ? 100 : 2000)}${unit === '%' ? '%' : 'px'}"` : ''}>`); return `\u0000${links.length - 1}\u0000`; });
     h = h.replace(/\[([^\]\n]+)\]\(((?:https?:\/\/|\/|#|mailto:|tel:)[^\s)]+)\)/g, (m, t, u) => { links.push(`<a href="${u}" target="_blank" rel="noopener">${t}</a>`); return `\u0000${links.length - 1}\u0000`; });
     h = h.replace(/(^|[\s(])(https?:\/\/[^\s<]+[^\s<.,;:!?)])/g, (m, pre, u) => { links.push(`<a href="${u}" target="_blank" rel="noopener">${u}</a>`); return `${pre}\u0000${links.length - 1}\u0000`; });
     h = h.replace(/\*\*([^*\n]+)\*\*/g, '<b>$1</b>').replace(/__([^_\n]+)__/g, '<u>$1</u>').replace(/(^|[^*])\*([^*\n]+)\*/g, '$1<i>$2</i>');
-    h = h.replace(/\u0000(\d+)\u0000/g, (m, i) => links[+i]);
+    for (let k = 0; k < 3 && h.includes('\u0000'); k++) h = h.replace(/\u0000(\d+)\u0000/g, (m, i) => links[+i]);
     return h.replace(/\r?\n/g, '<br>');
   }
   const TSH = { none: 'none', soft: '0 2px 10px rgba(15,23,42,.08),0 1px 3px rgba(15,23,42,.06)', strong: '0 10px 30px rgba(15,23,42,.18),0 3px 8px rgba(15,23,42,.1)' };
@@ -483,6 +485,8 @@ a.ub:focus-visible{outline:3px solid var(--glow);outline-offset:2px}
     return `<div class="${cls}" style="${vars}"${sortable ? ' data-sort' : ''}>${T.caption ? `<div class="utb-cap">${esc(T.caption)}</div>` : ''}${T.search ? `<div class="utb-tools"><input type="search" class="utb-q" placeholder="ค้นหาในตาราง…" aria-label="ค้นหาในตาราง"></div>` : ''}<div class="utb-sc"${T.maxH && !opts.fill ? ` style="max-height:${px(T.maxH)}"` : ''}><table class="utb">${cols}${thead}${tbody}${tfoot}</table></div>${T.note ? `<div class="utb-note">${richText(T.note)}</div>` : ''}</div>`;
   }
   const TB_CSS = `
+.urt-img{display:inline-block;max-width:100%;height:auto;vertical-align:middle;border-radius:4px}
+.utb td a,.utb th a{color:inherit;text-decoration:underline!important;text-underline-offset:2px}.utb a:has(>.urt-img){text-decoration:none!important}
 .utb-w{font-family:var(--tbf);font-size:var(--tbs);color:var(--tbc);display:flex;flex-direction:column;gap:.6em;min-width:0;box-sizing:border-box}
 .utb-w.fill{height:100%}.utb-w.fill .utb-sc{flex:1;min-height:0}
 .utb-cap{color:var(--tbcc);font-size:var(--tbcs);font-weight:var(--tbcw);text-align:var(--tbca);line-height:1.3}
@@ -512,8 +516,176 @@ a.ub:focus-visible{outline:3px solid var(--glow);outline-offset:2px}
 .utb-w[data-sort] thead th[aria-sort=ascending]::after{content:'▲';opacity:.9}.utb-w[data-sort] thead th[aria-sort=descending]::after{content:'▼';opacity:.9}
 .utb tr.utb-hide{display:none}
 `;
+  /* ---------------- QR Code (เข้ารหัสเอง รองรับภาษาไทย UTF-8) ---------------- */
+  const QRENC = (() => {
+  const ECC_CW = [
+    [-1, 7, 10, 15, 20, 26, 18, 20, 24, 30, 18, 20, 24, 26, 30, 22, 24, 28, 30, 28, 28, 28, 28, 30, 30, 26, 28, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30],
+    [-1, 10, 16, 26, 18, 24, 16, 18, 22, 22, 26, 30, 22, 22, 24, 24, 28, 28, 26, 26, 26, 26, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28],
+    [-1, 13, 22, 18, 26, 18, 24, 18, 22, 20, 24, 28, 26, 24, 20, 30, 24, 28, 28, 26, 30, 28, 30, 30, 30, 30, 28, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30],
+    [-1, 17, 28, 22, 16, 22, 28, 26, 26, 24, 28, 24, 28, 22, 24, 24, 30, 28, 28, 26, 28, 30, 24, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30]];
+  const NBLK = [
+    [-1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 4, 4, 4, 4, 4, 6, 6, 6, 6, 7, 8, 8, 9, 9, 10, 12, 12, 12, 13, 14, 15, 16, 17, 18, 19, 19, 20, 21, 22, 24, 25],
+    [-1, 1, 1, 1, 2, 2, 4, 4, 4, 5, 5, 5, 8, 9, 9, 10, 10, 11, 13, 14, 16, 17, 17, 18, 20, 21, 23, 25, 26, 28, 29, 31, 33, 35, 37, 38, 40, 43, 45, 47, 49],
+    [-1, 1, 1, 2, 2, 4, 4, 6, 6, 8, 8, 8, 10, 12, 16, 12, 17, 16, 18, 21, 20, 23, 23, 25, 27, 29, 34, 34, 35, 38, 40, 43, 45, 48, 51, 53, 56, 59, 62, 65, 68],
+    [-1, 1, 1, 2, 4, 4, 4, 5, 6, 8, 8, 11, 11, 16, 16, 18, 16, 19, 21, 25, 25, 25, 34, 30, 32, 35, 37, 40, 42, 45, 48, 51, 54, 57, 60, 63, 66, 70, 74, 77, 81]];
+  const ECL = { L: [0, 1], M: [1, 0], Q: [2, 3], H: [3, 2] };
+  const rawMods = v => { let r = (16 * v + 128) * v + 64; if (v >= 2) { const na = Math.floor(v / 7) + 2; r -= (25 * na - 10) * na - 55; if (v >= 7) r -= 36; } return r; };
+  const dataCw = (v, e) => Math.floor(rawMods(v) / 8) - ECC_CW[e][v] * NBLK[e][v];
+  const gmul = (x, y) => { let z = 0; for (let i = 7; i >= 0; i--) { z = (z << 1) ^ ((z >>> 7) * 0x11d); z ^= ((y >>> i) & 1) * x; } return z & 0xff; };
+  function rsDiv(deg) { const r = new Array(deg).fill(0); r[deg - 1] = 1; let root = 1; for (let i = 0; i < deg; i++) { for (let j = 0; j < r.length; j++) { r[j] = gmul(r[j], root); if (j + 1 < r.length) r[j] ^= r[j + 1]; } root = gmul(root, 2); } return r; }
+  function rsRem(data, div) { const r = div.map(() => 0); for (const b of data) { const f = b ^ r.shift(); r.push(0); div.forEach((c, i) => { r[i] ^= gmul(c, f); }); } return r; }
+  function utf8(s) { const out = []; for (const ch of String(s)) { let c = ch.codePointAt(0); if (c < 0x80) out.push(c); else if (c < 0x800) out.push(0xc0 | c >> 6, 0x80 | c & 63); else if (c < 0x10000) out.push(0xe0 | c >> 12, 0x80 | c >> 6 & 63, 0x80 | c & 63); else out.push(0xf0 | c >> 18, 0x80 | c >> 12 & 63, 0x80 | c >> 6 & 63, 0x80 | c & 63); } return out; }
+  function encode(text, eclName = "M", minVer = 1, forceMask = -1) {
+    const bytes = utf8(text); let e = (ECL[eclName] || ECL.M)[0];
+    let ver = 0;
+    for (let v = Math.max(1, minVer); v <= 40; v++) { if (4 + (v < 10 ? 8 : 16) + bytes.length * 8 <= dataCw(v, e) * 8) { ver = v; break; } }
+    if (!ver) throw new Error('ข้อมูลยาวเกินกว่าที่ QR Code รองรับ');
+    const bits = []; const put = (val, n) => { for (let i = n - 1; i >= 0; i--) bits.push((val >>> i) & 1); };
+    put(4, 4); put(bytes.length, ver < 10 ? 8 : 16); bytes.forEach(b => put(b, 8));
+    const cap = dataCw(ver, e) * 8;
+    put(0, Math.min(4, cap - bits.length)); put(0, (8 - bits.length % 8) % 8);
+    for (let p = 0xec; bits.length < cap; p ^= 0xec ^ 0x11) put(p, 8);
+    const data = []; for (let i = 0; i < bits.length; i += 8) { let b = 0; for (let j = 0; j < 8; j++) b = b << 1 | bits[i + j]; data.push(b); }
+    // ECC + interleave
+    const nb = NBLK[e][ver], el = ECC_CW[e][ver], raw = Math.floor(rawMods(ver) / 8), nShort = nb - raw % nb, shortLen = Math.floor(raw / nb), div = rsDiv(el), blocks = [];
+    for (let i = 0, k = 0; i < nb; i++) { const d = data.slice(k, k + shortLen - el + (i < nShort ? 0 : 1)); k += d.length; const ecc = rsRem(d, div); if (i < nShort) d.push(0); blocks.push(d.concat(ecc)); }
+    const cw = []; for (let i = 0; i < blocks[0].length; i++) blocks.forEach((b, j) => { if (i !== shortLen - el || j >= nShort) cw.push(b[i]); });
+    // modules
+    const size = ver * 4 + 17, M = Array.from({ length: size }, () => new Array(size).fill(false)), F = Array.from({ length: size }, () => new Array(size).fill(false));
+    const set = (x, y, d) => { M[y][x] = d; F[y][x] = true; };
+    for (let i = 0; i < size; i++) { set(6, i, i % 2 === 0); set(i, 6, i % 2 === 0); }
+    const finder = (cx, cy) => { for (let dy = -4; dy <= 4; dy++) for (let dx = -4; dx <= 4; dx++) { const d = Math.max(Math.abs(dx), Math.abs(dy)), x = cx + dx, y = cy + dy; if (x >= 0 && x < size && y >= 0 && y < size) set(x, y, d !== 2 && d !== 4); } };
+    finder(3, 3); finder(size - 4, 3); finder(3, size - 4);
+    const al = []; if (ver > 1) { const n = Math.floor(ver / 7) + 2, step = ver === 32 ? 26 : Math.ceil((ver * 4 + 4) / (n * 2 - 2)) * 2; al.push(6); for (let p = size - 7; al.length < n; p -= step) al.splice(1, 0, p); }
+    al.forEach((a, i) => al.forEach((b, j) => { if ((i === 0 && j === 0) || (i === 0 && j === al.length - 1) || (i === al.length - 1 && j === 0)) return; for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) set(a + dx, b + dy, Math.max(Math.abs(dx), Math.abs(dy)) !== 1); }));
+    const fmtBits = mask => { const d = (ECL[eclName] || ECL.M)[1] << 3 | mask; let r = d; for (let i = 0; i < 10; i++) r = (r << 1) ^ ((r >>> 9) * 0x537); return (d << 10 | r) ^ 0x5412; };
+    const drawFmt = mask => { const b = fmtBits(mask), g = i => ((b >>> i) & 1) !== 0;
+      for (let i = 0; i <= 5; i++) set(8, i, g(i)); set(8, 7, g(6)); set(8, 8, g(7)); set(7, 8, g(8)); for (let i = 9; i < 15; i++) set(14 - i, 8, g(i));
+      for (let i = 0; i < 8; i++) set(size - 1 - i, 8, g(i)); for (let i = 8; i < 15; i++) set(8, size - 15 + i, g(i)); set(8, size - 8, true); };
+    drawFmt(0);
+    if (ver >= 7) { let r = ver; for (let i = 0; i < 12; i++) r = (r << 1) ^ ((r >>> 11) * 0x1f25); const b = ver << 12 | r; for (let i = 0; i < 18; i++) { const bit = ((b >>> i) & 1) !== 0, a = size - 11 + i % 3, c = Math.floor(i / 3); set(a, c, bit); set(c, a, bit); } }
+    let i = 0;
+    for (let right = size - 1; right >= 1; right -= 2) { if (right === 6) right = 5; for (let v = 0; v < size; v++) for (let j = 0; j < 2; j++) { const x = right - j, up = ((right + 1) & 2) === 0, y = up ? size - 1 - v : v; if (!F[y][x] && i < cw.length * 8) { M[y][x] = ((cw[i >>> 3] >>> (7 - (i & 7))) & 1) !== 0; i++; } } }
+    const maskFn = [(x, y) => (x + y) % 2 === 0, (x, y) => y % 2 === 0, x => x % 3 === 0, (x, y) => (x + y) % 3 === 0, (x, y) => (Math.floor(x / 3) + Math.floor(y / 2)) % 2 === 0, (x, y) => x * y % 2 + x * y % 3 === 0, (x, y) => (x * y % 2 + x * y % 3) % 2 === 0, (x, y) => ((x + y) % 2 + x * y % 3) % 2 === 0];
+    const apply = m => { for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) if (!F[y][x] && maskFn[m](x, y)) M[y][x] = !M[y][x]; };
+    const penalty = () => { let p = 0, dark = 0;
+      for (let y = 0; y < size; y++) for (const hz of [true, false]) { let run = 1; for (let x = 1; x < size; x++) { const a = hz ? M[y][x] : M[x][y], b = hz ? M[y][x - 1] : M[x - 1][y]; if (a === b) { run++; if (run === 5) p += 3; else if (run > 5) p++; } else run = 1; } }
+      for (let y = 0; y < size - 1; y++) for (let x = 0; x < size - 1; x++) { const c = M[y][x]; if (c === M[y][x + 1] && c === M[y + 1][x] && c === M[y + 1][x + 1]) p += 3; }
+      for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) if (M[y][x]) dark++;
+      return p + Math.floor(Math.abs(dark * 20 - size * size * 10) / (size * size)) * 10; };
+    let best = 0, bp = Infinity;
+    for (let m = 0; m < 8; m++) { apply(m); drawFmt(m); const p = penalty(); if (p < bp) { bp = p; best = m; } apply(m); }
+    if (forceMask >= 0) best = forceMask; apply(best); drawFmt(best);
+    return { size, ver, ecc: eclName, modules: M, isFn: F };
+  }
+  return { encode };
+})();
+  const QDEF = { kind: 'url', kf: {}, text: 'https://udtc.coj.go.th/', ecc: 'auto', fg: '#0f172a', fg2: '#1e3a5f', grad: 'none', bg: '#ffffff', shape: 'square', eye: 'square', eyeColor: '', eyeInner: '',
+    margin: 2, logo: '', logoSize: 22, logoBg: '#ffffff', logoShape: 'rounded', logoPad: 8, cap: '', capColor: '#0f172a', capSize: 16, frame: 'none', frameColor: '#1e3a5f', frameText: 'สแกนเลย', frameFg: '#ffffff', radius: 12, maxW: 260, linkSelf: false };
+  const QOPT = { ecc: ['auto', 'L', 'M', 'Q', 'H'], grad: ['none', 'linear', 'radial'], shape: ['square', 'rounded', 'dots', 'diamond', 'vbar'], eye: ['square', 'rounded', 'circle', 'leaf'], logoShape: ['none', 'rounded', 'circle', 'square'], frame: ['none', 'bottom', 'top', 'box'] };
+  const QPRESETS = [
+    { id: 'classic', name: 'คลาสสิก', s: { fg: '#0f172a', bg: '#ffffff', shape: 'square', eye: 'square', grad: 'none', eyeColor: '', eyeInner: '' } },
+    { id: 'court', name: 'ศาล (น้ำเงิน–ทอง)', s: { fg: '#1e3a5f', bg: '#ffffff', shape: 'rounded', eye: 'rounded', eyeColor: '#1e3a5f', eyeInner: '#b8862b', grad: 'none', frame: 'bottom', frameColor: '#1e3a5f' } },
+    { id: 'dots', name: 'จุดกลม', s: { fg: '#0f172a', shape: 'dots', eye: 'circle', grad: 'none', eyeColor: '', eyeInner: '' } },
+    { id: 'gradient', name: 'ไล่สี', s: { fg: '#1d4ed8', fg2: '#9333ea', grad: 'linear', shape: 'rounded', eye: 'leaf', eyeColor: '', eyeInner: '' } },
+    { id: 'green', name: 'เขียว LINE', s: { fg: '#06c755', bg: '#ffffff', shape: 'rounded', eye: 'rounded', grad: 'none', eyeColor: '#05a847', eyeInner: '#05a847' } },
+    { id: 'dark', name: 'พื้นเข้ม', s: { fg: '#f8fafc', bg: '#0f172a', shape: 'dots', eye: 'rounded', grad: 'none', eyeColor: '#fbbf24', eyeInner: '#fbbf24' } },
+    { id: 'gold', name: 'ทองหรู', s: { fg: '#7a5a1e', fg2: '#b8862b', grad: 'radial', shape: 'diamond', eye: 'leaf', bg: '#fffbeb', eyeColor: '', eyeInner: '' } },
+  ];
+  function normQr(q) {
+    const o = Object.assign({}, QDEF, q || {}), hex = v => /^#[0-9a-f]{3,8}$/i.test(String(v || ''));
+    for (const k in QOPT) if (!QOPT[k].includes(o[k])) o[k] = QDEF[k];
+    o.text = String(o.text == null ? '' : o.text).slice(0, 2000);
+    for (const k of ['fg', 'fg2', 'logoBg', 'capColor', 'frameColor', 'frameFg']) if (!hex(o[k])) o[k] = QDEF[k];
+    if (o.bg !== 'transparent' && !hex(o.bg)) o.bg = QDEF.bg;
+    for (const k of ['eyeColor', 'eyeInner']) if (o[k] && !hex(o[k])) o[k] = '';
+    const n = (k, a, b) => { const v = Number(o[k]); o[k] = Number.isFinite(v) ? Math.min(b, Math.max(a, v)) : QDEF[k]; };
+    n('margin', 0, 8); n('logoSize', 8, 32); n('logoPad', 0, 30); n('capSize', 10, 48); n('radius', 0, 40); n('maxW', 60, 1200);
+    o.logo = /^(https?:\/\/|\/)/.test(String(o.logo || '')) ? String(o.logo).replace(/["<>]/g, '') : '';
+    o.kind = ['url', 'text', 'tel', 'mail', 'wifi', 'line', 'map', 'sms'].includes(o.kind) ? o.kind : 'url';
+    const kf = {}; if (o.kf && typeof o.kf === 'object') for (const k of Object.keys(o.kf).slice(0, 12)) kf[String(k).slice(0, 20)] = typeof o.kf[k] === 'boolean' ? o.kf[k] : String(o.kf[k] == null ? '' : o.kf[k]).slice(0, 500); o.kf = kf;
+    o.cap = String(o.cap || '').slice(0, 200); o.frameText = String(o.frameText || '').slice(0, 60); o.linkSelf = !!o.linkSelf;
+    return o;
+  }
+  let qrSeq = 0;
+  /** คืน SVG ของ QR Code ที่ออกแบบแล้ว */
+  function qrSvg(q0) {
+    const q = normQr(q0), ecc = q.ecc === 'auto' ? (q.logo ? 'H' : 'M') : q.ecc;
+    let m;
+    try { m = QRENC.encode(q.text || ' ', ecc); } catch (e) { return `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><rect width="100" height="100" fill="#fee2e2"/><text x="50" y="54" font-size="9" text-anchor="middle" fill="#b91c1c">ข้อมูลยาวเกินไป</text></svg>`; }
+    const N = m.size, mg = q.margin, T = N + mg * 2, id = 'q' + (++qrSeq).toString(36) + Math.random().toString(36).slice(2, 6);
+    const fill = q.grad === 'none' ? q.fg : `url(#${id}g)`;
+    const inEye = (x, y) => (x < 7 && y < 7) || (x >= N - 7 && y < 7) || (x < 7 && y >= N - 7);
+    // พื้นที่โลโก้ (หน่วยโมดูล)
+    let lb = null;
+    if (q.logo) { const side = N * q.logoSize / 100, pad = side * q.logoPad / 100, a = (N - side) / 2 - pad; lb = { a, b: a + side + pad * 2, side, pad }; }
+    const covered = (x, y) => lb && x + 1 > lb.a && x < lb.b && y + 1 > lb.a && y < lb.b;
+    let d = '', dots = '';
+    for (let y = 0; y < N; y++) {
+      if (q.shape === 'square') {
+        let x = 0;
+        while (x < N) { if (m.modules[y][x] && !inEye(x, y) && !covered(x, y)) { let e = x; while (e + 1 < N && m.modules[y][e + 1] && !inEye(e + 1, y) && !covered(e + 1, y)) e++; d += `M${x + mg} ${y + mg}h${e - x + 1}v1h-${e - x + 1}z`; x = e + 1; } else x++; }
+        continue;
+      }
+      for (let x = 0; x < N; x++) {
+        if (!m.modules[y][x] || inEye(x, y) || covered(x, y)) continue;
+        const X = x + mg, Y = y + mg;
+        if (q.shape === 'dots') dots += `<circle cx="${X + .5}" cy="${Y + .5}" r=".46"/>`;
+        else if (q.shape === 'rounded') d += `M${X + .62} ${Y + .04}h-.24a.34 .34 0 0 0-.34 .34v.24a.34 .34 0 0 0 .34 .34h.24a.34 .34 0 0 0 .34-.34v-.24a.34 .34 0 0 0-.34-.34z`;
+        else if (q.shape === 'diamond') d += `M${X + .5} ${Y - .02}L${X + 1.02} ${Y + .5}L${X + .5} ${Y + 1.02}L${X - .02} ${Y + .5}z`;
+        else if (q.shape === 'vbar') { const up = y > 0 && m.modules[y - 1][x] && !inEye(x, y - 1) && !covered(x, y - 1), dn = y < N - 1 && m.modules[y + 1][x] && !inEye(x, y + 1) && !covered(x, y + 1);
+          d += `M${X + .14} ${Y + (up ? 0 : .3)}h.72v${1 - (up ? 0 : .3) - (dn ? 0 : .3)}h-.72z`; }
+      }
+    }
+    const eye = (ex, ey) => {
+      const X = ex + mg, Y = ey + mg, oc = q.eyeColor || fill, ic = q.eyeInner || q.eyeColor || fill;
+      if (q.eye === 'circle') return `<circle cx="${X + 3.5}" cy="${Y + 3.5}" r="3" fill="none" stroke="${oc}" stroke-width="1"/><circle cx="${X + 3.5}" cy="${Y + 3.5}" r="1.5" fill="${ic}"/>`;
+      if (q.eye === 'rounded') return `<rect x="${X + .5}" y="${Y + .5}" width="6" height="6" rx="1.7" fill="none" stroke="${oc}" stroke-width="1"/><rect x="${X + 2}" y="${Y + 2}" width="3" height="3" rx=".9" fill="${ic}"/>`;
+      if (q.eye === 'leaf') { const r = (x, y, w, rr) => `M${x + rr} ${y}H${x + w}V${y + w - rr}A${rr} ${rr} 0 0 1 ${x + w - rr} ${y + w}H${x}V${y + rr}A${rr} ${rr} 0 0 1 ${x + rr} ${y}Z`;
+        return `<path d="${r(X, Y, 7, 2.6)}${r(X + 1, Y + 1, 5, 1.8)}" fill="${oc}" fill-rule="evenodd"/><path d="${r(X + 2, Y + 2, 3, 1.1)}" fill="${ic}"/>`; }
+      return `<path d="M${X} ${Y}h7v7h-7zM${X + 1} ${Y + 1}v5h5v-5z" fill="${oc}" fill-rule="evenodd"/><rect x="${X + 2}" y="${Y + 2}" width="3" height="3" fill="${ic}"/>`;
+    };
+    const grad = q.grad === 'linear' ? `<linearGradient id="${id}g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${q.fg}"/><stop offset="1" stop-color="${q.fg2}"/></linearGradient>`
+      : q.grad === 'radial' ? `<radialGradient id="${id}g" cx=".5" cy=".5" r=".7"><stop offset="0" stop-color="${q.fg2}"/><stop offset="1" stop-color="${q.fg}"/></radialGradient>` : '';
+    let logo = '';
+    if (lb) {
+      const c = mg + N / 2, plate = lb.b - lb.a, px = mg + lb.a, ix = c - lb.side / 2, rr = q.logoShape === 'circle' ? plate / 2 : q.logoShape === 'rounded' ? plate * .2 : 0;
+      const clip = q.logoShape === 'circle' ? `<clipPath id="${id}c"><circle cx="${c}" cy="${c}" r="${lb.side / 2}"/></clipPath>` : '';
+      logo = `${clip}${q.logoShape !== 'none' ? `<rect x="${px}" y="${px}" width="${plate}" height="${plate}" rx="${rr}" fill="${q.logoBg}"/>` : ''}<image href="${esc(q.logo)}" x="${ix}" y="${ix}" width="${lb.side}" height="${lb.side}" preserveAspectRatio="xMidYMid meet"${clip ? ` clip-path="url(#${id}c)"` : ''}/>`;
+    }
+    const bg = q.bg === 'transparent' ? '' : `<rect width="${T}" height="${T}" rx="${T * q.radius / 300}" fill="${q.bg}"/>`;
+    return `<svg class="uqr-svg" viewBox="0 0 ${T} ${T}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="QR Code" shape-rendering="${q.shape === 'square' ? 'crispEdges' : 'geometricPrecision'}">${grad ? `<defs>${grad}</defs>` : ''}${bg}<path d="${d}" fill="${fill}"/>${dots ? `<g fill="${fill}">${dots}</g>` : ''}${eye(0, 0)}${eye(N - 7, 0)}${eye(0, N - 7)}${logo}</svg>`;
+  }
+  /** QR พร้อมกรอบ คำบรรยาย และลิงก์ */
+  function qrHtml(it, opts = {}) {
+    const q = normQr(it.qr), cw = opts.cw, px = v => cw ? `calc(${v} * 100cqw / ${cw})` : `${v}px`, fill = !!opts.fill;
+    const href = it.link || (q.linkSelf && /^(https?:|tel:|mailto:)/i.test(q.text) ? q.text : '');
+    const hasBand = q.frame !== 'none' && q.frame !== 'box' && q.frameText;
+    const band = hasBand ? `<div class="uqr-band" style="background:${q.frameColor};color:${q.frameFg}">${esc(q.frameText)}</div>` : '';
+    // โหมดเต็มกรอบ (ผืนผ้าใบ): ขนาด QR = ด้านที่สั้นกว่าของกรอบ หักพื้นที่ป้าย/คำบรรยาย (หน่วย em อิงขนาดตัวอักษรของ .uqr)
+    const capEm = +(q.capSize / 16).toFixed(3);
+    const reserve = (hasBand ? 2.05 : 0) + (q.cap ? capEm * 1.4 + .5 : 0) + (q.frame !== 'none' ? .45 : 0) + .05;
+    const side = fill ? ` style="width:min(100cqw, calc(100cqh - ${reserve.toFixed(3)}em))"` : '';
+    const inner = `${q.frame === 'top' ? band : ''}<div class="uqr-code"${q.frame === 'none' ? side : ''}>${qrSvg(q)}</div>${q.frame === 'bottom' ? band : ''}`;
+    const framed = q.frame === 'none' ? inner : `<div class="uqr-frame" style="border-color:${q.frameColor};border-radius:${fill ? `${+((q.radius + 6) / 16).toFixed(3)}em` : px(q.radius + 6)};${fill ? side.slice(8, -1) : ''}">${inner}</div>`;
+    const cap = q.cap ? `<div class="uqr-cap" style="color:${q.capColor};font-size:${fill ? capEm + 'em' : px(q.capSize)}">${esc(q.cap)}</div>` : '';
+    const tag = href && !opts.noLink ? 'a' : 'div';
+    return `<${tag} class="uqr${fill ? ' fill' : ''}"${tag === 'a' ? ` href="${esc(href)}" target="_blank" rel="noopener"` : ''} style="--qmw:${q.maxW}px${fill ? `;font-size:${px(16)}` : ''}">${framed}${cap}</${tag}>`;
+  }
+  const QR_CSS = `
+.uqr{display:flex;flex-direction:column;align-items:center;gap:.5em;width:100%;max-width:var(--qmw);margin:0 auto;text-decoration:none!important;color:inherit;box-sizing:border-box}
+.uqr.fill{height:100%;max-width:none;justify-content:center;container-type:size;gap:.4em;overflow:hidden}
+.uqr-frame{display:flex;flex-direction:column;overflow:hidden;border:3px solid;background:#fff;width:100%;box-sizing:border-box;flex:none}
+.uqr.fill .uqr-frame{border-width:.19em}
+.uqr-code{line-height:0;flex:none;width:100%}.uqr-code svg{display:block!important;width:100%!important;height:auto!important;max-width:100%!important}
+.uqr.fill>.uqr-code{max-width:100%}
+.uqr-band{padding:.45em .6em;text-align:center;font-weight:700;letter-spacing:.02em;line-height:1.25;flex:none;font-size:.95em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.uqr-cap{text-align:center;font-weight:600;line-height:1.35;flex:none;max-width:100%}
+.uqr.fill .uqr-cap{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+a.uqr{transition:transform .25s}a.uqr:hover{transform:translateY(-3px)}
+`;
   const FA_CSS = 'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css';
-  return { DEF, OPT, LABEL, PRESETS, FONTS, fontUrl, norm, fromLegacy, shade, vars, buttonHtml, CSS: CSS + IMG_CSS + TB_CSS, FA_CSS, esc,
+  return { DEF, OPT, LABEL, PRESETS, FONTS, fontUrl, norm, fromLegacy, shade, vars, buttonHtml, CSS: CSS + IMG_CSS + TB_CSS + QR_CSS, FA_CSS, esc,
     TDEF, TOPT, TPRESETS, normText, richText, textHtml, dividerHtml, spacerHtml,
-    IDEF, IOPT, IPRESETS, normImg, imageHtml, TBDEF, TBOPT, TBPRESETS, normTable, tableHtml, tableCover, ENTERS: ['none', 'fade', 'fade-up', 'fade-down', 'slide-left', 'slide-right', 'zoom', 'zoom-out', 'flip', 'blur', 'rotate'] };
+    IDEF, IOPT, IPRESETS, normImg, imageHtml, TBDEF, TBOPT, TBPRESETS, normTable, tableHtml, tableCover, QDEF, QOPT, QPRESETS, normQr, qrSvg, qrHtml, qrEncode: (t, e) => QRENC.encode(t, e), ENTERS: ['none', 'fade', 'fade-up', 'fade-down', 'slide-left', 'slide-right', 'zoom', 'zoom-out', 'flip', 'blur', 'rotate'] };
 });
