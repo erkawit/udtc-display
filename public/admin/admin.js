@@ -726,6 +726,113 @@ function ensurePositions(w) {
     y += h + g;
   });
 }
+/* ---------------- ตัวออกแบบภาพ (ผืนผ้าใบอิสระ) ---------------- */
+const IMG_LABEL = {
+  fit: [['cover', 'เต็มกรอบ'], ['contain', 'แสดงครบ'], ['fill', 'ยืดเต็ม']],
+  pos: [['center', 'กลาง'], ['top', 'บน'], ['bottom', 'ล่าง'], ['left', 'ซ้าย'], ['right', 'ขวา']],
+  shape: [['rect', 'สี่เหลี่ยม'], ['circle', 'วงกลม'], ['pill', 'แคปซูล'], ['blob', 'ทรงอิสระ'], ['arch', 'โค้งบน']],
+  borderStyle: [['solid', 'เส้นทึบ'], ['dashed', 'เส้นประ'], ['double', 'เส้นคู่']],
+  depth: [['none', 'ไม่มี'], ['soft', 'เงาอ่อน'], ['md', 'เงากลาง'], ['strong', 'เงาเข้ม'], ['emboss', 'นูน 3 มิติ'], ['float', 'ลอยตัว'], ['stack', 'ซ้อนชั้น'], ['neon', 'เรืองแสง'], ['inset', 'เว้าลึก']],
+  hover: [['none', 'ไม่มี'], ['zoom', 'ซูมเข้า'], ['zoomout', 'ซูมออก'], ['lift', 'ยกลอย'], ['tilt3d', 'เอียง 3 มิติตามเมาส์'], ['pop', 'เด้งขยาย'], ['glow', 'เรืองแสง'], ['color', 'ขาวดำ→สี'], ['bright', 'สว่างขึ้น'], ['rotate', 'หมุนเล็กน้อย'], ['shine', 'แสงวิ่งผ่าน'], ['blurin', 'เบลอ→ชัด'], ['flip', 'พลิกภาพ']],
+  idle: [['none', 'ไม่มี'], ['float', 'ลอยขึ้นลง'], ['pulse', 'เต้นเบาๆ'], ['swing', 'แกว่ง'], ['breathe', 'สว่างเป็นจังหวะ'], ['kenburns', 'ซูมช้าๆ (Ken Burns)'], ['shine', 'แสงวิ่งเป็นระยะ']],
+  cap: [['none', 'ไม่แสดง'], ['bottom', 'ด้านล่าง'], ['top', 'ด้านบน'], ['center', 'กลางภาพ'], ['hover', 'แสดงเมื่อชี้เมาส์']],
+  capAlign: [['left', 'ซ้าย'], ['center', 'กลาง'], ['right', 'ขวา']],
+};
+const ENTER_LABEL = { none: 'ไม่มี', fade: 'ค่อยๆ ปรากฏ', 'fade-up': 'ลอยขึ้น', 'fade-down': 'ลอยลง', 'slide-left': 'เลื่อนจากซ้าย', 'slide-right': 'เลื่อนจากขวา', zoom: 'ขยายเข้า', 'zoom-out': 'ย่อเข้า', flip: 'พลิก 3 มิติ', blur: 'เบลอ→ชัด', rotate: 'หมุนเข้า' };
+function enterControls(it) {
+  const e = it.enter || { type: 'none', delay: 0, dur: 700 };
+  return `<div class="grid grid-cols-3 gap-2"><div class="col-span-3"><select class="inp !py-1.5" data-en="type">${UB.ENTERS.map(k => `<option value="${k}" ${e.type === k ? 'selected' : ''}>${ENTER_LABEL[k] || k}</option>`).join('')}</select></div>
+    <label class="text-xs text-slate-500">หน่วงเวลา (ms)<input type="number" class="inp !py-1.5" data-en="delay" min="0" max="5000" step="100" value="${e.delay || 0}"></label>
+    <label class="text-xs text-slate-500">ความยาว (ms)<input type="number" class="inp !py-1.5" data-en="dur" min="100" max="3000" step="100" value="${e.dur || 700}"></label>
+    <div class="flex items-end"><button type="button" class="btn btn-light btn-sm w-full" data-enplay>▶ ดูตัวอย่าง</button></div></div>
+    <p class="text-xs text-slate-500 mt-1">เล่นครั้งเดียวเมื่อเลื่อนหน้าเว็บมาถึงชิ้นนี้ · ตั้งหน่วงเวลาไล่กันหลายชิ้น เช่น 0, 150, 300 ms จะได้แบบทยอยขึ้น</p>`;
+}
+function bindEnter(box, it, onChange, playEl) {
+  $$('[data-en]', box).forEach(el => el.addEventListener('input', () => {
+    const e = it.enter || { type: 'none', delay: 0, dur: 700 };
+    e[el.dataset.en] = el.dataset.en === 'type' ? el.value : Number(el.value) || 0;
+    it.enter = e.type === 'none' ? undefined : e; onChange && onChange();
+  }));
+  const pb = $('[data-enplay]', box);
+  if (pb) pb.onclick = () => {
+    const t = playEl(); const e = it.enter; if (!t || !e) return;
+    t.setAttribute('data-enter', e.type); t.style.setProperty('--edel', '0ms'); t.style.setProperty('--edur', e.dur + 'ms');
+    if (t.parentElement) t.parentElement.classList.add('uw-js'); t.classList.remove('in'); void t.offsetWidth; requestAnimationFrame(() => requestAnimationFrame(() => t.classList.add('in')));
+  };
+}
+function bindTilt(root) {
+  $$('.uim[data-tilt]', root).forEach(el => {
+    el.onpointermove = ev => { const b = el.getBoundingClientRect(), x = (ev.clientX - b.left) / b.width - .5, y = (ev.clientY - b.top) / b.height - .5;
+      el.style.transform = `perspective(900px) rotateX(${(-y * 16).toFixed(2)}deg) rotateY(${(x * 16).toFixed(2)}deg) scale(1.03)`; };
+    el.onpointerleave = () => { el.style.transform = ''; };
+  });
+}
+function designImage(it0, onDone) {
+  const it = clone(it0);
+  it.fx = UB.normImg(it.fx || { radius: 16, depth: 'md', hover: 'zoom' });
+  const ar = it.pos ? `${it.pos.w}/${it.pos.h}` : '4/3';
+  openModal({
+    title: 'ปรับแต่งภาพ', size: 'max-w-6xl',
+    body: `<div class="grid lg:grid-cols-[1fr_380px] gap-5">
+      <div class="lg:order-2"><div class="lg:sticky lg:top-0 space-y-2">
+        <div class="rounded-xl chk-pattern border border-slate-200 p-8 grid place-items-center" style="min-height:300px"><div data-pv style="width:100%;max-width:340px;aspect-ratio:${ar}"></div></div>
+        <p class="text-xs text-slate-500 text-center">ชี้เมาส์ที่ภาพเพื่อดูเอฟเฟกต์ · ขนาดจริงตามกรอบบนผืนผ้าใบ</p></div></div>
+      <div class="lg:order-1 space-y-3" data-ctl></div></div>`,
+    footer: `<button class="btn btn-light mr-auto" data-reset>ล้างการปรับแต่ง</button><button class="btn btn-light" data-close>ยกเลิก</button><button class="btn btn-primary" data-apply>${icon('check')} ใช้แบบนี้</button>`,
+    onMount: (el, close) => {
+      const pv = $('[data-pv]', el), ctl = $('[data-ctl]', el);
+      const paint = () => { pv.innerHTML = UB.imageHtml(it, { noLink: true }); bindTilt(pv); };
+      const draw = () => {
+        const f = it.fx;
+        const seg = (k, list) => `<div class="seg flex-wrap">${list.map(([v, l]) => `<button type="button" data-fseg="${k}" data-v="${v}" class="${String(f[k]) === String(v) ? 'on' : ''}">${l}</button>`).join('')}</div>`;
+        const rg = (k, l, min, max, step = 1, unit = '') => `<div><div class="flex justify-between"><label class="lbl !mb-0">${l}</label><span class="text-xs text-slate-500"><span data-fout="${k}">${f[k]}</span>${unit}</span></div><input type="range" class="w-full accent-navy-800" data-f="${k}" min="${min}" max="${max}" step="${step}" value="${f[k]}"></div>`;
+        const col = (k, l) => `<label class="flex items-center gap-2 text-sm text-slate-600">${l}<input type="color" class="h-8 w-10 rounded border border-slate-300 cursor-pointer" data-fc="${k}" value="${/^#[0-9a-f]{6}$/i.test(f[k] || '') ? f[k] : '#ffffff'}"></label>`;
+        const tg = (k, l) => `<label class="flex items-center justify-between gap-2 text-sm text-slate-700 cursor-pointer">${l}<input type="checkbox" class="tgl" data-ft="${k}" ${f[k] ? 'checked' : ''}></label>`;
+        const sec = (t, b) => `<details class="rounded-xl border border-slate-200 bg-white group" open><summary class="px-3 py-2 cursor-pointer text-sm font-semibold text-slate-700 select-none">${t}</summary><div class="px-3 pb-3 space-y-3">${b}</div></details>`;
+        ctl.innerHTML = `
+          <div><label class="lbl">รูปแบบสำเร็จรูป</label><div class="flex flex-wrap gap-1.5">${UB.IPRESETS.map(p => `<button type="button" class="px-2.5 py-1 rounded-md text-xs border border-slate-300 hover:bg-slate-50" data-ipre="${p.id}">${esc(p.name)}</button>`).join('')}</div></div>
+          ${sec('🖼 ภาพ', `<div class="flex items-center gap-2"><img src="${esc(it.src)}" class="w-14 h-14 rounded-lg object-cover border border-slate-200"><button type="button" class="btn btn-light btn-sm" data-chg>${icon('media', 'w-3.5 h-3.5')} เปลี่ยนภาพ</button></div>
+            <div><label class="lbl">การจัดภาพในกรอบ</label>${seg('fit', IMG_LABEL.fit)}</div><div><label class="lbl">จุดยึดภาพ</label>${seg('pos', IMG_LABEL.pos)}</div>${tg('flipX', 'กลับภาพซ้าย–ขวา')}`)}
+          ${sec('⬛ รูปทรงและกรอบ', `<div>${seg('shape', IMG_LABEL.shape)}</div>${f.shape === 'rect' || f.shape === 'arch' ? rg('radius', 'มุมมน', 0, 120, 1, 'px') : ''}
+            <div class="grid grid-cols-2 gap-3">${rg('border', 'เส้นขอบ', 0, 20, 1, 'px')}<div class="flex items-end">${col('borderColor', 'สีเส้นขอบ')}</div></div>${f.border ? `<div>${seg('borderStyle', IMG_LABEL.borderStyle)}</div>` : ''}
+            <div class="grid grid-cols-2 gap-3">${rg('frame', 'กรอบรูป (ขอบขาว)', 0, 40, 1, 'px')}<div class="flex items-end">${col('frameBg', 'สีกรอบ')}</div></div>`)}
+          ${sec('✨ มิติ นูน และเงา', `<div>${seg('depth', IMG_LABEL.depth)}</div>${['emboss', 'stack', 'neon'].includes(f.depth) ? col('shColor', f.depth === 'neon' ? 'สีแสง' : 'สีชั้นเงา') : ''}
+            <div class="grid grid-cols-3 gap-3">${rg('tiltX', 'เอียงหน้า–หลัง', -30, 30, 1, '°')}${rg('tiltY', 'เอียงซ้าย–ขวา', -30, 30, 1, '°')}${rg('rotate', 'หมุน', -45, 45, 1, '°')}</div>`)}
+          ${sec('🖱 เมื่อชี้เมาส์', `<div>${seg('hover', IMG_LABEL.hover)}</div>
+            <div class="grid grid-cols-2 gap-3"><div><label class="lbl">ความแรง</label>${seg('hoverAmt', [[1, 'น้อย'], [2, 'กลาง'], [3, 'มาก']])}</div>${rg('speed', 'ความเร็ว', 100, 1500, 50, 'ms')}</div>`)}
+          ${sec('🔁 เคลื่อนไหวตลอดเวลา', `<div>${seg('idle', IMG_LABEL.idle)}</div>`)}
+          ${sec('🎬 แอนิเมชันตอนเลื่อนมาถึง', `<div data-enbox>${enterControls(it)}</div>`)}
+          ${sec('🎨 ปรับสีภาพ', `<div class="grid grid-cols-2 gap-3">${rg('gray', 'ขาวดำ', 0, 100, 1, '%')}${rg('bright', 'ความสว่าง', 40, 160, 1, '%')}${rg('sat', 'ความสดของสี', 0, 200, 1, '%')}${rg('contrast', 'คอนทราสต์', 50, 160, 1, '%')}${rg('blur', 'เบลอ', 0, 10, 1, 'px')}${rg('opacity', 'ความทึบ', 10, 100, 1, '%')}</div>
+            <div class="grid grid-cols-2 gap-3"><div class="flex items-end">${col('tint', 'แต้มสีทับ')}</div>${rg('tintOp', 'ความเข้มสีทับ', 0, 100, 1, '%')}</div>${tg('grad', 'ไล่เงาดำด้านล่าง (ช่วยให้อ่านคำบรรยายง่าย)')}`)}
+          ${sec('💬 คำบรรยายบนภาพ', `<div>${seg('cap', IMG_LABEL.cap)}</div>
+            <div class="grid grid-cols-2 gap-3"><input class="inp" data-it="title" placeholder="หัวข้อ" value="${esc(it.title || '')}"><input class="inp" data-it="subtitle" placeholder="คำอธิบาย (ไม่บังคับ)" value="${esc(it.subtitle || '')}"></div>
+            ${f.cap !== 'none' ? `<div class="grid grid-cols-2 gap-3">${rg('capSize', 'ขนาดตัวอักษร', 10, 48, 1, 'px')}<div class="flex items-end">${col('capColor', 'สีตัวอักษร')}</div></div><div>${seg('capAlign', IMG_LABEL.capAlign)}</div>` : ''}`)}
+          ${sec('🔗 ลิงก์เมื่อคลิก', `<input class="inp" data-it="link" placeholder="https://... (เว้นว่าง = ไม่มีลิงก์)" value="${esc(it.link || '')}"><label class="flex items-center gap-2 text-sm text-slate-600"><input type="checkbox" class="w-4 h-4 accent-navy-800" data-newtab ${it.newTab !== false ? 'checked' : ''}> เปิดในแท็บใหม่</label>`)}`;
+        const set = (k, v) => { it.fx[k] = v; const o = $(`[data-fout="${k}"]`, ctl); if (o) o.textContent = v; paint(); };
+        $$('[data-f]', ctl).forEach(i => i.addEventListener('input', () => set(i.dataset.f, Number(i.value))));
+        $$('[data-fc]', ctl).forEach(i => i.addEventListener('input', () => set(i.dataset.fc, i.value)));
+        $$('[data-ft]', ctl).forEach(i => i.addEventListener('change', () => set(i.dataset.ft, i.checked)));
+        $$('[data-fseg]', ctl).forEach(b => b.onclick = () => { const k = b.dataset.fseg; it.fx[k] = typeof UB.IDEF[k] === 'number' ? Number(b.dataset.v) : b.dataset.v; it.fx = UB.normImg(it.fx); paint(); draw(); });
+        $$('[data-ipre]', ctl).forEach(b => b.onclick = () => { const p = UB.IPRESETS.find(x => x.id === b.dataset.ipre); it.fx = UB.normImg({ ...UB.IDEF, ...p.s }); paint(); draw(); });
+        $$('[data-it]', ctl).forEach(i => i.addEventListener('input', () => { it[i.dataset.it] = i.value; paint(); }));
+        const nt = $('[data-newtab]', ctl); if (nt) nt.onchange = () => { it.newTab = nt.checked; };
+        $('[data-chg]', ctl).onclick = async () => { const u = await pickMedia('image'); if (u) { it.src = u; paint(); draw(); } };
+        bindEnter($('[data-enbox]', ctl), it, null, () => pv);
+      };
+      paint(); draw();
+      $('[data-reset]', el).onclick = () => { delete it.fx; onDone(it); close(); };
+      $('[data-apply]', el).onclick = () => { onDone(it); close(); };
+    },
+  });
+}
+function editEnter(it, onDone) {
+  const c = clone(it);
+  openModal({ title: 'แอนิเมชันตอนเลื่อนมาถึง', size: 'max-w-lg',
+    body: `<div class="rounded-xl chk-pattern border border-slate-200 p-6 grid place-items-center mb-4" style="min-height:140px"><div data-pv class="px-6 py-4 rounded-xl bg-navy-800 text-white font-semibold shadow-lg">${esc(c.title || TYPE_META[c.type].name)}</div></div><div data-enbox>${enterControls(c)}</div>`,
+    footer: `<button class="btn btn-light" data-close>ยกเลิก</button><button class="btn btn-primary" data-apply>${icon('check')} ตกลง</button>`,
+    onMount: (el, close) => { bindEnter($('[data-enbox]', el), c, null, () => $('[data-pv]', el)); $('[data-apply]', el).onclick = () => { onDone(c.enter); close(); }; } });
+}
+
 function mountCanvas(host, w, hooks) {
   let sel = null, zoom = 'fit', showGrid = true, snapOn = true, scale = 1;
   const W = () => Math.max(200, Number(w.canvasW) || 1200), Hh = () => Math.max(60, Number(w.canvasH) || 400), G = () => Math.max(2, Number(w.gridSize) || 20);
@@ -737,14 +844,19 @@ function mountCanvas(host, w, hooks) {
       <span class="w-px h-6 bg-slate-200 mx-1"></span>
       <label class="flex items-center gap-1.5 text-xs text-slate-600"><input type="checkbox" class="tgl !w-8 !h-[18px] after:!w-3 after:!h-3" data-grid checked> เส้นตาราง</label>
       <label class="flex items-center gap-1.5 text-xs text-slate-600"><input type="checkbox" class="tgl !w-8 !h-[18px] after:!w-3 after:!h-3" data-snap checked> ยึดตามตาราง</label>
-      <select class="inp !w-auto !py-1 text-xs" data-zoom><option value="fit">พอดีจอ</option><option value="0.5">50%</option><option value="0.75">75%</option><option value="1">100%</option></select>
+      <div class="flex items-center rounded-lg border border-slate-300 overflow-hidden bg-white" title="ซูม: Ctrl/⌘ + ล้อเมาส์ · Ctrl/⌘ + = / − / 0">
+        <button class="px-2 py-1 hover:bg-slate-100 text-sm font-bold" data-zm="-" title="ซูมออก">−</button>
+        <button class="px-2 py-1 hover:bg-slate-100 text-xs font-mono min-w-[52px] border-x border-slate-200" data-zm="menu" title="เลือกระดับซูม">100%</button>
+        <button class="px-2 py-1 hover:bg-slate-100 text-sm font-bold" data-zm="+" title="ซูมเข้า">+</button></div>
+      <button class="btn btn-light btn-sm !px-2" data-zm="fit" title="พอดีจอ">⤢ พอดีจอ</button><button class="btn btn-light btn-sm !px-2" data-zm="1" title="ขนาดจริง">1:1</button>
+      <div class="relative"><div data-zmenu class="hidden absolute z-30 top-1 left-0 bg-white rounded-lg shadow-lg border border-slate-200 py-1 w-28">${[0.25, 0.5, 0.75, 1, 1.5, 2, 3].map(z => `<button class="block w-full text-left px-3 py-1 text-xs hover:bg-slate-50" data-zset="${z}">${z * 100}%</button>`).join('')}</div></div>
       <span class="ml-auto text-xs text-slate-500 font-mono" data-info></span>
     </div>
     <div class="card px-2.5 mt-2 h-[52px] flex flex-nowrap items-center gap-2 text-xs overflow-x-auto overflow-y-hidden scroll-thin whitespace-nowrap" data-selbar></div>
     <div class="mt-2 rounded-xl bg-slate-300/50 p-4 overflow-auto scroll-thin" style="max-height:calc(100vh - 290px)" data-wrap tabindex="0">
       <div data-scaler class="relative mx-auto"><div data-cv class="absolute top-0 left-0 origin-top-left shadow-xl"></div></div>
     </div>
-    <p class="text-xs text-slate-500 mt-2">ลากเพื่อย้าย · ลากจุดที่มุม/ขอบเพื่อปรับขนาด · ดับเบิลคลิกเพื่อแก้ไข · ลูกศรเลื่อนทีละช่อง (Shift = ทีละ 1px) · Delete ลบ · Ctrl+D ทำสำเนา · L ล็อก</p>`;
+    <p class="text-xs text-slate-500 mt-2">ลากเพื่อย้าย · ลากจุดที่มุม/ขอบเพื่อปรับขนาด · ดับเบิลคลิกเพื่อแก้ไข · ลูกศรเลื่อนทีละช่อง (Shift = ทีละ 1px) · Delete ลบ · Ctrl+D ทำสำเนา · L ล็อก · <b>ซูม</b>: Ctrl/⌘ + ล้อเมาส์ หรือปุ่ม − / + · <b>เลื่อนมุมมอง</b>: กด Space ค้างแล้วลาก</p>`;
   const cv = $('[data-cv]', host), wrap = $('[data-wrap]', host), scaler = $('[data-scaler]', host);
   const snap = v => snapOn ? Math.round(v / G()) * G() : Math.round(v);
   const byId = id => w.items.find(i => i.id === id);
@@ -758,6 +870,7 @@ function mountCanvas(host, w, hooks) {
     const p = it.pos;
     let inner;
     if (it.type === 'button') inner = UB.buttonHtml({ ...it, title: it.title || 'ปุ่ม', style: it.style || UB.fromLegacy(it.btnStyle, w.accent) }, { tag: 'div', cw: W() });
+    else if (it.type === 'image' && it.fx && it.src) inner = UB.imageHtml(it, { cw: W(), noLink: true });
     else if (it.type === 'image') inner = it.src ? `<img src="${esc(it.src)}" style="width:100%;height:100%;object-fit:${w.fit};border-radius:${w.radius}px;display:block" draggable="false">` : `<div class="w-full h-full grid place-items-center bg-slate-100 text-slate-400">${icon('image', 'w-8 h-8')}</div>`;
     else if (it.type === 'video') inner = `<div class="w-full h-full grid place-items-center bg-slate-900 text-white" style="border-radius:${w.radius}px">${icon('video', 'w-10 h-10')}</div>`;
     else if (it.type === 'text') { ensureFont(it.ts && it.ts.font); inner = UB.textHtml(it.ts, { cw: W() }); }
@@ -765,7 +878,7 @@ function mountCanvas(host, w, hooks) {
     else if (it.type === 'spacer') inner = `<div class="w-full h-full border border-dashed border-slate-400/70"></div>`;
     else inner = `<div class="w-full h-full overflow-hidden">${it.html}</div>`;
     return `<div class="cv-el${p.locked ? ' locked' : ''}${it.active ? '' : ' off'}" data-id="${it.id}" style="left:${p.x}px;top:${p.y}px;width:${p.w}px;height:${p.h}px;z-index:${p.z || 1}">
-      <div class="cv-in">${inner}</div>${p.locked ? `<span class="cv-lock">🔒</span>` : ''}</div>`;
+      <div class="cv-in">${inner}</div>${p.locked ? `<span class="cv-lock">🔒</span>` : ''}${it.enter ? `<span class="cv-fxb" title="มีแอนิเมชันตอนเลื่อนมาถึง">✨</span>` : ''}</div>`;
   }
   const HANDLES = ['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w'].map(h => `<span class="cv-h" data-h="${h}"></span>`).join('');
   function applySel() {
@@ -786,7 +899,9 @@ function mountCanvas(host, w, hooks) {
       ${showGrid ? `background-image:linear-gradient(to right,rgba(30,58,95,.13) 1px,transparent 1px),linear-gradient(to bottom,rgba(30,58,95,.13) 1px,transparent 1px);background-size:${g}px ${g}px;` : ''}`;
     scaler.style.width = W() * scale + 'px'; scaler.style.height = Hh() * scale + 'px';
     cv.innerHTML = w.items.map(elHtml).join('');
-    $('[data-info]', host).textContent = `${W()} × ${Hh()} px · ตาราง ${g}px · ${Math.round(scale * 100)}%`;
+    $('[data-info]', host).textContent = `${W()} × ${Hh()} px · ตาราง ${g}px`;
+    const zb = $('[data-zm="menu"]', host); if (zb) zb.textContent = `${Math.round(scale * 100)}%${zoom === 'fit' ? '*' : ''}`;
+    bindTilt(cv);
     applySel();
   }
   function drawSel() {
@@ -799,6 +914,8 @@ function mountCanvas(host, w, hooks) {
       <button class="btn btn-sm ${p.locked ? 'btn-gold' : 'btn-light'}" data-act="lock">${p.locked ? '🔒 ล็อกอยู่' : '🔓 ล็อก'}</button>
       <button class="btn btn-light btn-sm" data-act="edit">${icon('edit', 'w-3.5 h-3.5')} แก้ไข</button>
       ${it.type === 'button' ? `<button class="btn btn-light btn-sm" data-act="design">🎨 ออกแบบ</button>` : ''}
+      ${it.type === 'image' ? `<button class="btn btn-sm ${it.fx ? 'btn-gold' : 'btn-light'}" data-act="imgfx">🎨 ปรับแต่งภาพ</button>` : ''}
+      <button class="btn btn-sm ${it.enter ? 'btn-gold' : 'btn-light'}" data-act="enter" title="แอนิเมชันตอนเลื่อนมาถึง">✨ แอนิเมชัน</button>
       <button class="btn btn-light btn-sm" data-act="front" title="นำมาไว้หน้าสุด">⬆ หน้า</button><button class="btn btn-light btn-sm" data-act="back" title="ส่งไปหลังสุด">⬇ หลัง</button>
       <button class="btn btn-light btn-sm" data-act="dup">${icon('copy', 'w-3.5 h-3.5')}</button>
       <button class="btn btn-danger btn-sm" data-act="del">${icon('trash', 'w-3.5 h-3.5')}</button>`;
@@ -819,6 +936,8 @@ function mountCanvas(host, w, hooks) {
     if (a === 'del') { if (!(await confirmBox('ลบชิ้นงานนี้?', it.title || '', 'ลบ'))) return; w.items = w.items.filter(i => i.id !== it.id); sel = null; }
     if (a === 'edit') return hooks.edit(it);
     if (a === 'design') return hooks.design(it);
+    if (a === 'imgfx') return designImage(it, n => { Object.assign(it, n); if (!n.fx) delete it.fx; if (!n.enter) delete it.enter; hooks.change(); });
+    if (a === 'enter') return editEnter(it, e => { if (e) it.enter = e; else delete it.enter; hooks.change(); });
     hooks.change();
   }
   async function addEl(type) {
@@ -888,7 +1007,7 @@ function mountCanvas(host, w, hooks) {
   const endDrag = () => { if (drag && drag.moved) hooks.change(); else if (drag) drawSel(); drag = null; const t = $('.cv-tip', cv); if (t) t.remove(); };
   cv.addEventListener('pointerup', endDrag); cv.addEventListener('pointercancel', endDrag);
   // pointer capture ทำให้ target ของ dblclick เป็นผืนผ้าใบ จึงใช้ชิ้นงานที่ถูกกดล่าสุดแทน
-  cv.addEventListener('dblclick', () => { const it = lastDown && byId(lastDown); if (!it) return; it.type === 'button' ? hooks.design(it) : hooks.edit(it); });
+  cv.addEventListener('dblclick', () => { const it = lastDown && byId(lastDown); if (!it) return; it.type === 'button' ? hooks.design(it) : it.type === 'image' ? act('imgfx') : hooks.edit(it); });
   wrap.addEventListener('keydown', e => {
     const it = sel && byId(sel); if (!it || /INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)) return;
     const step = e.shiftKey ? 1 : G();
@@ -902,13 +1021,46 @@ function mountCanvas(host, w, hooks) {
   $$('[data-add]', host).forEach(b => b.onclick = () => addEl(b.dataset.add));
   $('[data-grid]', host).onchange = e => { showGrid = e.target.checked; redraw(); };
   $('[data-snap]', host).onchange = e => { snapOn = e.target.checked; };
-  $('[data-zoom]', host).onchange = e => { zoom = e.target.value; redraw(); };
+  const ZSTEPS = [0.1, 0.15, 0.25, 0.33, 0.5, 0.67, 0.75, 0.9, 1, 1.25, 1.5, 2, 2.5, 3, 4];
+  // ซูมโดยคงจุดใต้เมาส์/กึ่งกลางไว้ที่เดิม
+  function setZoom(z, cx, cy) {
+    const r = wrap.getBoundingClientRect(), px = cx == null ? r.width / 2 : cx - r.left, py = cy == null ? r.height / 2 : cy - r.top;
+    const old = scale, ux = (wrap.scrollLeft + px - scaler.offsetLeft) / old, uy = (wrap.scrollTop + py - scaler.offsetTop) / old;
+    zoom = z === 'fit' ? 'fit' : String(Math.min(4, Math.max(0.1, +z)));
+    redraw();
+    if (zoom !== 'fit') { wrap.scrollLeft = ux * scale + scaler.offsetLeft - px; wrap.scrollTop = uy * scale + scaler.offsetTop - py; }
+  }
+  const stepZoom = (dir, cx, cy) => { const c = scale; const n = dir > 0 ? ZSTEPS.find(z => z > c + 0.001) || 4 : [...ZSTEPS].reverse().find(z => z < c - 0.001) || 0.1; setZoom(n, cx, cy); };
+  $$('[data-zm]', host).forEach(b => b.onclick = e => {
+    const v = b.dataset.zm;
+    if (v === '+') stepZoom(1); else if (v === '-') stepZoom(-1); else if (v === 'menu') { e.stopPropagation(); $('[data-zmenu]', host).classList.toggle('hidden'); } else setZoom(v);
+  });
+  $$('[data-zset]', host).forEach(b => b.onclick = () => { $('[data-zmenu]', host).classList.add('hidden'); setZoom(b.dataset.zset); });
+  document.addEventListener('click', () => { const m = $('[data-zmenu]', host); if (m) m.classList.add('hidden'); });
+  wrap.addEventListener('wheel', e => {
+    if (!(e.ctrlKey || e.metaKey)) return;
+    e.preventDefault();
+    const f = Math.exp(-e.deltaY * (e.deltaMode ? 0.05 : 0.002));
+    setZoom(Math.min(4, Math.max(0.1, scale * f)), e.clientX, e.clientY);
+  }, { passive: false });
+  wrap.addEventListener('keydown', e => {
+    if (!(e.ctrlKey || e.metaKey) || /INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)) return;
+    if (e.key === '=' || e.key === '+') { e.preventDefault(); stepZoom(1); } else if (e.key === '-') { e.preventDefault(); stepZoom(-1); } else if (e.key === '0') { e.preventDefault(); setZoom('fit'); }
+  });
+  // กด Space ค้างแล้วลาก = เลื่อนมุมมอง
+  let panKey = false, pan = null;
+  wrap.addEventListener('keydown', e => { if (e.code === 'Space' && !/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)) { e.preventDefault(); panKey = true; wrap.style.cursor = 'grab'; } });
+  wrap.addEventListener('keyup', e => { if (e.code === 'Space') { panKey = false; wrap.style.cursor = ''; } });
+  wrap.addEventListener('pointerdown', e => { if (!panKey && e.button !== 1) return; e.preventDefault(); e.stopPropagation(); pan = { x: e.clientX, y: e.clientY, l: wrap.scrollLeft, t: wrap.scrollTop }; wrap.setPointerCapture(e.pointerId); wrap.style.cursor = 'grabbing'; }, true);
+  wrap.addEventListener('pointermove', e => { if (!pan) return; wrap.scrollLeft = pan.l - (e.clientX - pan.x); wrap.scrollTop = pan.t - (e.clientY - pan.y); });
+  wrap.addEventListener('pointerup', () => { if (pan) { pan = null; wrap.style.cursor = panKey ? 'grab' : ''; } });
   const ro = new ResizeObserver(() => { if (zoom === 'fit' && document.body.contains(host)) { const s = computeScale(); if (Math.abs(s - scale) > 0.01) redraw(); } });
   ro.observe(wrap);
   redraw();
   return { redraw, select: id => { sel = id; redraw(); } };
 }
 const CANVAS_CSS = `
+.cv-fxb{position:absolute;top:2px;right:2px;font-size:calc(var(--hs) * 1.2);line-height:1;pointer-events:none;filter:drop-shadow(0 1px 1px rgba(0,0,0,.4))}
 .cv-in>.ux{height:100%;display:flex;flex-direction:column;justify-content:var(--tva)}.cv-in>.ux.fit{display:flex;max-width:none}.cv-in>.ux-hr{height:100%}
 .cv-el{position:absolute;box-sizing:border-box;cursor:move;user-select:none;touch-action:none}
 .cv-el.locked{cursor:default}.cv-el.off{opacity:.35}

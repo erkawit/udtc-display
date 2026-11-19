@@ -281,7 +281,128 @@ a.ub:focus-visible{outline:3px solid var(--glow);outline-offset:2px}
 @keyframes ub-glow{0%,100%{box-shadow:var(--sh)}50%{box-shadow:0 0 0 4px var(--glow),0 0 22px var(--glow)}}
 @media (prefers-reduced-motion:reduce){.ub,.ub *{animation:none!important;transition:none!important}}
 `;
+
+  /* ---------------- ภาพแบบปรับแต่ง (ผืนผ้าใบอิสระ) ---------------- */
+  const IDEF = { fit: 'cover', pos: 'center', shape: 'rect', radius: 16, border: 0, borderColor: '#ffffff', borderStyle: 'solid', frame: 0, frameBg: '#ffffff',
+    depth: 'md', shColor: '#0f172a', tiltX: 0, tiltY: 0, rotate: 0, flipX: false,
+    gray: 0, bright: 100, sat: 100, contrast: 100, blur: 0, opacity: 100, tint: '', tintOp: 0, grad: false,
+    hover: 'zoom', hoverAmt: 2, speed: 450, idle: 'none',
+    cap: 'none', capColor: '#ffffff', capSize: 18, capAlign: 'left' };
+  const IOPT = {
+    fit: ['cover', 'contain', 'fill'], pos: ['center', 'top', 'bottom', 'left', 'right'], shape: ['rect', 'circle', 'pill', 'blob', 'arch'],
+    borderStyle: ['solid', 'dashed', 'double'], depth: ['none', 'soft', 'md', 'strong', 'emboss', 'float', 'stack', 'neon', 'inset'],
+    hover: ['none', 'zoom', 'zoomout', 'lift', 'tilt3d', 'pop', 'glow', 'color', 'bright', 'rotate', 'shine', 'blurin', 'flip'],
+    idle: ['none', 'float', 'pulse', 'swing', 'breathe', 'kenburns', 'shine'], cap: ['none', 'bottom', 'top', 'center', 'hover'], capAlign: ['left', 'center', 'right'],
+  };
+  const IPRESETS = [
+    { id: 'clean', name: 'เรียบหรู', s: { shape: 'rect', radius: 16, depth: 'md', hover: 'zoom', idle: 'none', border: 0, frame: 0 } },
+    { id: 'emboss', name: 'นูน 3 มิติ', s: { shape: 'rect', radius: 20, depth: 'emboss', hover: 'tilt3d', border: 0, frame: 0 } },
+    { id: 'float', name: 'ลอยตัว', s: { radius: 18, depth: 'float', hover: 'lift', idle: 'float' } },
+    { id: 'polaroid', name: 'กรอบโพลารอยด์', s: { radius: 4, frame: 12, frameBg: '#ffffff', depth: 'strong', rotate: -3, hover: 'pop', cap: 'none' } },
+    { id: 'stack', name: 'ซ้อนชั้น', s: { radius: 14, depth: 'stack', shColor: '#b8862b', hover: 'lift' } },
+    { id: 'neon', name: 'เรืองแสง', s: { radius: 16, depth: 'neon', shColor: '#38bdf8', border: 2, borderColor: '#38bdf8', hover: 'glow', idle: 'breathe' } },
+    { id: 'circle', name: 'วงกลม', s: { shape: 'circle', border: 4, borderColor: '#ffffff', depth: 'md', hover: 'rotate' } },
+    { id: 'bw', name: 'ขาวดำ → สี', s: { radius: 12, gray: 100, hover: 'color', depth: 'soft' } },
+    { id: 'cinema', name: 'ภาพยนตร์', s: { radius: 10, grad: true, cap: 'bottom', depth: 'strong', hover: 'zoom', idle: 'kenburns' } },
+    { id: 'shine', name: 'เงาวิ่ง', s: { radius: 16, depth: 'md', hover: 'shine', idle: 'shine' } },
+  ];
+  function normImg(f) {
+    const o = Object.assign({}, IDEF, f || {});
+    for (const k in IOPT) if (!IOPT[k].includes(o[k])) o[k] = IDEF[k];
+    const n = (k, a, b) => { const v = Number(o[k]); o[k] = Number.isFinite(v) ? Math.min(b, Math.max(a, v)) : IDEF[k]; };
+    n('radius', 0, 400); n('border', 0, 40); n('frame', 0, 80); n('tiltX', -45, 45); n('tiltY', -45, 45); n('rotate', -180, 180);
+    n('gray', 0, 100); n('bright', 20, 200); n('sat', 0, 300); n('contrast', 20, 200); n('blur', 0, 20); n('opacity', 5, 100); n('tintOp', 0, 100);
+    n('hoverAmt', 1, 3); n('speed', 100, 2000); n('capSize', 10, 72);
+    const hex = v => /^#[0-9a-f]{3,8}$/i.test(String(v || ''));
+    for (const k of ['borderColor', 'shColor', 'capColor']) if (!hex(o[k])) o[k] = IDEF[k];
+    if (o.frameBg !== 'transparent' && !hex(o.frameBg)) o.frameBg = IDEF.frameBg;
+    if (o.tint && !hex(o.tint)) o.tint = '';
+    o.flipX = !!o.flipX; o.grad = !!o.grad;
+    return o;
+  }
+  function imageHtml(it, opts = {}) {
+    const f = normImg(it.fx), cw = opts.cw, px = v => cw ? `calc(${v} * 100cqw / ${cw})` : `${v}px`;
+    const r = f.shape === 'circle' ? '50%' : f.shape === 'pill' ? '9999px' : f.shape === 'blob' ? '42% 58% 63% 37% / 41% 44% 56% 59%' : f.shape === 'arch' ? `${px(9999)} ${px(9999)} ${px(f.radius)} ${px(f.radius)}` : px(f.radius);
+    const filt = [f.gray && `grayscale(${f.gray}%)`, f.bright !== 100 && `brightness(${f.bright}%)`, f.sat !== 100 && `saturate(${f.sat}%)`, f.contrast !== 100 && `contrast(${f.contrast}%)`, f.blur && `blur(${px(f.blur)})`].filter(Boolean).join(' ') || 'none';
+    const tf = [`perspective(${px(1000)})`, f.tiltX && `rotateX(${f.tiltX}deg)`, f.tiltY && `rotateY(${f.tiltY}deg)`, f.rotate && `rotate(${f.rotate}deg)`].filter(Boolean).join(' ');
+    const amt = [0, 1.04, 1.08, 1.14][f.hoverAmt];
+    const vars = `--ir:${r};--ibw:${px(f.border)};--ibc:${f.borderColor};--ibs:${f.borderStyle};--ifp:${px(f.frame)};--ifb:${f.frameBg};--isc:${f.shColor};--iu:${px(1)};` +
+      `--ifit:${f.fit};--ipos:${f.pos};--ifl:${filt};--iop:${f.opacity / 100};--itf:${tf};--isp:${f.speed}ms;--iamt:${amt};--itint:${f.tint || 'transparent'};--itop:${f.tintOp / 100};` +
+      `--icc:${f.capColor};--ics:${px(f.capSize)}`;
+    const cls = `uim d-${f.depth} h-${f.hover} i-${f.idle} s-${f.shape}${f.flipX ? ' fx' : ''}${f.gray && f.hover === 'color' ? ' g2c' : ''}`;
+    const capTxt = (it.title || it.subtitle) ? `${it.title ? `<b>${esc(it.title)}</b>` : ''}${it.subtitle ? `<small>${esc(it.subtitle)}</small>` : ''}` : '';
+    const cap = f.cap !== 'none' && capTxt ? `<div class="uim-cap c-${f.cap}" style="text-align:${f.capAlign}">${capTxt}</div>` : '';
+    const img = `<img src="${esc(it.src)}" alt="${esc(it.title || '')}" loading="lazy" draggable="false">`;
+    const inner = `<div class="uim-fr"><div class="uim-in">${img}${f.tint && f.tintOp ? '<i class="uim-tint"></i>' : ''}${f.grad ? '<i class="uim-grad"></i>' : ''}<i class="uim-sh"></i>${cap}</div></div>`;
+    const tag = it.link && !opts.noLink ? 'a' : 'div';
+    const attrs = tag === 'a' ? ` href="${esc(it.link)}"${it.newTab !== false ? ' target="_blank" rel="noopener"' : ''}` : '';
+    return `<${tag} class="${cls}"${attrs} style="${vars}"${f.hover === 'tilt3d' ? ' data-tilt' : ''}>${inner}</${tag}>`;
+  }
+  const IMG_CSS = `
+.uim{display:block;position:relative;width:100%;height:100%;box-sizing:border-box;text-decoration:none;color:inherit;transform:var(--itf);transform-style:preserve-3d;transition:transform var(--isp) cubic-bezier(.2,.8,.2,1),filter var(--isp);opacity:var(--iop)}
+.uim .uim-fr{position:relative;width:100%;height:100%;box-sizing:border-box;padding:var(--ifp);background:var(--ifb);border-radius:var(--ir);border:var(--ibw) var(--ibs) var(--ibc);transition:box-shadow var(--isp),transform var(--isp)}
+.uim:not([class*="d-"]) .uim-fr,.uim .uim-fr{background-clip:padding-box}
+.uim .uim-in{position:relative;width:100%;height:100%;overflow:hidden;border-radius:calc(var(--ir) - var(--ifp) / 2);isolation:isolate}
+.uim.s-circle .uim-in,.uim.s-pill .uim-in,.uim.s-blob .uim-in,.uim.s-arch .uim-in{border-radius:var(--ir)}
+.uim img{display:block;width:100%;height:100%;object-fit:var(--ifit);object-position:var(--ipos);filter:var(--ifl);transition:transform var(--isp) cubic-bezier(.2,.8,.2,1),filter var(--isp);user-select:none}
+.uim.fx img{transform:scaleX(-1)}
+.uim i{position:absolute;inset:0;pointer-events:none;font-style:normal}
+.uim .uim-tint{background:var(--itint);opacity:var(--itop);mix-blend-mode:multiply}
+.uim .uim-grad{background:linear-gradient(180deg,transparent 45%,rgba(2,6,23,.72))}
+.uim .uim-sh{z-index:2;background:linear-gradient(105deg,transparent 30%,rgba(255,255,255,.55) 48%,transparent 66%);transform:translateX(-120%);opacity:0}
+/* มิติ / เงา */
+.uim.d-none .uim-fr{box-shadow:none}
+.uim.d-soft .uim-fr{box-shadow:0 calc(var(--iu)*4) calc(var(--iu)*14) rgba(15,23,42,.12)}
+.uim.d-md .uim-fr{box-shadow:0 calc(var(--iu)*10) calc(var(--iu)*28) rgba(15,23,42,.22),0 calc(var(--iu)*2) calc(var(--iu)*6) rgba(15,23,42,.12)}
+.uim.d-strong .uim-fr{box-shadow:0 calc(var(--iu)*22) calc(var(--iu)*50) rgba(15,23,42,.38),0 calc(var(--iu)*6) calc(var(--iu)*14) rgba(15,23,42,.2)}
+.uim.d-emboss .uim-fr{box-shadow:inset 0 calc(var(--iu)*2) 0 rgba(255,255,255,.6),inset 0 calc(var(--iu)*-3) 0 rgba(0,0,0,.18),0 calc(var(--iu)*8) 0 color-mix(in srgb,var(--isc) 75%,#000),0 calc(var(--iu)*18) calc(var(--iu)*28) rgba(15,23,42,.35)}
+.uim.d-emboss .uim-in::after{content:'';position:absolute;inset:0;border-radius:inherit;box-shadow:inset 0 calc(var(--iu)*3) calc(var(--iu)*6) rgba(255,255,255,.35),inset 0 calc(var(--iu)*-6) calc(var(--iu)*12) rgba(0,0,0,.25);pointer-events:none;z-index:3}
+.uim.d-float .uim-fr{box-shadow:0 calc(var(--iu)*34) calc(var(--iu)*40) calc(var(--iu)*-18) rgba(15,23,42,.55)}
+.uim.d-stack .uim-fr{box-shadow:calc(var(--iu)*10) calc(var(--iu)*10) 0 var(--isc),calc(var(--iu)*20) calc(var(--iu)*20) 0 color-mix(in srgb,var(--isc) 45%,transparent)}
+.uim.d-neon .uim-fr{box-shadow:0 0 calc(var(--iu)*6) var(--isc),0 0 calc(var(--iu)*22) var(--isc),0 0 calc(var(--iu)*48) color-mix(in srgb,var(--isc) 60%,transparent)}
+.uim.d-inset .uim-in::after{content:'';position:absolute;inset:0;border-radius:inherit;box-shadow:inset 0 0 calc(var(--iu)*30) rgba(0,0,0,.55);pointer-events:none;z-index:3}
+/* คำบรรยาย */
+.uim-cap{position:absolute;left:0;right:0;z-index:4;padding:.7em .9em;color:var(--icc);font-size:var(--ics);line-height:1.35;transition:opacity var(--isp),transform var(--isp)}
+.uim-cap b{display:block;font-weight:700}.uim-cap small{display:block;font-size:.72em;opacity:.88;margin-top:.15em}
+.uim-cap.c-bottom{bottom:0;background:linear-gradient(transparent,rgba(2,6,23,.7))}.uim-cap.c-top{top:0;background:linear-gradient(rgba(2,6,23,.7),transparent)}
+.uim-cap.c-center{top:50%;transform:translateY(-50%);text-shadow:0 2px 12px rgba(0,0,0,.6)}
+.uim-cap.c-hover{inset:0;display:flex;flex-direction:column;justify-content:flex-end;background:linear-gradient(transparent 30%,rgba(2,6,23,.8));opacity:0;transform:translateY(8%)}
+.uim:hover .uim-cap.c-hover{opacity:1;transform:none}
+/* เมื่อชี้เมาส์ */
+.uim.h-zoom:hover img{transform:scale(var(--iamt))}
+.uim.h-zoomout img{transform:scale(var(--iamt))}.uim.h-zoomout:hover img{transform:scale(1)}
+.uim.h-lift:hover{transform:var(--itf) translateY(calc(var(--iu)*-10))}.uim.h-lift:hover .uim-fr{filter:drop-shadow(0 calc(var(--iu)*14) calc(var(--iu)*16) rgba(15,23,42,.25))}
+.uim.h-pop:hover{transform:scale(var(--iamt)) rotate(0deg)}
+.uim.h-glow:hover .uim-fr{box-shadow:0 0 0 calc(var(--iu)*4) color-mix(in srgb,var(--isc) 55%,transparent),0 0 calc(var(--iu)*40) var(--isc)}
+.uim.h-color img{transition:filter var(--isp)}.uim.h-color:hover img{filter:none}
+.uim.h-bright:hover img{filter:var(--ifl) brightness(1.15) saturate(1.15)}
+.uim.h-rotate:hover{transform:var(--itf) rotate(calc((var(--iamt) - 1) * 60deg)) scale(var(--iamt))}
+.uim.h-shine:hover .uim-sh{opacity:1;animation:uim-shine .9s ease}
+.uim.h-blurin img{filter:var(--ifl) blur(calc(var(--iu)*4))}.uim.h-blurin:hover img{filter:var(--ifl)}
+.uim.h-flip:hover .uim-in{transform:rotateY(180deg) scaleX(-1)}.uim.h-flip .uim-in{transition:transform var(--isp)}
+.uim[data-tilt]{will-change:transform}
+/* เคลื่อนไหวตลอด */
+.uim.i-float{animation:uim-float 4s ease-in-out infinite}.uim.i-pulse{animation:uim-pulse 2.4s ease-in-out infinite}
+.uim.i-swing{animation:uim-swing 4s ease-in-out infinite;transform-origin:top center}.uim.i-breathe .uim-fr{animation:uim-breathe 3s ease-in-out infinite}
+.uim.i-kenburns img{animation:uim-ken 14s ease-in-out infinite alternate}.uim.i-shine .uim-sh{opacity:1;animation:uim-shine 3.4s ease-in-out infinite}
+@keyframes uim-float{0%,100%{translate:0 0}50%{translate:0 calc(var(--iu)*-10)}}
+@keyframes uim-pulse{0%,100%{scale:1}50%{scale:1.035}}
+@keyframes uim-swing{0%,100%{rotate:-2deg}50%{rotate:2deg}}
+@keyframes uim-breathe{0%,100%{filter:brightness(1)}50%{filter:brightness(1.12)}}
+@keyframes uim-ken{0%{transform:scale(1) translate(0,0)}100%{transform:scale(1.15) translate(-3%,-2%)}}
+@keyframes uim-shine{0%{transform:translateX(-120%)}55%,100%{transform:translateX(120%)}}
+/* แอนิเมชันตอนเลื่อนมาถึง */
+.uw-js [data-enter]{transition:opacity var(--edur,700ms) cubic-bezier(.2,.8,.2,1) var(--edel,0ms),transform var(--edur,700ms) cubic-bezier(.2,.8,.2,1) var(--edel,0ms),filter var(--edur,700ms) var(--edel,0ms)}
+.uw-js [data-enter]:not(.in){opacity:0}
+.uw-js [data-enter="fade-up"]:not(.in){transform:translateY(40px)}.uw-js [data-enter="fade-down"]:not(.in){transform:translateY(-40px)}
+.uw-js [data-enter="slide-left"]:not(.in){transform:translateX(-60px)}.uw-js [data-enter="slide-right"]:not(.in){transform:translateX(60px)}
+.uw-js [data-enter="zoom"]:not(.in){transform:scale(.8)}.uw-js [data-enter="zoom-out"]:not(.in){transform:scale(1.15)}
+.uw-js [data-enter="flip"]:not(.in){transform:perspective(800px) rotateY(70deg)}.uw-js [data-enter="blur"]:not(.in){filter:blur(12px)}
+.uw-js [data-enter="rotate"]:not(.in){transform:rotate(-12deg) scale(.9)}
+@media (prefers-reduced-motion:reduce){.uim,.uim *{animation:none!important;transition:none!important}[data-enter]{opacity:1!important;transform:none!important;filter:none!important}}
+`;
   const FA_CSS = 'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css';
-  return { DEF, OPT, LABEL, PRESETS, FONTS, fontUrl, norm, fromLegacy, shade, vars, buttonHtml, CSS, FA_CSS, esc,
-    TDEF, TOPT, TPRESETS, normText, richText, textHtml, dividerHtml, spacerHtml };
+  return { DEF, OPT, LABEL, PRESETS, FONTS, fontUrl, norm, fromLegacy, shade, vars, buttonHtml, CSS: CSS + IMG_CSS, FA_CSS, esc,
+    TDEF, TOPT, TPRESETS, normText, richText, textHtml, dividerHtml, spacerHtml,
+    IDEF, IOPT, IPRESETS, normImg, imageHtml, ENTERS: ['none', 'fade', 'fade-up', 'fade-down', 'slide-left', 'slide-right', 'zoom', 'zoom-out', 'flip', 'blur', 'rotate'] };
 });

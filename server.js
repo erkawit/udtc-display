@@ -572,6 +572,8 @@ function normItem(i) {
     icon: String(i.icon || '').slice(0, 8), btnStyle: ['primary', 'outline', 'light', 'accent'].includes(i.btnStyle) ? i.btnStyle : 'primary',
     html: type === 'html' ? String(i.html || '') : '',
     ts: ['text', 'divider', 'spacer'].includes(type) ? UB.normText(i.ts) : undefined,
+    fx: type === 'image' && i.fx && typeof i.fx === 'object' ? UB.normImg(i.fx) : undefined,
+    enter: i.enter && UB.ENTERS.includes(i.enter.type) && i.enter.type !== 'none' ? { type: i.enter.type, delay: clamp(i.enter.delay, 0, 5000, 0), dur: clamp(i.enter.dur, 100, 3000, 700) } : undefined,
     active: i.active !== false, start: String(i.start || ''), end: String(i.end || ''),
   };
 }
@@ -823,6 +825,7 @@ function canvasHtml(items, w) {
     .map(({ it, p }) => {
       let inner;
       if (it.type === 'button') inner = btnHtml(it, w, W);
+      else if (it.type === 'image' && it.fx) inner = UB.imageHtml(it, { cw: W });
       else if (it.type === 'image') {
         const r = it.style ? `calc(${it.style.radius} * 100cqw / ${W})` : `${w.radius}px`;
         const img = `<img src="${esc(it.src)}" alt="${esc(it.title)}" loading="lazy" style="width:100%;height:100%;object-fit:${w.fit};border-radius:${r};display:block">`;
@@ -830,7 +833,8 @@ function canvasHtml(items, w) {
       } else if (it.type === 'video') inner = `<div class="uw-media" style="height:100%;border-radius:${w.radius}px">${videoHtml(it.src, it.poster)}</div>`;
       else if (TEXTY.includes(it.type)) inner = it.type === 'text' ? textItemHtml(it, W) : it.type === 'divider' ? UB.dividerHtml(it.ts, { cw: W }) : '';
       else inner = `<div class="uw-html">${it.html}</div>`;
-      return `<div class="uc-el t-${it.type}" style="left:${pct(p.x, W)}%;top:${pct(p.y, H)}%;width:${pct(p.w, W)}%;height:${pct(p.h, H)}%;z-index:${p.z || 1};aspect-ratio:${p.w}/${p.h}">${inner}</div>`;
+      const en = it.enter && it.enter.type ? ` data-enter="${it.enter.type}"` : '', ev = en ? `;--edel:${it.enter.delay}ms;--edur:${it.enter.dur}ms` : '';
+      return `<div class="uc-el t-${it.type}${it.fx ? ' fxi' : ''}"${en} style="left:${pct(p.x, W)}%;top:${pct(p.y, H)}%;width:${pct(p.w, W)}%;height:${pct(p.h, H)}%;z-index:${p.z || 1};aspect-ratio:${p.w}/${p.h}${ev}">${inner}</div>`;
     }).join('');
   return `<div class="uc${w.stackMobile ? ' stack' : ''}" style="aspect-ratio:${W}/${H};${w.canvasMax ? `max-width:${W}px;margin:0 auto;` : ''}">${els}</div>`;
 }
@@ -890,6 +894,14 @@ function runtimeJs(rootExpr, embed) {
   return `(function(){var R=${rootExpr};if(!R)return;
   var showLB=${LIGHTBOX_FN};
   function narrow(){return (R.clientWidth||innerWidth)<640;}
+  var ens=R.querySelectorAll('[data-enter]');[].forEach.call(ens,function(e){e.parentElement&&e.parentElement.classList.add('uw-js');});
+  if(ens.length){if('IntersectionObserver' in window){var io=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting){e.target.classList.add('in');io.unobserve(e.target);}});},{threshold:.15});[].forEach.call(ens,function(e){io.observe(e);});}else [].forEach.call(ens,function(e){e.classList.add('in');});}
+  [].forEach.call(R.querySelectorAll('.uim[data-tilt]'),function(el){
+    var base=getComputedStyle(el).transform;base=base==='none'?'':base+' ';
+    el.addEventListener('pointermove',function(ev){var b=el.getBoundingClientRect(),x=(ev.clientX-b.left)/b.width-.5,y=(ev.clientY-b.top)/b.height-.5;
+      el.style.transform=base+'perspective(900px) rotateX('+(-y*16).toFixed(2)+'deg) rotateY('+(x*16).toFixed(2)+'deg) scale(1.03)';});
+    el.addEventListener('pointerleave',function(){el.style.transform='';});
+  });
   [].forEach.call(R.querySelectorAll('.uw-car'),function(car){
     var track=car.querySelector('.uw-track'),slides=[].slice.call(track.children),root=car.closest('.uw');
     var dotsBox=car.parentNode.querySelector('.uw-dots'),i=0,timer=null,fx=car.getAttribute('data-fx')||'slide';
@@ -1007,7 +1019,7 @@ ${scope} h2.uw-title{font-size:1.15rem;font-weight:700;color:var(--accent);paddi
   const css = reset + scopeCss(WIDGET_CSS + UB.CSS, scope);
   const html = abs(renderWidgetInner(w, { full }));
   let js = '';
-  if (/uw-car|ut-bar|data-lb/.test(html)) js = `\n<script>${runtimeJs(`document.getElementById('${id}')`, false)}</script>`;
+  if (/uw-car|ut-bar|data-lb|data-tilt|data-enter/.test(html)) js = `\n<script>${runtimeJs(`document.getElementById('${id}')`, false)}</script>`;
   const links = [font ? '<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700&display=swap">' : '',
     needsFa(w) ? `<link rel="stylesheet" href="${UB.FA_CSS}">` : '',
     UB.fontUrl(widgetFonts(w)) ? `<link rel="stylesheet" href="${UB.fontUrl(widgetFonts(w))}">` : ''].filter(Boolean).join('\n');
