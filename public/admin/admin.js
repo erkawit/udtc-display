@@ -156,8 +156,8 @@ function openModal({ title, body, size = 'max-w-2xl', footer = '', onMount, onCl
 /* ---------------- Media picker ---------------- */
 function pickMedia(kind = 'image') {
   return new Promise(resolve => {
-    const accept = { image: 'image/*', video: 'video/*', file: '', any: '' }[kind];
-    const label = { image: 'ภาพ', video: 'วีดีโอ', file: 'ไฟล์เอกสาร', any: 'ไฟล์' }[kind];
+    const accept = { image: 'image/*', video: 'video/*', file: '', any: '', pdf: '.pdf,application/pdf' }[kind];
+    const label = { image: 'ภาพ', video: 'วีดีโอ', file: 'ไฟล์เอกสาร', any: 'ไฟล์', pdf: 'ไฟล์ PDF' }[kind];
     let chosen = null;
     openModal({
       onClose: () => resolve(chosen),
@@ -171,7 +171,7 @@ function pickMedia(kind = 'image') {
         const done = url => { chosen = url; close(); };
         $('[data-useurl]', el).onclick = () => { const v = $('[data-url]', el).value.trim(); if (v) done(v); };
         $('[data-up]', el).onchange = async e => { const r = await uploadMany([...e.target.files]); if (r[0]) done(r[0].url); };
-        let list = (await api('GET', '/media')).filter(x => kind === 'any' || kind === 'file' ? true : x.kind === kind);
+        let list = (await api('GET', '/media')).filter(x => kind === 'any' || kind === 'file' ? true : kind === 'pdf' ? /\.pdf($|\?)/i.test(x.url) : x.kind === kind);
         const g = $('[data-grid]', el);
         const drawG = () => {
           g.innerHTML = list.length ? list.map(x => `<div class="relative group rounded-lg border border-slate-200 overflow-hidden hover:ring-2 hover:ring-navy-500">
@@ -726,6 +726,37 @@ function ensurePositions(w) {
     y += h + g;
   });
 }
+/* ---------------- PDF: ภาพตัวอย่างหน้าแรก (ใช้ในหลังบ้าน) ---------------- */
+const PDFJS_URL = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/build/pdf.min.mjs', PDFW_URL = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/build/pdf.worker.min.mjs';
+let pdfLibP = null; const pdfThumbs = {};
+function pdfThumb(url) {
+  if (pdfThumbs[url]) return pdfThumbs[url];
+  if (!pdfLibP) pdfLibP = import(PDFJS_URL).then(m => { m.GlobalWorkerOptions.workerSrc = PDFW_URL; return m; });
+  return (pdfThumbs[url] = pdfLibP.then(m => m.getDocument({ url }).promise).then(async d => {
+    const pg = await d.getPage(1), v = pg.getViewport({ scale: 1 }), vp = pg.getViewport({ scale: 360 / v.width });
+    const c = document.createElement('canvas'); c.width = vp.width; c.height = vp.height;
+    await pg.render({ canvasContext: c.getContext('2d'), viewport: vp }).promise;
+    return { src: c.toDataURL('image/jpeg', .8), pages: d.numPages };
+  }).catch(() => null));
+}
+/** ใส่ภาพตัวอย่าง PDF ให้ทุก element ที่มี data-pdfthumb */
+function fillPdfThumbs(root) {
+  $$('[data-pdfthumb]', root).forEach(el => {
+    const u = el.dataset.pdfthumb; el.removeAttribute('data-pdfthumb');
+    pdfThumb(u).then(t => { if (!t) return; el.innerHTML = `<img src="${t.src}" style="width:100%;height:100%;object-fit:cover;object-position:top;display:block" draggable="false">${el.dataset.pages !== undefined ? `<span style="position:absolute;right:4px;bottom:4px;font-size:11px;background:rgba(15,23,42,.75);color:#fff;border-radius:4px;padding:0 5px">${t.pages} หน้า</span>` : ''}`; });
+  });
+}
+const isPdfUrl = u => /\.pdf($|[?#])/i.test(String(u || ''));
+const fileTitle = n => decodeURIComponent(String(n || '').split('/').pop()).replace(/\.[^.]+$/, '');
+/** แปลงไฟล์ที่อัปโหลดแล้วเป็นรายการ (ภาพ = ลิงก์ภาพเต็มอัตโนมัติ · PDF = ตัวแสดงตัวอย่าง) */
+function itemFromUpload(u) {
+  const base = { id: rid(), title: fileTitle(u.name || u.url), subtitle: '', src: u.url, link: '', newTab: true, active: true, start: '', end: '' };
+  if (isPdfUrl(u.url)) return { ...base, type: 'pdf', pdf: { mode: 'single', h: 640, hM: 0, bar: true, dl: true } };
+  if (u.kind === 'video' || /\.(mp4|webm|ogg|mov)$/i.test(u.url)) return { ...base, type: 'video' };
+  if (u.kind === 'image' || /\.(png|jpe?g|gif|webp|svg)$/i.test(u.url)) return { ...base, type: 'image', full: true };
+  return null;
+}
+
 /* ---------------- ตัวออกแบบภาพ (ผืนผ้าใบอิสระ) ---------------- */
 const IMG_LABEL = {
   fit: [['cover', 'เต็มกรอบ'], ['contain', 'แสดงครบ'], ['fill', 'ยืดเต็ม']],
@@ -807,7 +838,9 @@ function designImage(it0, onDone) {
           ${sec('💬 คำบรรยายบนภาพ', `<div>${seg('cap', IMG_LABEL.cap)}</div>
             <div class="grid grid-cols-2 gap-3"><input class="inp" data-it="title" placeholder="หัวข้อ" value="${esc(it.title || '')}"><input class="inp" data-it="subtitle" placeholder="คำอธิบาย (ไม่บังคับ)" value="${esc(it.subtitle || '')}"></div>
             ${f.cap !== 'none' ? `<div class="grid grid-cols-2 gap-3">${rg('capSize', 'ขนาดตัวอักษร', 10, 48, 1, 'px')}<div class="flex items-end">${col('capColor', 'สีตัวอักษร')}</div></div><div>${seg('capAlign', IMG_LABEL.capAlign)}</div>` : ''}`)}
-          ${sec('🔗 ลิงก์เมื่อคลิก', `<input class="inp" data-it="link" placeholder="https://... (เว้นว่าง = ไม่มีลิงก์)" value="${esc(it.link || '')}"><label class="flex items-center gap-2 text-sm text-slate-600"><input type="checkbox" class="w-4 h-4 accent-navy-800" data-newtab ${it.newTab !== false ? 'checked' : ''}> เปิดในแท็บใหม่</label>`)}`;
+          ${sec('🔗 ลิงก์เมื่อคลิก', `<label class="flex items-center justify-between gap-2 text-sm text-slate-700 cursor-pointer"><span><b>คลิกเพื่อเปิดภาพขนาดเต็ม</b> (ลิงก์ไปไฟล์ต้นฉบับ)</span><input type="checkbox" class="tgl" data-full ${it.full ? 'checked' : ''}></label>
+            <input class="inp" data-it="link" placeholder="หรือใส่ลิงก์อื่น https://... (มีลิงก์นี้จะใช้แทนภาพเต็ม)" value="${esc(it.link || '')}">
+            <a class="text-xs text-navy-700 underline" href="${esc(it.src)}" target="_blank">เปิดดูภาพต้นฉบับ</a><label class="flex items-center gap-2 text-sm text-slate-600"><input type="checkbox" class="w-4 h-4 accent-navy-800" data-newtab ${it.newTab !== false ? 'checked' : ''}> เปิดในแท็บใหม่</label>`)}`;
         const set = (k, v) => { it.fx[k] = v; const o = $(`[data-fout="${k}"]`, ctl); if (o) o.textContent = v; paint(); };
         $$('[data-f]', ctl).forEach(i => i.addEventListener('input', () => set(i.dataset.f, Number(i.value))));
         $$('[data-fc]', ctl).forEach(i => i.addEventListener('input', () => set(i.dataset.fc, i.value)));
@@ -816,6 +849,7 @@ function designImage(it0, onDone) {
         $$('[data-ipre]', ctl).forEach(b => b.onclick = () => { const p = UB.IPRESETS.find(x => x.id === b.dataset.ipre); it.fx = UB.normImg({ ...UB.IDEF, ...p.s }); paint(); draw(); });
         $$('[data-it]', ctl).forEach(i => i.addEventListener('input', () => { it[i.dataset.it] = i.value; paint(); }));
         const nt = $('[data-newtab]', ctl); if (nt) nt.onchange = () => { it.newTab = nt.checked; };
+        const fu = $('[data-full]', ctl); if (fu) fu.onchange = () => { it.full = fu.checked; };
         $('[data-chg]', ctl).onclick = async () => { const u = await pickMedia('image'); if (u) { it.src = u; paint(); draw(); } };
         bindEnter($('[data-enbox]', ctl), it, null, () => pv);
       };
@@ -841,6 +875,7 @@ function mountCanvas(host, w, hooks) {
       <button class="btn btn-primary btn-sm" data-add="button">${icon('plus', 'w-3.5 h-3.5')} ปุ่ม</button>
       <button class="btn btn-light btn-sm" data-add="text">${icon('text', 'w-3.5 h-3.5')} ข้อความ</button>
       <button class="btn btn-light btn-sm" data-add="image">${icon('image', 'w-3.5 h-3.5')} ภาพ</button>
+      <button class="btn btn-light btn-sm" data-add="pdf">${icon('file', 'w-3.5 h-3.5')} PDF</button>
       <span class="w-px h-6 bg-slate-200 mx-1"></span>
       <label class="flex items-center gap-1.5 text-xs text-slate-600"><input type="checkbox" class="tgl !w-8 !h-[18px] after:!w-3 after:!h-3" data-grid checked> เส้นตาราง</label>
       <label class="flex items-center gap-1.5 text-xs text-slate-600"><input type="checkbox" class="tgl !w-8 !h-[18px] after:!w-3 after:!h-3" data-snap checked> ยึดตามตาราง</label>
@@ -856,7 +891,7 @@ function mountCanvas(host, w, hooks) {
     <div class="mt-2 rounded-xl bg-slate-300/50 p-4 overflow-auto scroll-thin" style="max-height:calc(100vh - 290px)" data-wrap tabindex="0">
       <div data-scaler class="relative mx-auto"><div data-cv class="absolute top-0 left-0 origin-top-left shadow-xl"></div></div>
     </div>
-    <p class="text-xs text-slate-500 mt-2">ลากเพื่อย้าย · ลากจุดที่มุม/ขอบเพื่อปรับขนาด · ดับเบิลคลิกเพื่อแก้ไข · ลูกศรเลื่อนทีละช่อง (Shift = ทีละ 1px) · Delete ลบ · Ctrl+D ทำสำเนา · L ล็อก · <b>ซูม</b>: Ctrl/⌘ + ล้อเมาส์ หรือปุ่ม − / + · <b>เลื่อนมุมมอง</b>: กด Space ค้างแล้วลาก</p>`;
+    <p class="text-xs text-slate-500 mt-2"><b>ลากไฟล์ภาพ/PDF จากเครื่องมาวางได้เลย</b> · ลากเพื่อย้าย · ลากจุดที่มุม/ขอบเพื่อปรับขนาด · ดับเบิลคลิกเพื่อแก้ไข · ลูกศรเลื่อนทีละช่อง (Shift = ทีละ 1px) · Delete ลบ · Ctrl+D ทำสำเนา · L ล็อก · <b>ซูม</b>: Ctrl/⌘ + ล้อเมาส์ หรือปุ่ม − / + · <b>เลื่อนมุมมอง</b>: กด Space ค้างแล้วลาก</p>`;
   const cv = $('[data-cv]', host), wrap = $('[data-wrap]', host), scaler = $('[data-scaler]', host);
   const snap = v => snapOn ? Math.round(v / G()) * G() : Math.round(v);
   const byId = id => w.items.find(i => i.id === id);
@@ -875,6 +910,7 @@ function mountCanvas(host, w, hooks) {
     else if (it.type === 'video') inner = `<div class="w-full h-full grid place-items-center bg-slate-900 text-white" style="border-radius:${w.radius}px">${icon('video', 'w-10 h-10')}</div>`;
     else if (it.type === 'text') { ensureFont(it.ts && it.ts.font); inner = UB.textHtml(it.ts, { cw: W() }); }
     else if (it.type === 'divider') inner = `<div class="h-full flex flex-col justify-center">${UB.dividerHtml(it.ts, { cw: W() })}</div>`;
+    else if (it.type === 'pdf') inner = `<div class="w-full h-full flex flex-col rounded-lg overflow-hidden border border-slate-300 bg-slate-200"><div class="flex items-center gap-1.5 px-2 py-1 bg-slate-800 text-white text-xs flex-none" style="font-size:calc(var(--hs) * .95)">📄 <span class="truncate">${esc(it.title || 'PDF')}</span></div><div class="flex-1 relative overflow-hidden bg-white" data-pdfthumb="${esc(it.src)}" data-pages><div class="absolute inset-0 grid place-items-center text-slate-400 text-xs">กำลังโหลดตัวอย่าง PDF…</div></div></div>`;
     else if (it.type === 'spacer') inner = `<div class="w-full h-full border border-dashed border-slate-400/70"></div>`;
     else inner = `<div class="w-full h-full overflow-hidden">${it.html}</div>`;
     return `<div class="cv-el${p.locked ? ' locked' : ''}${it.active ? '' : ' off'}" data-id="${it.id}" style="left:${p.x}px;top:${p.y}px;width:${p.w}px;height:${p.h}px;z-index:${p.z || 1}">
@@ -899,6 +935,7 @@ function mountCanvas(host, w, hooks) {
       ${showGrid ? `background-image:linear-gradient(to right,rgba(30,58,95,.13) 1px,transparent 1px),linear-gradient(to bottom,rgba(30,58,95,.13) 1px,transparent 1px);background-size:${g}px ${g}px;` : ''}`;
     scaler.style.width = W() * scale + 'px'; scaler.style.height = Hh() * scale + 'px';
     cv.innerHTML = w.items.map(elHtml).join('');
+    fillPdfThumbs(cv);
     $('[data-info]', host).textContent = `${W()} × ${Hh()} px · ตาราง ${g}px`;
     const zb = $('[data-zm="menu"]', host); if (zb) zb.textContent = `${Math.round(scale * 100)}%${zoom === 'fit' ? '*' : ''}`;
     bindTilt(cv);
@@ -946,7 +983,10 @@ function mountCanvas(host, w, hooks) {
     let it;
     if (type === 'image') {
       const url = await pickMedia('image'); if (!url) return;
-      it = { ...base, type: 'image', src: url, title: decodeURIComponent(url.split('/').pop()).replace(/\.[^.]+$/, ''), pos: { x: g, y: g, w: snap(320), h: snap(200), z: n + 1, locked: false } };
+      it = { ...base, type: 'image', src: url, full: true, title: fileTitle(url), pos: { x: g, y: g, w: snap(320), h: snap(200), z: n + 1, locked: false } };
+    } else if (type === 'pdf') {
+      const url = await pickMedia('pdf'); if (!url) return;
+      it = { ...itemFromUpload({ url }), pos: { x: g, y: g, w: snap(480), h: snap(620), z: n + 1, locked: false } };
     } else if (type === 'text') {
       it = { ...base, type: 'text', link: '', ts: UB.normText({ ...UB.TPRESETS.find(p => p.id === 'h2').s, content: 'หัวข้อ / ข้อความ' }), pos: { x: g, y: g, w: snap(400), h: snap(80), z: n + 1, locked: false } };
     } else {
@@ -1056,6 +1096,23 @@ function mountCanvas(host, w, hooks) {
   wrap.addEventListener('pointerup', () => { if (pan) { pan = null; wrap.style.cursor = panKey ? 'grab' : ''; } });
   const ro = new ResizeObserver(() => { if (zoom === 'fit' && document.body.contains(host)) { const s = computeScale(); if (Math.abs(s - scale) > 0.01) redraw(); } });
   ro.observe(wrap);
+  // ลากไฟล์ (ภาพ / PDF / วีดีโอ) จากเครื่องมาวางบนผืนผ้าใบ = อัปโหลด + วาง ณ จุดที่ปล่อย
+  wrap.addEventListener('dragover', e => { if ([...(e.dataTransfer.types || [])].includes('Files')) { e.preventDefault(); wrap.classList.add('ring-4', 'ring-navy-400'); } });
+  wrap.addEventListener('dragleave', e => { if (!wrap.contains(e.relatedTarget)) wrap.classList.remove('ring-4', 'ring-navy-400'); });
+  wrap.addEventListener('drop', async e => {
+    const files = [...(e.dataTransfer.files || [])]; wrap.classList.remove('ring-4', 'ring-navy-400');
+    if (!files.length) return; e.preventDefault();
+    const r = cv.getBoundingClientRect(); let x = (e.clientX - r.left) / scale, y = (e.clientY - r.top) / scale;
+    const ups = await uploadMany(files); let skipped = 0;
+    for (const u of ups) {
+      const it = itemFromUpload(u); if (!it) { skipped++; continue; }
+      const sz = it.type === 'pdf' ? [480, 620] : it.type === 'video' ? [480, 270] : [320, 220];
+      it.pos = { x: snap(x), y: snap(y), w: snap(sz[0]), h: snap(sz[1]), z: w.items.length + 1, locked: false };
+      clampPos(it.pos); w.items.push(it); sel = it.id; x += G() * 2; y += G() * 2;
+    }
+    if (skipped) Toast.fire({ icon: 'info', title: `ข้าม ${skipped} ไฟล์ที่ไม่ใช่ภาพ/PDF/วีดีโอ (ยังอยู่ในคลังสื่อ)` });
+    if (ups.length - skipped) hooks.change();
+  });
   redraw();
   return { redraw, select: id => { sel = id; redraw(); } };
 }
@@ -1088,6 +1145,7 @@ const TYPE_META = {
   image: { name: 'ภาพ', ic: 'image', cls: 'bg-sky-50 text-sky-700' },
   video: { name: 'วีดีโอ', ic: 'video', cls: 'bg-rose-50 text-rose-700' },
   button: { name: 'ปุ่มลิงก์', ic: 'link', cls: 'bg-emerald-50 text-emerald-700' },
+  pdf: { name: 'PDF', ic: 'file', cls: 'bg-rose-50 text-rose-700' },
   text: { name: 'ข้อความ', ic: 'text', cls: 'bg-amber-50 text-amber-700' },
   divider: { name: 'เส้นคั่น', ic: 'minus', cls: 'bg-slate-100 text-slate-600' },
   spacer: { name: 'ช่องว่าง', ic: 'menu', cls: 'bg-slate-100 text-slate-500' },
@@ -1572,7 +1630,7 @@ async function viewWidgetEditor(id) {
     const items = w.items;
     P.innerHTML = `
       <div class="grid grid-cols-2 gap-2 mb-3">
-        <label class="btn btn-primary cursor-pointer">${icon('upload')} อัปโหลดหลายภาพ<input type="file" accept="image/*" multiple class="hidden" id="bulkUp"></label>
+        <label class="btn btn-primary cursor-pointer">${icon('upload')} อัปโหลดภาพ / PDF<input type="file" accept="image/*,.pdf,application/pdf" multiple class="hidden" id="bulkUp"></label>
         <button class="btn btn-light w-full" id="addBtn">${icon('plus')} เพิ่มรายการ</button>
       </div>
       <div id="addMenu" class="hidden mb-3 p-2 rounded-xl border border-navy-200 bg-navy-50/60">
@@ -1580,9 +1638,10 @@ async function viewWidgetEditor(id) {
         <div class="grid grid-cols-3 sm:grid-cols-4 gap-1.5">${Object.entries(TYPE_META).map(([k, m]) => `<button data-add="${k}" class="flex flex-col items-center gap-1 p-2 rounded-lg bg-white border border-slate-200 hover:border-navy-400 hover:shadow-sm text-xs font-medium text-slate-700"><span class="w-8 h-8 rounded-lg grid place-items-center ${m.cls}">${icon(m.ic, 'w-4 h-4')}</span>${m.name}</button>`).join('')}</div>
       </div>
       <div class="flex items-center justify-between text-xs text-slate-500 mb-2 px-1"><span>${items.length} รายการ · ลากเพื่อจัดลำดับ</span>${w.limit ? `<span class="text-amber-700">แสดงจริง ${w.limit} รายการแรก</span>` : ''}</div>
+      <div id="dropItems" class="hidden mb-2 p-4 rounded-xl border-2 border-dashed border-navy-400 bg-navy-50 text-center text-sm text-navy-800">ปล่อยไฟล์ที่นี่เพื่อเพิ่มเป็นรายการ (ภาพ / PDF / วีดีโอ)</div>
       <div id="itemList" class="space-y-2">${items.map((it, idx) => {
       const tm = TYPE_META[it.type], [st, stc] = itemStatus(it);
-      const thumb = it.type === 'text' ? `<span class="font-bold text-base" style="${it.ts && it.ts.font ? `font-family:'${esc(it.ts.font)}'` : ''}">Aa</span>` : it.type === 'image' && it.src ? `<img src="${esc(it.src)}" class="w-full h-full object-cover">` : it.type === 'button' ? `<span class="w-full h-full p-1 block">${UB.buttonHtml({ title: it.iconFa || it.iconImg ? '' : (it.icon || 'Aa'), iconFa: it.iconFa, iconImg: it.iconImg, style: { ...(it.style || UB.fromLegacy(it.btnStyle, w.accent)), fontSize: 11, iconSize: 15, padX: 2, padY: 2, iconPos: it.iconFa || it.iconImg ? 'only' : 'left', radius: Math.min((it.style || {}).radius ?? 6, 8), hover: 'none', idle: 'none', depth: 'flat' } }, { tag: 'div' })}</span>` : icon(tm.ic, 'w-5 h-5');
+      const thumb = it.type === 'pdf' && it.src ? `<span class="relative w-full h-full block bg-white" data-pdfthumb="${esc(it.src)}">${icon('file', 'w-5 h-5 m-auto mt-3')}</span>` : it.type === 'text' ? `<span class="font-bold text-base" style="${it.ts && it.ts.font ? `font-family:'${esc(it.ts.font)}'` : ''}">Aa</span>` : it.type === 'image' && it.src ? `<img src="${esc(it.src)}" class="w-full h-full object-cover">` : it.type === 'button' ? `<span class="w-full h-full p-1 block">${UB.buttonHtml({ title: it.iconFa || it.iconImg ? '' : (it.icon || 'Aa'), iconFa: it.iconFa, iconImg: it.iconImg, style: { ...(it.style || UB.fromLegacy(it.btnStyle, w.accent)), fontSize: 11, iconSize: 15, padX: 2, padY: 2, iconPos: it.iconFa || it.iconImg ? 'only' : 'left', radius: Math.min((it.style || {}).radius ?? 6, 8), hover: 'none', idle: 'none', depth: 'flat' } }, { tag: 'div' })}</span>` : icon(tm.ic, 'w-5 h-5');
       const hidden = w.limit && idx >= w.limit;
       return `<div class="group flex items-center gap-2.5 p-2 rounded-xl border ${hidden ? 'border-dashed border-slate-300 bg-slate-50/70' : 'border-slate-200 bg-white'} hover:border-navy-300" draggable="true" data-idx="${idx}">
           <span class="cursor-grab text-slate-300 hover:text-slate-500">${icon('grip')}</span>
@@ -1612,13 +1671,25 @@ async function viewWidgetEditor(id) {
       }
       const ups = await uploadMany(files);
       ups.forEach(u => {
-        const it = { id: rid(), type: 'image', title: u.name.replace(/\.[^.]+$/, ''), subtitle: '', src: u.url, link: '', newTab: true, active: true, start: '', end: '' };
-        w.items.push(asBtn ? toLogoButton(it) : it);
+        const it = itemFromUpload(u); if (!it) return;
+        w.items.push(asBtn && it.type === 'image' ? toLogoButton(it) : it);
       });
       if (asBtn && ups.length) Toast.fire({ icon: 'info', title: 'เพิ่มเป็นปุ่มโลโก้แล้ว — แก้ข้อความและลิงก์ของแต่ละปุ่มได้เลย' });
       if (ups.length) { markDirty(); drawPanel(); }
     };
     $$('[data-edit]', P).forEach(b => b.onclick = () => editItem(clone(items[+b.dataset.edit]), false, +b.dataset.edit));
+    fillPdfThumbs(P);
+    // ลากไฟล์จากเครื่องมาวางในรายการ
+    const dz = $('#dropItems');
+    P.ondragover = e => { if ([...(e.dataTransfer.types || [])].includes('Files')) { e.preventDefault(); dz.classList.remove('hidden'); } };
+    P.ondragleave = e => { if (!P.contains(e.relatedTarget)) dz.classList.add('hidden'); };
+    P.ondrop = async e => {
+      const files = [...(e.dataTransfer.files || [])]; dz.classList.add('hidden');
+      if (!files.length) return; e.preventDefault();
+      const ups = await uploadMany(files); let n = 0;
+      ups.forEach(u => { const it = itemFromUpload(u); if (it) { w.items.push(it); n++; } });
+      if (n) { markDirty(); drawPanel(); }
+    };
     $$('[data-rn]', P).forEach(b => b.onclick = async () => {
       const it = items[+b.dataset.rn];
       const r = await Swal.fire({ title: 'เปลี่ยนชื่อรายการ', input: 'text', inputValue: it.title || '', inputPlaceholder: 'ชื่อ / หัวข้อ', showCancelButton: true, confirmButtonText: 'บันทึกชื่อ', cancelButtonText: 'ยกเลิก', reverseButtons: true });
@@ -1656,6 +1727,7 @@ async function viewWidgetEditor(id) {
         const F = $('[data-form]', el);
         const draw = () => {
           const t = it.type;
+          if (t === 'pdf') it.pdf = Object.assign({ mode: 'single', h: 640, hM: 0, bar: true, dl: true }, it.pdf || {});
           F.innerHTML = `<div class="space-y-4">
             <div><label class="lbl">ประเภท</label><div class="seg flex-wrap">${Object.entries(TYPE_META).map(([k, mm]) => `<button data-ty="${k}" class="${t === k ? 'on' : ''} flex items-center justify-center gap-1.5">${icon(mm.ic, 'w-3.5 h-3.5')} ${mm.name}</button>`).join('')}</div></div>
             ${TEXTY.includes(t) ? `<div class="rounded-xl border border-slate-200 overflow-hidden sticky -top-5 z-20 shadow-sm bg-white"><div class="px-3 py-1.5 text-xs text-slate-500 bg-slate-50 border-b border-slate-200">ตัวอย่าง (ติดอยู่ด้านบนขณะเลื่อนปรับค่า)</div><div class="p-4 bg-white" style="${it.ts && it.ts.tShadow ? 'background:#334155' : ''}" data-txpv>${textPreviewHtml(it)}</div></div>
@@ -1666,6 +1738,16 @@ async function viewWidgetEditor(id) {
             ${t === 'video' ? `<div><label class="lbl">วีดีโอ</label><div class="flex gap-2"><input class="inp text-sm" data-f="src" value="${esc(it.src)}" placeholder="ลิงก์ YouTube / Facebook หรือไฟล์ .mp4"><button class="btn btn-primary btn-sm" data-pick="video">${icon('upload', 'w-3.5 h-3.5')} อัปโหลด</button></div>
               <p class="text-xs text-slate-500 mt-1">รองรับ youtube.com/watch?v=..., youtu.be/..., YouTube Shorts, วีดีโอ Facebook และไฟล์ mp4/webm</p>
               <div class="mt-2"><label class="lbl">ภาพหน้าปก (เฉพาะไฟล์วีดีโอ — ไม่บังคับ)</label><div class="flex gap-2"><input class="inp text-xs font-mono" data-f="poster" value="${esc(it.poster || '')}"><button class="btn btn-light btn-sm" data-pick="poster">${icon('media', 'w-3.5 h-3.5')}</button></div></div></div>` : ''}
+            ${t === 'pdf' ? `<div><label class="lbl">ไฟล์ PDF</label>
+              <div class="flex gap-3 items-start"><div class="w-28 aspect-[3/4] rounded-lg overflow-hidden border border-slate-200 bg-white relative flex-none" ${it.src ? `data-pdfthumb="${esc(it.src)}" data-pages` : ''}>${icon('file', 'w-7 h-7 text-slate-300 m-auto mt-10')}</div>
+              <div class="flex-1 space-y-2"><button class="btn btn-primary btn-sm w-full" data-pick="pdf">${icon('upload', 'w-3.5 h-3.5')} เลือก / อัปโหลด PDF</button><input class="inp text-xs font-mono" data-f="src" value="${esc(it.src)}" placeholder="หรือวาง URL ไฟล์ .pdf">
+                ${it.src ? `<a class="btn btn-light btn-sm w-full" href="${esc(it.src)}" target="_blank">${icon('ext', 'w-3.5 h-3.5')} เปิดไฟล์ต้นฉบับ</a>` : ''}</div></div></div>
+              <div class="p-3 rounded-xl bg-slate-50 border border-slate-200 space-y-3">
+                <div><label class="lbl">รูปแบบตัวแสดงตัวอย่าง</label><div class="seg">${[['single', 'ทีละหน้า (มีปุ่ม ‹ ›)'], ['scroll', 'เลื่อนดูทุกหน้า']].map(([v, l]) => `<button type="button" data-pm="${v}" class="${it.pdf.mode === v ? 'on' : ''}">${l}</button>`).join('')}</div></div>
+                <div class="grid grid-cols-2 gap-3"><div><label class="lbl">ความสูง (px)</label><input type="number" class="inp" data-pf="h" min="200" max="3000" value="${it.pdf.h}"></div><div><label class="lbl">บนมือถือ (0 = อัตโนมัติ)</label><input type="number" class="inp" data-pf="hM" min="0" max="3000" value="${it.pdf.hM}"></div></div>
+                <p class="text-xs text-slate-500 -mt-1">ในผืนผ้าใบอิสระ ความสูงตามกรอบที่ลากปรับขนาด</p>
+                <label class="flex items-center justify-between text-sm text-slate-700">แสดงแถบชื่อไฟล์และปุ่มด้านบน<input type="checkbox" class="tgl" data-pfc="bar" ${it.pdf.bar ? 'checked' : ''}></label>
+                <label class="flex items-center justify-between text-sm text-slate-700">มีปุ่มดาวน์โหลด<input type="checkbox" class="tgl" data-pfc="dl" ${it.pdf.dl ? 'checked' : ''}></label></div>` : ''}
             ${t === 'html' ? `<div><label class="lbl">โค้ด HTML</label><textarea class="inp font-mono text-xs" rows="8" data-f="html" placeholder="<div>...</div>">${esc(it.html)}</textarea><p class="text-xs text-amber-700 mt-1">⚠ HTML จะแสดงผลตามที่ใส่ ควรใช้โค้ดจากแหล่งที่เชื่อถือได้เท่านั้น</p></div>` : ''}
             ${TEXTY.includes(t) ? `<div><label class="lbl">ชื่อ (ใช้ภายใน · เว้นว่างได้)</label><input class="inp" data-f="title" value="${esc(it.title)}" placeholder="${esc(textTitle(it))}"></div>` : t !== 'html' ? `<div class="grid gap-3">
 
@@ -1684,8 +1766,11 @@ async function viewWidgetEditor(id) {
               <button class="btn btn-primary btn-sm" data-tologo>แปลงเป็นปุ่มโลโก้</button></div>` : ''}
             ${t !== 'html' && t !== 'divider' && t !== 'spacer' ? `<div class="p-3 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
               <label class="lbl !mb-0">${icon('link', 'w-3.5 h-3.5 inline')} ${t === 'text' ? 'ลิงก์เมื่อคลิกทั้งกล่องข้อความ' : 'ลิงก์เมื่อคลิก'} ${t === 'video' ? '(ไม่ใช้กับวีดีโอ)' : '(ไม่บังคับ)'}</label>
-              ${t !== 'video' ? `<div class="flex gap-2"><input class="inp" data-f="link" value="${esc(it.link)}" placeholder="https://... หรือ /p/ชื่อหน้า"><button class="btn btn-light btn-sm" data-pp title="เลือกหน้าเว็บในระบบ">${icon('page', 'w-3.5 h-3.5')}</button><button class="btn btn-light btn-sm" data-pick="file" title="ลิงก์ไปไฟล์เอกสาร">${icon('file', 'w-3.5 h-3.5')}</button></div>
+              ${t === 'image' ? `<label class="flex items-center justify-between gap-2 p-2 rounded-lg bg-white border border-slate-200 text-sm text-slate-700 cursor-pointer"><span>${icon('ext', 'w-3.5 h-3.5 inline')} <b>คลิกเพื่อเปิดภาพขนาดเต็ม</b> (ลิงก์ไปไฟล์ภาพต้นฉบับ · ใช้เมื่อไม่ได้ใส่ลิงก์อื่น)</span><input type="checkbox" class="tgl" data-f="full" ${it.full ? 'checked' : ''}></label>` : ''}
+              ${t === 'pdf' ? '<p class="text-xs text-slate-500">PDF มีปุ่ม “เปิดเต็มจอ” ในตัวแสดงตัวอย่างอยู่แล้ว ลิงก์นี้ไม่จำเป็น</p>' : ''}
+              ${t !== 'video' && t !== 'pdf' ? `<div class="flex gap-2"><input class="inp" data-f="link" value="${esc(it.link)}" placeholder="https://... หรือ /p/ชื่อหน้า"><button class="btn btn-light btn-sm" data-pp title="เลือกหน้าเว็บในระบบ">${icon('page', 'w-3.5 h-3.5')}</button><button class="btn btn-light btn-sm" data-pick="file" title="ลิงก์ไปไฟล์เอกสาร">${icon('file', 'w-3.5 h-3.5')}</button></div>
               <label class="flex items-center gap-2 text-sm text-slate-600"><input type="checkbox" class="tgl" data-f="newTab" ${it.newTab ? 'checked' : ''}> เปิดในแท็บใหม่</label>` : ''}
+              ${t === 'image' && it.src ? `<a class="text-xs text-navy-700 underline" href="${esc(it.src)}" target="_blank">เปิดดูภาพต้นฉบับ</a>` : ''}
               ${t === 'image' ? `<div class="pt-2 border-t border-slate-200"><label class="lbl">ลิงก์ที่ 2 ใต้ภาพ (ไม่บังคับ) เช่น “ดาวน์โหลดแบบฟอร์ม”</label>
                 <div class="grid grid-cols-[1fr_1.4fr] gap-2"><input class="inp" data-f="link2Text" value="${esc(it.link2Text || '')}" placeholder="ข้อความลิงก์"><div class="flex gap-2"><input class="inp" data-f="link2" value="${esc(it.link2 || '')}" placeholder="https://..."><button class="btn btn-light btn-sm" data-pick="file2" title="เลือกไฟล์">${icon('file', 'w-3.5 h-3.5')}</button></div></div></div>` : ''}
             </div>` : ''}
@@ -1720,6 +1805,10 @@ async function viewWidgetEditor(id) {
             draw();
           });
           const pp = $('[data-pp]', F); if (pp) pp.onclick = async () => { const s = await choosePage(); if (s) { it.link = `/p/${s}`; it.newTab = false; draw(); } };
+          $$('[data-pm]', F).forEach(b => b.onclick = () => { it.pdf.mode = b.dataset.pm; draw(); });
+          $$('[data-pf]', F).forEach(i => i.addEventListener('input', () => { it.pdf[i.dataset.pf] = Number(i.value) || 0; }));
+          $$('[data-pfc]', F).forEach(i => i.addEventListener('change', () => { it.pdf[i.dataset.pfc] = i.checked; }));
+          fillPdfThumbs(F);
           const txd = $('[data-txd]', F);
           if (txd) mountTextDesigner(txd, it, () => { const pv = $('[data-txpv]', F); if (pv) { pv.innerHTML = textPreviewHtml(it); pv.style.background = it.ts.tShadow ? '#334155' : ''; } });
         };
@@ -1727,6 +1816,7 @@ async function viewWidgetEditor(id) {
         $('[data-ok]', el).onclick = () => {
           if ((it.type === 'image' || it.type === 'video') && !it.src) return Swal.fire({ icon: 'warning', title: `กรุณาเลือก${tm().name}`, confirmButtonText: 'ตกลง' });
           if (it.type === 'button' && !it.title) return Swal.fire({ icon: 'warning', title: 'กรุณากรอกข้อความบนปุ่ม', confirmButtonText: 'ตกลง' });
+          if (it.type === 'pdf' && !it.src) return Swal.fire({ icon: 'warning', title: 'กรุณาเลือกไฟล์ PDF', confirmButtonText: 'ตกลง' });
           if (it.type === 'text' && !String(it.ts.content || '').trim()) return Swal.fire({ icon: 'warning', title: 'กรุณาพิมพ์ข้อความ', confirmButtonText: 'ตกลง' });
           if (!TEXTY.includes(it.type)) delete it.ts;
           if (it.start && it.end && it.start > it.end) return Swal.fire({ icon: 'warning', title: 'วันเริ่มต้องไม่เกินวันสิ้นสุด', confirmButtonText: 'ตกลง' });
@@ -2404,13 +2494,14 @@ async function viewMedia() {
     $('#mg').innerHTML = f.map(x => `<div class="card overflow-hidden group relative ${sel.has(x.id) ? 'ring-2 ring-navy-600' : ''}">
       <label class="absolute top-2 left-2 z-10 w-7 h-7 rounded-md bg-white/95 shadow grid place-items-center cursor-pointer" title="เลือก"><input type="checkbox" class="w-4 h-4 accent-navy-800" data-ms="${x.id}" ${sel.has(x.id) ? 'checked' : ''}></label>
       ${x.usedIn.length ? `<span class="absolute top-2 right-2 z-10 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-emerald-600 text-white" title="${esc(x.usedIn.join('\n'))}">ใช้อยู่ ${x.usedIn.length}</span>` : `<span class="absolute top-2 right-2 z-10 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-slate-500/80 text-white">ไม่ได้ใช้</span>`}
-      <div class="aspect-square chk-pattern grid place-items-center relative overflow-hidden cursor-pointer" data-mt="${x.id}">${x.kind === 'image' ? `<img src="${esc(x.url)}" class="w-full h-full object-cover" loading="lazy">` : x.kind === 'video' ? `<video src="${esc(x.url)}#t=0.5" class="w-full h-full object-cover" preload="metadata" muted></video>` : `<div class="text-center">${icon('file', 'w-10 h-10 text-slate-400 mx-auto')}<div class="text-xs font-bold text-slate-500 mt-1">${esc(x.url.split('.').pop().toUpperCase())}</div></div>`}</div>
+      <div class="aspect-square chk-pattern grid place-items-center relative overflow-hidden cursor-pointer" data-mt="${x.id}">${x.kind === 'image' ? `<img src="${esc(x.url)}" class="w-full h-full object-cover" loading="lazy">` : x.kind === 'video' ? `<video src="${esc(x.url)}#t=0.5" class="w-full h-full object-cover" preload="metadata" muted></video>` : isPdfUrl(x.url) ? `<div class="absolute inset-0 bg-white" data-pdfthumb="${esc(x.url)}" data-pages><div class="h-full grid place-items-center text-xs text-slate-400">PDF</div></div>` : `<div class="text-center">${icon('file', 'w-10 h-10 text-slate-400 mx-auto')}<div class="text-xs font-bold text-slate-500 mt-1">${esc(x.url.split('.').pop().toUpperCase())}</div></div>`}</div>
       <div class="p-2.5"><div class="text-xs font-medium truncate" title="${esc(x.name)}">${esc(x.name)}</div><div class="text-[11px] text-slate-400">${fmtSize(x.size)} · ${new Date(x.createdAt).toLocaleDateString('th-TH')}</div>
         <div class="flex items-center gap-1 mt-2">
           <button class="flex-1 btn btn-light btn-sm !px-1.5" data-cu="${esc(x.url)}" title="คัดลอกลิงก์">${icon('link', 'w-3.5 h-3.5')}</button>
           <a class="flex-1 btn btn-light btn-sm !px-1.5" href="${esc(x.url)}" target="_blank" title="เปิดดู">${icon('ext', 'w-3.5 h-3.5')}</a>
           <button class="flex-1 btn btn-light btn-sm !px-1.5 !text-rose-600 hover:!bg-rose-50 hover:!border-rose-300" data-md="${x.id}" title="ลบไฟล์">${icon('trash', 'w-3.5 h-3.5')}</button></div></div></div>`).join('')
       || `<div class="col-span-full text-center py-12 text-slate-400">${filter === 'unused' ? 'ไม่มีไฟล์ที่ไม่ได้ใช้งาน' : 'ไม่มีไฟล์'}</div>`;
+    fillPdfThumbs($('#mg'));
     $$('[data-cu]').forEach(b => b.onclick = () => copyText(/^https?:/i.test(b.dataset.cu) ? b.dataset.cu : ORIGIN + b.dataset.cu));
     $$('[data-md]').forEach(b => b.onclick = () => removeMany([list.find(m => m.id === b.dataset.md)]));
     $$('[data-ms]').forEach(c => c.onchange = () => { c.checked ? sel.add(c.dataset.ms) : sel.delete(c.dataset.ms); draw(); });

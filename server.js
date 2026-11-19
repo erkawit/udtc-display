@@ -561,11 +561,12 @@ function carCfg(w) {
   };
 }
 function normItem(i) {
-  const type = ['image', 'video', 'button', 'html', 'text', 'divider', 'spacer'].includes(i.type) ? i.type : 'image';
+  const type = ['image', 'video', 'button', 'html', 'text', 'divider', 'spacer', 'pdf'].includes(i.type) ? i.type : 'image';
   return {
     id: i.id || uid(), type,
     title: String(i.title || '').slice(0, 300), subtitle: String(i.subtitle || '').slice(0, 500),
-    src: safeUrl(i.src), poster: safeUrl(i.poster), link: safeUrl(i.link), newTab: i.newTab !== false,
+    src: safeUrl(i.src), poster: safeUrl(i.poster), link: safeUrl(i.link), newTab: i.newTab !== false, full: !!i.full,
+    pdf: type === 'pdf' ? normPdf(i.pdf) : undefined,
     iconImg: safeUrl(i.iconImg), link2: safeUrl(i.link2), link2Text: String(i.link2Text || '').slice(0, 120),
     iconFa: safeFa(i.iconFa), style: i.style && typeof i.style === 'object' ? UB.norm(i.style) : null,
     pos: i.pos && typeof i.pos === 'object' ? { x: clamp(i.pos.x, 0, 4000, 0), y: clamp(i.pos.y, 0, 4000, 0), w: clamp(i.pos.w, 4, 4000, 200), h: clamp(i.pos.h, 4, 4000, 60), z: clamp(i.pos.z, 0, 999, 1), locked: !!i.pos.locked } : null,
@@ -687,6 +688,19 @@ a.uw-card:hover{transform:translateY(-2px)}.uw.shadow a.uw-card:hover{box-shadow
 .uw-cap small{display:block;margin-top:2px;color:#64748b;font-size:.82rem;line-height:1.45}
 .uw-cap.overlay{position:absolute;left:0;right:0;bottom:0;padding:28px 16px 14px;color:#fff;background:linear-gradient(transparent,rgba(2,6,23,.78));pointer-events:none}
 .uw-cap.overlay small{color:rgba(255,255,255,.85)}.uw-cap.overlay b{color:#fff}
+.upd{display:flex;flex-direction:column;height:var(--pdh,640px);border-radius:var(--radius,12px);overflow:hidden;background:var(--pdbg,#e2e8f0);border:1px solid #cbd5e1;box-sizing:border-box;font-size:14px}
+@media(max-width:639px){.upd:not(.fill){height:var(--pdhm,480px)}}
+.upd.fill{height:100%}
+.upd-bar{flex:none;display:flex;align-items:center;gap:6px;padding:6px 8px;background:#1e293b;color:#fff;font-size:13px;line-height:1.2}
+.upd-t{flex:1;min-width:0;display:flex;align-items:center;gap:6px;font-weight:600}.upd-t span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.upd-t svg{flex:none;color:#fca5a5}
+.upd-nav{display:flex;align-items:center;gap:4px}.upd-pg{font-variant-numeric:tabular-nums;opacity:.85;white-space:nowrap;min-width:3.5em;text-align:center}
+.upd-bar button,.upd-btn{flex:none;border:0;cursor:pointer;background:rgba(255,255,255,.14);color:#fff!important;border-radius:6px;padding:4px 9px;font:inherit;line-height:1.2;text-decoration:none!important;white-space:nowrap}
+.upd-bar button:hover,.upd-btn:hover{background:rgba(255,255,255,.26)}.upd-bar button:disabled{opacity:.35;cursor:default}
+.upd-view{flex:1;min-height:0;overflow:auto;padding:10px;box-sizing:border-box;display:flex;flex-direction:column;align-items:center;gap:10px}
+.upd-view canvas{display:block;max-width:100%;height:auto;background:#fff;box-shadow:0 2px 10px rgba(15,23,42,.18)}
+.upd-view iframe{flex:1;width:100%;border:0;background:#fff}
+.upd-msg{margin:auto;color:#475569;font-size:13px;text-align:center;padding:12px}.upd-msg a{color:#1d4ed8;text-decoration:underline!important}
+.uw-grid>.upd-card,.uw-list>.uw-row-pdf{grid-column:1/-1}.upd-card{padding:0;overflow:visible;background:transparent;box-shadow:none}
 .uw-btn{display:flex;align-items:center;justify-content:center;gap:10px;min-height:52px;padding:12px 18px;border-radius:var(--radius);font-weight:600;text-decoration:none;text-align:center;transition:all .2s;line-height:1.35;height:100%}
 .uw-btn .ic{font-size:1.25em}.uw-btn small{display:block;font-weight:400;opacity:.8;font-size:.8rem}
 .uw-btn.primary{background:var(--accent);color:#fff}.uw-btn.primary:hover{filter:brightness(1.12)}
@@ -772,9 +786,28 @@ a.uw-row:hover{border-color:var(--accent);background:#f8fafc}
 `;
 const ARROW = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>';
 
+/* ---------------- PDF + ลิงก์ภาพขนาดเต็ม ---------------- */
+function normPdf(o) {
+  o = o && typeof o === 'object' ? o : {};
+  return { mode: o.mode === 'scroll' ? 'scroll' : 'single', h: clamp(o.h, 200, 3000, 640), hM: clamp(o.hM, 0, 3000, 0),
+    bar: o.bar !== false, dl: o.dl !== false, bg: /^#[0-9a-f]{3,8}$/i.test(o.bg || '') ? o.bg : '#e2e8f0' };
+}
+/** ภาพที่ติ๊ก “คลิกเพื่อเปิดภาพขนาดเต็ม” และไม่มีลิงก์อื่น → ลิงก์ไปไฟล์ภาพต้นฉบับ */
+const withFull = it => it.type === 'image' && it.full && !it.link && it.src ? { ...it, link: it.src, newTab: true } : it;
+const PDF_ICON = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>';
+function pdfHtml(it, { fill = false } = {}) {
+  const o = normPdf(it.pdf), u = esc(it.src), name = esc(it.title || decodeURIComponent(String(it.src).split('/').pop() || 'เอกสาร PDF'));
+  const st = fill ? 'height:100%' : `--pdh:${o.h}px;--pdhm:${o.hM || Math.round(o.h * 0.75)}px`;
+  const bar = o.bar ? `<div class="upd-bar"><span class="upd-t">${PDF_ICON}<span>${name}</span></span>
+    ${o.mode === 'single' ? `<span class="upd-nav"><button type="button" class="upd-prev" aria-label="หน้าก่อน">‹</button><span class="upd-pg">–</span><button type="button" class="upd-next" aria-label="หน้าถัดไป">›</button></span>` : '<span class="upd-pg"></span>'}
+    <a class="upd-btn" href="${u}" target="_blank" rel="noopener">เปิดเต็มจอ</a>${o.dl ? `<a class="upd-btn" href="${u}" download>ดาวน์โหลด</a>` : ''}</div>` : '';
+  return `<div class="upd${fill ? ' fill' : ''} m-${o.mode}" data-pdf="${u}" style="${st};--pdbg:${o.bg}">${bar}<div class="upd-view"><div class="upd-msg">กำลังโหลดเอกสาร PDF…</div></div></div>`;
+}
 function linkAttrs(it) { return `href="${esc(it.link)}"${it.newTab ? ' target="_blank" rel="noopener"' : ' target="_top"'}`; }
 
 function cardHtml(it, w) {
+  if (!w.lightbox) it = withFull(it);
+  if (it.type === 'pdf') return `<div class="uw-card upd-card">${pdfHtml(it)}</div>`;
   const ratioCls = ratioVal(w) === 'auto' || (w.layout === 'carousel' && carCfg(w).hMode !== 'ratio') ? ' auto' : '';
   const capOverlay = w.captionPos === 'overlay' && it.type === 'image';
   const cap = (w.showCaption && (it.title || it.subtitle))
@@ -808,6 +841,8 @@ function btnHtml(it, w, cw) {
   return UB.buttonHtml({ ...it, title: it.title || 'ปุ่ม', style: it.style || UB.fromLegacy(it.btnStyle, w.accent) }, { cw });
 }
 function rowHtml(it, w) {
+  it = withFull(it);
+  if (it.type === 'pdf') return `<div class="uw-row-pdf">${pdfHtml(it)}</div>`;
   if (it.type === 'video') return `<div class="uw-row video"><div class="uw-media" style="aspect-ratio:16/9">${videoHtml(it.src, it.poster)}</div>${it.title ? `<div class="uw-cap"><b>${esc(it.title)}</b>${it.subtitle ? `<small>${esc(it.subtitle)}</small>` : ''}</div>` : ''}</div>`;
   if (it.type === 'html') return `<div class="uw-html">${it.html}</div>`;
   if (TEXTY.includes(it.type)) return textItemHtml(it);
@@ -822,7 +857,8 @@ function canvasHtml(items, w) {
   const W = w.canvasW, H = w.canvasH, pct = (v, t) => +(v / t * 100).toFixed(4);
   const els = items.map((it, i) => ({ it, p: it.pos || { x: 0, y: i * 80, w: 240, h: 60, z: 1 } }))
     .sort((a, b) => a.p.y - b.p.y || a.p.x - b.p.x)
-    .map(({ it, p }) => {
+    .map(({ it: it0, p }) => {
+      const it = withFull(it0);
       let inner;
       if (it.type === 'button') inner = btnHtml(it, w, W);
       else if (it.type === 'image' && it.fx) inner = UB.imageHtml(it, { cw: W });
@@ -831,6 +867,7 @@ function canvasHtml(items, w) {
         const img = `<img src="${esc(it.src)}" alt="${esc(it.title)}" loading="lazy" style="width:100%;height:100%;object-fit:${w.fit};border-radius:${r};display:block">`;
         inner = it.link ? `<a ${linkAttrs(it)} class="uc-img">${img}</a>` : img;
       } else if (it.type === 'video') inner = `<div class="uw-media" style="height:100%;border-radius:${w.radius}px">${videoHtml(it.src, it.poster)}</div>`;
+      else if (it.type === 'pdf') inner = pdfHtml(it, { fill: true });
       else if (TEXTY.includes(it.type)) inner = it.type === 'text' ? textItemHtml(it, W) : it.type === 'divider' ? UB.dividerHtml(it.ts, { cw: W }) : '';
       else inner = `<div class="uw-html">${it.html}</div>`;
       const en = it.enter && it.enter.type ? ` data-enter="${it.enter.type}"` : '', ev = en ? `;--edel:${it.enter.delay}ms;--edur:${it.enter.dur}ms` : '';
@@ -894,6 +931,21 @@ function runtimeJs(rootExpr, embed) {
   return `(function(){var R=${rootExpr};if(!R)return;
   var showLB=${LIGHTBOX_FN};
   function narrow(){return (R.clientWidth||innerWidth)<640;}
+  var PDFJS='https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/build/pdf.min.mjs',PDFW='https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/build/pdf.worker.min.mjs',pdfLib=null;
+  function getPdf(){if(!pdfLib)pdfLib=import(PDFJS).then(function(m){m.GlobalWorkerOptions.workerSrc=PDFW;return m;});return pdfLib;}
+  function pdfFallback(box,url){var v=box.querySelector('.upd-view');v.innerHTML='<iframe src="'+url+'#view=FitH" title="PDF"></iframe><div class="upd-msg" style="margin:0;flex:none;padding:4px">ถ้าไม่เห็นเอกสาร <a href="'+url+'" target="_blank" rel="noopener">เปิดไฟล์ PDF</a></div>';}
+  function initPdf(box){if(box._pdf)return;box._pdf=1;var url=box.getAttribute('data-pdf'),view=box.querySelector('.upd-view'),pg=box.querySelector('.upd-pg'),single=box.classList.contains('m-single'),doc=null,cur=1,busy=false;
+    function paint(n,into){return doc.getPage(n).then(function(p){var w=Math.max(200,view.clientWidth-20),v1=p.getViewport({scale:1}),sc=w/v1.width,dpr=Math.min(2,window.devicePixelRatio||1),vp=p.getViewport({scale:sc*dpr});
+      var c=document.createElement('canvas');c.width=vp.width;c.height=vp.height;c.style.width=Math.round(vp.width/dpr)+'px';into.appendChild(c);return p.render({canvasContext:c.getContext('2d'),viewport:vp}).promise;});}
+    function show(n){if(busy||!doc)return;busy=true;cur=Math.max(1,Math.min(doc.numPages,n));var tmp=document.createElement('div');tmp.style.display='contents';
+      paint(cur,tmp).then(function(){view.innerHTML='';view.appendChild(tmp);view.scrollTop=0;busy=false;upd();},function(){busy=false;});}
+    function upd(){if(pg)pg.textContent=single?(cur+' / '+doc.numPages):(doc.numPages+' หน้า');var a=box.querySelector('.upd-prev'),b=box.querySelector('.upd-next');if(a)a.disabled=cur<=1;if(b)b.disabled=cur>=doc.numPages;}
+    getPdf().then(function(m){return m.getDocument({url:url}).promise;}).then(function(d){doc=d;
+      if(single){show(1);var a=box.querySelector('.upd-prev'),b=box.querySelector('.upd-next');if(a)a.onclick=function(){show(cur-1);};if(b)b.onclick=function(){show(cur+1);};}
+      else{view.innerHTML='';var n=Math.min(d.numPages,60),i=1;(function next(){if(i>n)return;paint(i++,view).then(next,next);})();upd();}
+    }).catch(function(){pdfFallback(box,url);});}
+  var pdfs=R.querySelectorAll('.upd[data-pdf]');
+  if(pdfs.length){if('IntersectionObserver' in window){var pio=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting){pio.unobserve(e.target);initPdf(e.target);}});},{rootMargin:'200px'});[].forEach.call(pdfs,function(b){pio.observe(b);});}else [].forEach.call(pdfs,initPdf);}
   var ens=R.querySelectorAll('[data-enter]');[].forEach.call(ens,function(e){e.parentElement&&e.parentElement.classList.add('uw-js');});
   if(ens.length){if('IntersectionObserver' in window){var io=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting){e.target.classList.add('in');io.unobserve(e.target);}});},{threshold:.15});[].forEach.call(ens,function(e){io.observe(e);});}else [].forEach.call(ens,function(e){e.classList.add('in');});}
   [].forEach.call(R.querySelectorAll('.uim[data-tilt]'),function(el){
@@ -999,9 +1051,9 @@ function exportWidget(w, { base, full = false, font = true, inline = true }) {
     }
     cache.set(p, out); return out;
   };
-  const abs = html => html.replace(/(\s(src|href|poster))="(\/(?!\/)[^"]*)"/g, (m, attr, name, p, off, all) => {
-    // href ฝังได้เฉพาะลิงก์ขยายภาพ (data-lb) — ลิงก์ทั่วไปแบบ data: เบราว์เซอร์ไม่ยอมเปิด
-    const lb = name !== 'href' || all.startsWith(' data-lb', off + m.length);
+  const abs = html => html.replace(/(\s(src|href|poster|data-pdf))="(\/(?!\/)[^"]*)"/g, (m, attr, name, p, off, all) => {
+    // href ฝังได้เฉพาะลิงก์ขยายภาพ (data-lb) — ลิงก์ทั่วไปแบบ data: เบราว์เซอร์ไม่ยอมเปิด · PDF ไม่ฝัง (ไฟล์ใหญ่)
+    const lb = name === 'data-pdf' ? false : (name !== 'href' || all.startsWith(' data-lb', off + m.length));
     if (inline && lb) { const d = toData(p); if (d) return `${attr}="${d}"`; }
     if (name === 'href') stat.external.add(p.split('/')[1]);
     else stat.external.add('img');
@@ -1019,7 +1071,7 @@ ${scope} h2.uw-title{font-size:1.15rem;font-weight:700;color:var(--accent);paddi
   const css = reset + scopeCss(WIDGET_CSS + UB.CSS, scope);
   const html = abs(renderWidgetInner(w, { full }));
   let js = '';
-  if (/uw-car|ut-bar|data-lb|data-tilt|data-enter/.test(html)) js = `\n<script>${runtimeJs(`document.getElementById('${id}')`, false)}</script>`;
+  if (/uw-car|ut-bar|data-lb|data-tilt|data-enter|data-pdf/.test(html)) js = `\n<script>${runtimeJs(`document.getElementById('${id}')`, false)}</script>`;
   const links = [font ? '<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700&display=swap">' : '',
     needsFa(w) ? `<link rel="stylesheet" href="${UB.FA_CSS}">` : '',
     UB.fontUrl(widgetFonts(w)) ? `<link rel="stylesheet" href="${UB.fontUrl(widgetFonts(w))}">` : ''].filter(Boolean).join('\n');
