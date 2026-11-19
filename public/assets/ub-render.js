@@ -401,8 +401,119 @@ a.ub:focus-visible{outline:3px solid var(--glow);outline-offset:2px}
 .uw-js [data-enter="rotate"]:not(.in){transform:rotate(-12deg) scale(.9)}
 @media (prefers-reduced-motion:reduce){.uim,.uim *{animation:none!important;transition:none!important}[data-enter]{opacity:1!important;transform:none!important;filter:none!important}}
 `;
+  /* ---------------- ตาราง ---------------- */
+  const TBDEF = { font: '', size: 15, color: '#1e293b', bg: '#ffffff', headBg: '#1e3a5f', headFg: '#ffffff', headWeight: 700, headSize: 0,
+    footBg: '#f1f5f9', footFg: '#0f172a', stripe: true, stripeBg: '#f8fafc', hover: true, hoverBg: '#eef2ff',
+    border: 'all', bw: 1, bc: '#e2e8f0', radius: 12, pad: 10, shadow: 'soft', align: 'left', headAlign: 'left', vAlign: 'middle',
+    firstColBold: false, firstColBg: '', capColor: '#0f172a', capSize: 20, capAlign: 'left', capWeight: 700, minColW: 80 };
+  const TBOPT = { border: ['all', 'rows', 'cols', 'outer', 'none'], shadow: ['none', 'soft', 'md', 'strong'], align: ['left', 'center', 'right'],
+    headAlign: ['left', 'center', 'right'], vAlign: ['top', 'middle', 'bottom'], capAlign: ['left', 'center', 'right'] };
+  const TBPRESETS = [
+    { id: 'navy', name: 'น้ำเงินทางการ', s: { headBg: '#1e3a5f', headFg: '#ffffff', stripe: true, stripeBg: '#f4f7fc', border: 'rows', bc: '#e2e8f0', radius: 12, shadow: 'soft', hoverBg: '#e8eef8' } },
+    { id: 'gold', name: 'ทองหรู', s: { headBg: '#b8862b', headFg: '#ffffff', stripe: true, stripeBg: '#fbf7ee', border: 'rows', bc: '#efe3c8', radius: 14, shadow: 'md', hoverBg: '#f6ecd6' } },
+    { id: 'grid', name: 'เส้นตารางครบ', s: { headBg: '#f1f5f9', headFg: '#0f172a', stripe: false, border: 'all', bc: '#cbd5e1', radius: 6, shadow: 'none', hoverBg: '#f8fafc' } },
+    { id: 'minimal', name: 'มินิมอล', s: { headBg: '#ffffff', headFg: '#0f172a', stripe: false, border: 'rows', bc: '#e5e7eb', radius: 0, shadow: 'none', hoverBg: '#f9fafb', bg: '#ffffff' } },
+    { id: 'green', name: 'เขียวหยก', s: { headBg: '#14625e', headFg: '#ffffff', stripe: true, stripeBg: '#f0f8f6', border: 'rows', bc: '#d5ebe6', radius: 12, shadow: 'soft', hoverBg: '#e1f2ee' } },
+    { id: 'maroon', name: 'แดงเลือดหมู', s: { headBg: '#7a1f35', headFg: '#ffffff', stripe: true, stripeBg: '#fbf3f4', border: 'rows', bc: '#f0dce1', radius: 12, shadow: 'soft', hoverBg: '#f6e4e8' } },
+    { id: 'dark', name: 'โหมดมืด', s: { bg: '#0f172a', color: '#e2e8f0', headBg: '#1e293b', headFg: '#fbbf24', stripe: true, stripeBg: '#111c33', border: 'rows', bc: '#1e293b', radius: 12, shadow: 'md', hoverBg: '#1e293b', footBg: '#1e293b', footFg: '#fbbf24', capColor: '#0f172a' } },
+    { id: 'card', name: 'การ์ดลอย', s: { headBg: '#eef2ff', headFg: '#3730a3', stripe: false, border: 'none', radius: 18, shadow: 'strong', hoverBg: '#f5f7ff', pad: 14 } },
+  ];
+  function normTable(t) {
+    t = t && typeof t === 'object' ? t : {};
+    const hex = v => /^#[0-9a-f]{3,8}$/i.test(String(v || ''));
+    let rows = Array.isArray(t.rows) && t.rows.length ? t.rows : [[{ t: 'หัวข้อ 1' }, { t: 'หัวข้อ 2' }, { t: 'หัวข้อ 3' }], [{ t: '' }, { t: '' }, { t: '' }], [{ t: '' }, { t: '' }, { t: '' }]];
+    rows = rows.slice(0, 300).map(r => (Array.isArray(r) ? r : []).slice(0, 40));
+    const nc = Math.max(1, ...rows.map(r => r.length));
+    rows = rows.map(r => Array.from({ length: nc }, (_, c) => {
+      const x = r[c] && typeof r[c] === 'object' ? r[c] : { t: r[c] == null ? '' : String(r[c]) };
+      const o = { t: String(x.t == null ? '' : x.t).slice(0, 5000) };
+      if (['left', 'center', 'right'].includes(x.al)) o.al = x.al;
+      if (x.b) o.b = 1; if (x.i) o.i = 1;
+      if (hex(x.bg)) o.bg = x.bg; if (hex(x.fg)) o.fg = x.fg;
+      const cs = Math.round(Number(x.cs) || 1), rs = Math.round(Number(x.rs) || 1);
+      if (cs > 1) o.cs = Math.min(cs, nc - c); if (rs > 1) o.rs = rs;
+      return o;
+    }));
+    const st = Object.assign({}, TBDEF, t.st || {});
+    for (const k in TBOPT) if (!TBOPT[k].includes(st[k])) st[k] = TBDEF[k];
+    const n = (k, a, b) => { const v = Number(st[k]); st[k] = Number.isFinite(v) ? Math.min(b, Math.max(a, v)) : TBDEF[k]; };
+    n('size', 8, 48); n('headSize', 0, 60); n('headWeight', 300, 900); n('bw', 0, 8); n('radius', 0, 40); n('pad', 0, 40); n('capSize', 10, 60); n('capWeight', 300, 900); n('minColW', 0, 600);
+    for (const k of ['color', 'bg', 'headBg', 'headFg', 'footBg', 'footFg', 'stripeBg', 'hoverBg', 'bc', 'capColor']) if (!hex(st[k]) && st[k] !== 'transparent') st[k] = TBDEF[k];
+    if (st.firstColBg && !hex(st.firstColBg)) st.firstColBg = '';
+    st.stripe = !!st.stripe; st.hover = !!st.hover; st.firstColBold = !!st.firstColBold;
+    st.font = String(st.font || '').replace(/[^\w ก-๙-]/g, '').slice(0, 60);
+    const head = Math.max(0, Math.min(rows.length, Math.round(Number(t.head ?? 1))));
+    return { rows, head, headCol: !!t.headCol, foot: !!t.foot && rows.length - head > 1, caption: String(t.caption || '').slice(0, 300), note: String(t.note || '').slice(0, 500),
+      colW: Array.from({ length: nc }, (_, c) => Math.max(0, Math.min(2000, Number((t.colW || [])[c]) || 0))),
+      sort: !!t.sort, search: !!t.search, sticky: t.sticky !== false, maxH: Math.max(0, Math.min(4000, Number(t.maxH) || 0)), wrap: t.wrap !== false, st };
+  }
+  /** เซลล์ที่ถูกเซลล์อื่นรวมทับ (colspan/rowspan) */
+  function tableCover(rows) {
+    const cov = rows.map(r => r.map(() => false));
+    rows.forEach((r, ri) => r.forEach((c, ci) => {
+      if (cov[ri][ci]) return;
+      for (let a = 0; a < (c.rs || 1); a++) for (let b = 0; b < (c.cs || 1); b++) if ((a || b) && cov[ri + a] && ci + b < r.length) cov[ri + a][ci + b] = true;
+    }));
+    return cov;
+  }
+  function tableHtml(it, opts = {}) {
+    const T = normTable(it.tb), s = T.st, cw = opts.cw, px = v => cw ? `calc(${v} * 100cqw / ${cw})` : `${v}px`;
+    const cov = tableCover(T.rows), nr = T.rows.length, footAt = T.foot ? nr - 1 : -1;
+    const sh = { none: 'none', soft: '0 4px 14px rgba(15,23,42,.08)', md: '0 10px 28px rgba(15,23,42,.14)', strong: '0 20px 48px rgba(15,23,42,.22)' }[s.shadow];
+    const vars = [`--tbf:${s.font ? `'${s.font}',` : ''}inherit`, `--tbs:${px(s.size)}`, `--tbc:${s.color}`, `--tbbg:${s.bg}`, `--tbhb:${s.headBg}`, `--tbhf:${s.headFg}`, `--tbhw:${s.headWeight}`,
+      `--tbhs:${s.headSize ? px(s.headSize) : '1em'}`, `--tbfb:${s.footBg}`, `--tbff:${s.footFg}`, `--tbsb:${s.stripeBg}`, `--tbhv:${s.hoverBg}`, `--tbbw:${px(s.bw)}`, `--tbbc:${s.bc}`,
+      `--tbr:${px(s.radius)}`, `--tbp:${px(s.pad)}`, `--tbsh:${sh}`, `--tbal:${s.align}`, `--tbha:${s.headAlign}`, `--tbva:${s.vAlign}`, `--tbmw:${px(s.minColW)}`,
+      `--tbcc:${s.capColor}`, `--tbcs:${px(s.capSize)}`, `--tbcw:${s.capWeight}`, `--tbca:${s.capAlign}`, s.firstColBg ? `--tbfc:${s.firstColBg}` : ''].filter(Boolean).join(';');
+    const cell = (c, ri, ci, tag, scope) => {
+      const st = [c.al ? `text-align:${c.al}` : '', c.b ? 'font-weight:700' : '', c.i ? 'font-style:italic' : '', c.bg ? `background:${c.bg}` : '', c.fg ? `color:${c.fg}` : ''].filter(Boolean).join(';');
+      return `<${tag}${scope ? ` scope="${scope}"` : ''}${c.cs > 1 ? ` colspan="${c.cs}"` : ''}${c.rs > 1 ? ` rowspan="${c.rs}"` : ''}${st ? ` style="${st}"` : ''}>${richText(c.t)}</${tag}>`;
+    };
+    const tr = ri => {
+      const isH = ri < T.head, isF = ri === footAt;
+      return `<tr>${T.rows[ri].map((c, ci) => cov[ri][ci] ? '' : isH ? cell(c, ri, ci, 'th', 'col') : (T.headCol && ci === 0) ? cell(c, ri, ci, 'th', isF ? '' : 'row') : cell(c, ri, ci, 'td')).join('')}</tr>`;
+    };
+    const idx = [...Array(nr).keys()];
+    const thead = T.head ? `<thead>${idx.slice(0, T.head).map(tr).join('')}</thead>` : '';
+    const tbody = `<tbody>${idx.slice(T.head, footAt < 0 ? nr : footAt).map(tr).join('')}</tbody>`;
+    const tfoot = footAt >= 0 ? `<tfoot>${tr(footAt)}</tfoot>` : '';
+    const hasW = T.colW.some(Boolean), tot = T.colW.reduce((a, b) => a + (b || 0), 0);
+    const cols = hasW ? `<colgroup>${T.colW.map(v => `<col${v ? ` style="width:${(v / tot * 100).toFixed(2)}%"` : ''}>`).join('')}</colgroup>` : '';
+    const sortable = T.sort && T.head && !T.rows.slice(T.head, footAt < 0 ? nr : footAt).some(r => r.some(c => c.rs > 1 || c.cs > 1));
+    const cls = `utb-w b-${s.border}${s.stripe ? ' strp' : ''}${s.hover ? ' hov' : ''}${T.sticky ? ' stk' : ''}${T.headCol ? ' hcol' : ''}${s.firstColBold ? ' fcb' : ''}${s.firstColBg ? ' fcbg' : ''}${T.wrap ? '' : ' nowrap'}${opts.fill ? ' fill' : ''}`;
+    return `<div class="${cls}" style="${vars}"${sortable ? ' data-sort' : ''}>${T.caption ? `<div class="utb-cap">${esc(T.caption)}</div>` : ''}${T.search ? `<div class="utb-tools"><input type="search" class="utb-q" placeholder="ค้นหาในตาราง…" aria-label="ค้นหาในตาราง"></div>` : ''}<div class="utb-sc"${T.maxH && !opts.fill ? ` style="max-height:${px(T.maxH)}"` : ''}><table class="utb">${cols}${thead}${tbody}${tfoot}</table></div>${T.note ? `<div class="utb-note">${richText(T.note)}</div>` : ''}</div>`;
+  }
+  const TB_CSS = `
+.utb-w{font-family:var(--tbf);font-size:var(--tbs);color:var(--tbc);display:flex;flex-direction:column;gap:.6em;min-width:0;box-sizing:border-box}
+.utb-w.fill{height:100%}.utb-w.fill .utb-sc{flex:1;min-height:0}
+.utb-cap{color:var(--tbcc);font-size:var(--tbcs);font-weight:var(--tbcw);text-align:var(--tbca);line-height:1.3}
+.utb-note{font-size:.85em;opacity:.75}
+.utb-tools{display:flex}.utb-q{flex:1;max-width:320px;font:inherit;font-size:.92em;padding:.45em .75em;border:1px solid var(--tbbc);border-radius:8px;background:#fff;color:#0f172a;outline:0;box-sizing:border-box}.utb-q:focus{border-color:var(--tbhb);box-shadow:0 0 0 3px color-mix(in srgb,var(--tbhb) 20%,transparent)}
+.utb-sc{overflow:auto;border-radius:var(--tbr);box-shadow:var(--tbsh);background:var(--tbbg);-webkit-overflow-scrolling:touch}
+.utb{width:100%;border-collapse:separate;border-spacing:0;background:var(--tbbg);color:var(--tbc);font-size:1em;line-height:1.5}
+.utb th,.utb td{padding:var(--tbp) calc(var(--tbp) * 1.3);text-align:var(--tbal);vertical-align:var(--tbva);min-width:var(--tbmw);word-break:break-word}
+.utb-w.nowrap .utb th,.utb-w.nowrap .utb td{white-space:nowrap}
+.utb thead th{background:var(--tbhb);color:var(--tbhf);font-weight:var(--tbhw);font-size:var(--tbhs);text-align:var(--tbha)}
+.utb-w.stk thead th{position:sticky;top:0;z-index:2}
+.utb tfoot td,.utb tfoot th{background:var(--tbfb);color:var(--tbff);font-weight:700}
+.utb-w.strp tbody tr:nth-child(even) td,.utb-w.strp tbody tr:nth-child(even) th{background:var(--tbsb)}
+.utb-w.hov tbody tr:hover td,.utb-w.hov tbody tr:hover th{background:var(--tbhv)}
+.utb-w.hcol tbody th{font-weight:700;text-align:left}
+.utb-w.fcb tbody td:first-child{font-weight:700}.utb-w.fcbg tbody td:first-child,.utb-w.fcbg tbody th:first-child{background:var(--tbfc)}
+.utb-w.b-all th,.utb-w.b-all td{border-right:var(--tbbw) solid var(--tbbc);border-bottom:var(--tbbw) solid var(--tbbc)}
+.utb-w.b-all .utb{border-top:var(--tbbw) solid var(--tbbc);border-left:var(--tbbw) solid var(--tbbc)}
+.utb-w.b-all .utb-sc{border-radius:var(--tbr)}
+.utb-w.b-rows tbody tr:not(:last-child) td,.utb-w.b-rows tbody tr:not(:last-child) th,.utb-w.b-rows thead tr:last-child th{border-bottom:var(--tbbw) solid var(--tbbc)}
+.utb-w.b-rows tfoot td,.utb-w.b-rows tfoot th{border-top:var(--tbbw) solid var(--tbbc)}
+.utb-w.b-cols th:not(:last-child),.utb-w.b-cols td:not(:last-child){border-right:var(--tbbw) solid var(--tbbc)}
+.utb-w.b-outer .utb-sc{border:var(--tbbw) solid var(--tbbc)}
+.utb a{color:inherit;text-decoration:underline}
+.utb-w[data-sort] thead tr:last-child th{cursor:pointer;user-select:none}
+.utb-w[data-sort] thead tr:last-child th::after{content:'⇅';opacity:.45;margin-left:.4em;font-size:.85em}
+.utb-w[data-sort] thead th[aria-sort=ascending]::after{content:'▲';opacity:.9}.utb-w[data-sort] thead th[aria-sort=descending]::after{content:'▼';opacity:.9}
+.utb tr.utb-hide{display:none}
+`;
   const FA_CSS = 'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css';
-  return { DEF, OPT, LABEL, PRESETS, FONTS, fontUrl, norm, fromLegacy, shade, vars, buttonHtml, CSS: CSS + IMG_CSS, FA_CSS, esc,
+  return { DEF, OPT, LABEL, PRESETS, FONTS, fontUrl, norm, fromLegacy, shade, vars, buttonHtml, CSS: CSS + IMG_CSS + TB_CSS, FA_CSS, esc,
     TDEF, TOPT, TPRESETS, normText, richText, textHtml, dividerHtml, spacerHtml,
-    IDEF, IOPT, IPRESETS, normImg, imageHtml, ENTERS: ['none', 'fade', 'fade-up', 'fade-down', 'slide-left', 'slide-right', 'zoom', 'zoom-out', 'flip', 'blur', 'rotate'] };
+    IDEF, IOPT, IPRESETS, normImg, imageHtml, TBDEF, TBOPT, TBPRESETS, normTable, tableHtml, tableCover, ENTERS: ['none', 'fade', 'fade-up', 'fade-down', 'slide-left', 'slide-right', 'zoom', 'zoom-out', 'flip', 'blur', 'rotate'] };
 });

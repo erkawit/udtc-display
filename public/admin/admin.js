@@ -27,7 +27,7 @@ const IC = {
   media: '<rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.1-3.1a2 2 0 0 0-2.8 0L6 21"/>',
   users: '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/>',
   cog: '<path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/>',
-  plus: '<path d="M12 5v14M5 12h14"/>', sparkle: '<path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/>', check: '<path d="M20 6 9 17l-5-5"/>', edit: '<path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/>',
+  plus: '<path d="M12 5v14M5 12h14"/>', table: '<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M3 15h18M9 3v18M15 3v18"/>', sparkle: '<path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/>', check: '<path d="M20 6 9 17l-5-5"/>', edit: '<path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/>',
   trash: '<path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>',
   copy: '<rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>',
   code: '<path d="m16 18 6-6-6-6M8 6l-6 6 6 6"/>', eye: '<path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/>',
@@ -757,6 +757,212 @@ function itemFromUpload(u) {
   return null;
 }
 
+/* ---------------- ตัวแก้ไข + ออกแบบตาราง ---------------- */
+const newTable = () => UB.normTable({ rows: [[{ t: 'ลำดับ' }, { t: 'รายการ' }, { t: 'รายละเอียด' }], [{ t: '1' }, { t: '' }, { t: '' }], [{ t: '2' }, { t: '' }, { t: '' }], [{ t: '3' }, { t: '' }, { t: '' }]], head: 1 });
+function parseDelimited(text) {
+  text = String(text || '').replace(/\r\n?/g, '\n').replace(/\n+$/, '');
+  const delim = text.includes('\t') ? '\t' : ',';
+  const rows = []; let row = [], cur = '', q = false;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (q) { if (ch === '"' && text[i + 1] === '"') { cur += '"'; i++; } else if (ch === '"') q = false; else cur += ch; continue; }
+    if (ch === '"' && cur === '') q = true; else if (ch === delim) { row.push(cur); cur = ''; } else if (ch === '\n') { row.push(cur); rows.push(row); row = []; cur = ''; } else cur += ch;
+  }
+  row.push(cur); rows.push(row);
+  return rows;
+}
+function editTable(it0, onDone) {
+  const it = clone(it0); it.tb = UB.normTable(it.tb);
+  let sel = { r0: 0, c0: 0, r1: 0, c1: 0 }, side = 'design';
+  const T = () => it.tb;
+  const nc = () => T().rows[0].length, nr = () => T().rows.length;
+  const box = () => ({ r0: Math.min(sel.r0, sel.r1), r1: Math.max(sel.r0, sel.r1), c0: Math.min(sel.c0, sel.c1), c1: Math.max(sel.c0, sel.c1) });
+  const blank = () => ({ t: '' });
+  // ปรับ rowspan/colspan เมื่อแทรก/ลบแถว-คอลัมน์
+  function insRow(at) {
+    T().rows.forEach((r, ri) => r.forEach(c => { if (c.rs > 1 && ri < at && ri + c.rs > at) c.rs++; }));
+    T().rows.splice(at, 0, Array.from({ length: nc() }, blank));
+    if (at < T().head) T().head++;
+  }
+  function delRow(at) {
+    if (nr() <= 1) return;
+    T().rows.forEach((r, ri) => r.forEach((c, ci) => {
+      if (c.rs > 1 && ri < at && ri + c.rs > at) c.rs--;
+      if (ri === at && c.rs > 1 && T().rows[at + 1]) { T().rows[at + 1][ci] = { ...c, rs: c.rs - 1 }; }
+    }));
+    T().rows.splice(at, 1);
+    if (at < T().head) T().head--;
+  }
+  function insCol(at) {
+    T().rows.forEach(r => { r.forEach((c, ci) => { if (c.cs > 1 && ci < at && ci + c.cs > at) c.cs++; }); r.splice(at, 0, blank()); });
+    T().colW.splice(at, 0, 0);
+  }
+  function delCol(at) {
+    if (nc() <= 1) return;
+    T().rows.forEach(r => { r.forEach((c, ci) => { if (c.cs > 1 && ci < at && ci + c.cs > at) c.cs--; if (ci === at && c.cs > 1 && r[at + 1]) r[at + 1] = { ...c, cs: c.cs - 1 }; }); r.splice(at, 1); });
+    T().colW.splice(at, 1);
+  }
+  const cellsIn = f => { const b = box(); for (let r = b.r0; r <= b.r1; r++) for (let c = b.c0; c <= b.c1; c++) f(T().rows[r][c], r, c); };
+  openModal({
+    title: 'ตาราง — แก้ไขข้อมูลและออกแบบ', size: 'max-w-[1400px]',
+    body: `<div class="grid xl:grid-cols-[1fr_400px] gap-4">
+      <div class="min-w-0 space-y-3">
+        <div class="flex flex-wrap items-center gap-1.5 p-2 rounded-xl bg-slate-50 border border-slate-200 text-xs" data-tools>
+          <span class="font-semibold text-slate-500 mr-1">แถว</span><button class="btn btn-light btn-sm" data-op="rowUp">+ บน</button><button class="btn btn-light btn-sm" data-op="rowDown">+ ล่าง</button><button class="btn btn-light btn-sm !text-rose-600" data-op="rowDel">ลบแถว</button>
+          <span class="w-px h-6 bg-slate-300 mx-1"></span>
+          <span class="font-semibold text-slate-500 mr-1">คอลัมน์</span><button class="btn btn-light btn-sm" data-op="colLeft">+ ซ้าย</button><button class="btn btn-light btn-sm" data-op="colRight">+ ขวา</button><button class="btn btn-light btn-sm !text-rose-600" data-op="colDel">ลบคอลัมน์</button>
+          <span class="w-px h-6 bg-slate-300 mx-1"></span>
+          <button class="btn btn-light btn-sm" data-op="merge" title="รวมเซลล์ที่เลือก (Shift+คลิกเพื่อเลือกหลายช่อง)">⊞ รวมเซลล์</button><button class="btn btn-light btn-sm" data-op="split">⊟ แยกเซลล์</button>
+          <span class="w-px h-6 bg-slate-300 mx-1"></span>
+          <button class="btn btn-light btn-sm !px-2" data-op="al-left" title="ชิดซ้าย">⯇</button><button class="btn btn-light btn-sm !px-2" data-op="al-center" title="กึ่งกลาง">≡</button><button class="btn btn-light btn-sm !px-2" data-op="al-right" title="ชิดขวา">⯈</button>
+          <button class="btn btn-light btn-sm !px-2 font-bold" data-op="bold">B</button><button class="btn btn-light btn-sm !px-2 italic" data-op="ital">I</button>
+          <label class="btn btn-light btn-sm !px-2 cursor-pointer" title="สีพื้นเซลล์">🎨<input type="color" class="w-0 h-0 opacity-0" data-cellc="bg" value="#fef3c7"></label>
+          <label class="btn btn-light btn-sm !px-2 cursor-pointer" title="สีตัวอักษรในเซลล์"><span class="font-bold underline decoration-rose-500 decoration-2">A</span><input type="color" class="w-0 h-0 opacity-0" data-cellc="fg" value="#b91c1c"></label>
+          <button class="btn btn-light btn-sm" data-op="clearfmt" title="ล้างรูปแบบเซลล์ที่เลือก">ล้างรูปแบบ</button>
+          <span class="w-px h-6 bg-slate-300 mx-1"></span>
+          <button class="btn btn-light btn-sm" data-op="paste">📋 วางจาก Excel</button><label class="btn btn-light btn-sm cursor-pointer">📄 นำเข้า CSV<input type="file" accept=".csv,.tsv,.txt,text/csv" class="hidden" data-csv></label>
+          <button class="btn btn-light btn-sm !text-rose-600" data-op="clearall">ล้างข้อมูล</button>
+        </div>
+        <div class="flex items-center gap-2 text-xs text-slate-500" data-selinfo></div>
+        <div class="overflow-auto rounded-xl border border-slate-300 bg-white" style="max-height:46vh" data-gridwrap><table class="w-full border-collapse text-sm" data-grid></table></div>
+        <p class="text-xs text-slate-500">คลิกช่องเพื่อพิมพ์ · <b>Shift + คลิก</b> เลือกหลายช่อง (เพื่อรวมเซลล์/จัดรูปแบบพร้อมกัน) · <b>Tab</b> ไปช่องถัดไป · <b>วางข้อมูลที่คัดลอกจาก Excel/Google Sheets</b> ลงในช่องได้เลย · ใส่ลิงก์แบบ [ข้อความ](https://...) · ทำตัวหนาด้วย **ข้อความ**</p>
+        <div><div class="text-xs font-semibold text-slate-500 mb-1">ตัวอย่างการแสดงผลจริง</div><div class="rounded-xl chk-pattern border border-slate-200 p-4 overflow-auto" style="max-height:38vh" data-pv></div></div>
+      </div>
+      <div class="space-y-3 min-w-0"><div class="seg" data-side><button data-sd="design">🎨 ออกแบบ</button><button data-sd="struct">⚙ โครงสร้างและฟังก์ชัน</button></div><div data-panel class="space-y-3"></div></div></div>`,
+    footer: `<button class="btn btn-light" data-close>ยกเลิก</button><button class="btn btn-primary" data-apply>${icon('check')} ใช้ตารางนี้</button>`,
+    onMount: (el, close) => {
+      const grid = $('[data-grid]', el), pv = $('[data-pv]', el), panel = $('[data-panel]', el);
+      const paint = () => { ensureFont(T().st.font); pv.innerHTML = UB.tableHtml(it); };
+      function drawGrid() {
+        const cov = UB.tableCover(T().rows), b = box();
+        grid.innerHTML = `<thead><tr><th class="w-8 bg-slate-100 border border-slate-200"></th>${T().rows[0].map((_, c) => `<th class="bg-slate-100 border border-slate-200 text-[11px] font-mono text-slate-500 px-1 py-0.5 cursor-pointer hover:bg-slate-200" data-colh="${c}" title="เลือกทั้งคอลัมน์">${String.fromCharCode(65 + (c % 26))}${c >= 26 ? Math.floor(c / 26) : ''}${T().colW[c] ? ` · ${T().colW[c]}` : ''}</th>`).join('')}</tr></thead>
+          <tbody>${T().rows.map((r, ri) => `<tr><th class="bg-slate-100 border border-slate-200 text-[11px] font-mono text-slate-500 cursor-pointer hover:bg-slate-200 ${ri < T().head ? '!bg-navy-100 !text-navy-800' : ''} ${T().foot && ri === nr() - 1 ? '!bg-amber-100' : ''}" data-rowh="${ri}" title="เลือกทั้งแถว">${ri < T().head ? 'H' : ri + 1 - T().head}</th>${r.map((c, ci) => cov[ri][ci] ? '' : `<td contenteditable="plaintext-only" spellcheck="false" data-r="${ri}" data-c="${ci}"${c.cs > 1 ? ` colspan="${c.cs}"` : ''}${c.rs > 1 ? ` rowspan="${c.rs}"` : ''} class="border border-slate-200 px-2 py-1.5 align-top min-w-[90px] outline-none focus:bg-sky-50 ${ri < T().head ? 'font-semibold bg-slate-50' : ''} ${ri >= b.r0 && ri <= b.r1 && ci >= b.c0 && ci <= b.c1 ? '!bg-sky-100 ring-1 ring-inset ring-sky-400' : ''}" style="${c.al ? `text-align:${c.al};` : ''}${c.b ? 'font-weight:700;' : ''}${c.i ? 'font-style:italic;' : ''}${c.bg ? `background:${c.bg};` : ''}${c.fg ? `color:${c.fg};` : ''}">${esc(c.t)}</td>`).join('')}</tr>`).join('')}</tbody>`;
+        const n = (b.r1 - b.r0 + 1) * (b.c1 - b.c0 + 1);
+        $('[data-selinfo]', el).innerHTML = `ตาราง <b>${nr()} × ${nc()}</b> · เลือก ${n > 1 ? `<b>${n} ช่อง</b>` : `ช่อง ${String.fromCharCode(65 + b.c0)}${b.r0 + 1}`}`;
+      }
+      const refreshSel = () => { const b = box(); $$('td[data-r]', grid).forEach(td => { const r = +td.dataset.r, c = +td.dataset.c, on = r >= b.r0 && r <= b.r1 && c >= b.c0 && c <= b.c1; td.classList.toggle('!bg-sky-100', on); td.classList.toggle('ring-1', on); td.classList.toggle('ring-inset', on); td.classList.toggle('ring-sky-400', on); }); const n = (b.r1 - b.r0 + 1) * (b.c1 - b.c0 + 1); $('[data-selinfo]', el).innerHTML = `ตาราง <b>${nr()} × ${nc()}</b> · เลือก ${n > 1 ? `<b>${n} ช่อง</b>` : `ช่อง ${String.fromCharCode(65 + b.c0)}${b.r0 + 1}`}`; };
+      const redraw = () => { drawGrid(); paint(); drawPanel(); };
+      grid.addEventListener('mousedown', e => {
+        const td = e.target.closest('td[data-r]'), rh = e.target.closest('[data-rowh]'), ch = e.target.closest('[data-colh]');
+        if (rh) { e.preventDefault(); const r = +rh.dataset.rowh; sel = e.shiftKey ? { ...sel, r1: r, c1: nc() - 1 } : { r0: r, c0: 0, r1: r, c1: nc() - 1 }; refreshSel(); drawPanel(); return; }
+        if (ch) { e.preventDefault(); const c = +ch.dataset.colh; sel = e.shiftKey ? { ...sel, r1: nr() - 1, c1: c } : { r0: 0, c0: c, r1: nr() - 1, c1: c }; refreshSel(); drawPanel(); return; }
+        if (!td) return;
+        const r = +td.dataset.r, c = +td.dataset.c, cell = T().rows[r][c];
+        if (e.shiftKey) { e.preventDefault(); sel = { ...sel, r1: r + (cell.rs || 1) - 1, c1: c + (cell.cs || 1) - 1 }; } else sel = { r0: r, c0: c, r1: r + (cell.rs || 1) - 1, c1: c + (cell.cs || 1) - 1 };
+        refreshSel(); drawPanel();
+      });
+      grid.addEventListener('input', e => { const td = e.target.closest('td[data-r]'); if (!td) return; T().rows[+td.dataset.r][+td.dataset.c].t = td.innerText.replace(/\n$/, ''); paint(); });
+      grid.addEventListener('keydown', e => {
+        const td = e.target.closest('td[data-r]'); if (!td || e.key !== 'Tab') return;
+        e.preventDefault(); const tds = $$('td[data-r]', grid), i = tds.indexOf(td), nx = tds[i + (e.shiftKey ? -1 : 1)];
+        if (nx) { nx.focus(); sel = { r0: +nx.dataset.r, c0: +nx.dataset.c, r1: +nx.dataset.r, c1: +nx.dataset.c }; refreshSel(); }
+        else if (!e.shiftKey) { insRow(nr()); sel = { r0: nr() - 1, c0: 0, r1: nr() - 1, c1: 0 }; redraw(); const f = $(`td[data-r="${nr() - 1}"][data-c="0"]`, grid); if (f) f.focus(); }
+      });
+      // วางข้อมูลหลายช่อง (จาก Excel / Google Sheets)
+      grid.addEventListener('paste', e => {
+        const td = e.target.closest('td[data-r]'); const txt = (e.clipboardData || window.clipboardData).getData('text');
+        if (!td || !/[\t\n]/.test(txt.replace(/\n$/, ''))) return;
+        e.preventDefault(); fillFrom(+td.dataset.r, +td.dataset.c, parseDelimited(txt));
+      });
+      function fillFrom(r0, c0, data) {
+        while (nr() < r0 + data.length) insRow(nr());
+        const w = Math.max(...data.map(r => r.length)); while (nc() < c0 + w) insCol(nc());
+        data.forEach((row, i) => row.forEach((v, j) => { T().rows[r0 + i][c0 + j].t = v; }));
+        sel = { r0, c0, r1: r0 + data.length - 1, c1: c0 + w - 1 }; redraw(); Toast.fire({ icon: 'success', title: `ใส่ข้อมูล ${data.length} แถว × ${w} คอลัมน์` });
+      }
+      $$('[data-op]', el).forEach(btn => btn.onclick = async () => {
+        const op = btn.dataset.op, b = box();
+        if (op === 'rowUp') { insRow(b.r0); sel = { r0: b.r0, c0: b.c0, r1: b.r0, c1: b.c0 }; }
+        if (op === 'rowDown') { insRow(b.r1 + 1); sel = { r0: b.r1 + 1, c0: b.c0, r1: b.r1 + 1, c1: b.c0 }; }
+        if (op === 'rowDel') { if (b.r1 - b.r0 + 1 >= nr()) return fail('ต้องเหลืออย่างน้อย 1 แถว'); for (let r = b.r1; r >= b.r0; r--) delRow(r); sel = { r0: Math.min(b.r0, nr() - 1), c0: 0, r1: Math.min(b.r0, nr() - 1), c1: 0 }; }
+        if (op === 'colLeft') { insCol(b.c0); sel = { r0: b.r0, c0: b.c0, r1: b.r0, c1: b.c0 }; }
+        if (op === 'colRight') { insCol(b.c1 + 1); sel = { r0: b.r0, c0: b.c1 + 1, r1: b.r0, c1: b.c1 + 1 }; }
+        if (op === 'colDel') { if (b.c1 - b.c0 + 1 >= nc()) return fail('ต้องเหลืออย่างน้อย 1 คอลัมน์'); for (let c = b.c1; c >= b.c0; c--) delCol(c); sel = { r0: 0, c0: Math.min(b.c0, nc() - 1), r1: 0, c1: Math.min(b.c0, nc() - 1) }; }
+        if (op === 'merge') {
+          if (b.r0 === b.r1 && b.c0 === b.c1) return fail('เลือกหลายช่องก่อน (Shift + คลิก)');
+          const head = T().rows[b.r0][b.c0], texts = [];
+          cellsIn((c, r, ci) => { if (c.t && c !== head) texts.push(c.t); if (c !== head) { c.t = ''; delete c.cs; delete c.rs; } });
+          if (texts.length) head.t = [head.t, ...texts].filter(Boolean).join(' ');
+          head.cs = b.c1 - b.c0 + 1; head.rs = b.r1 - b.r0 + 1; if (head.cs < 2) delete head.cs; if (head.rs < 2) delete head.rs;
+        }
+        if (op === 'split') cellsIn(c => { delete c.cs; delete c.rs; });
+        if (op.startsWith('al-')) cellsIn(c => { c.al = op.slice(3); });
+        if (op === 'bold') { const on = !T().rows[b.r0][b.c0].b; cellsIn(c => { if (on) c.b = 1; else delete c.b; }); }
+        if (op === 'ital') { const on = !T().rows[b.r0][b.c0].i; cellsIn(c => { if (on) c.i = 1; else delete c.i; }); }
+        if (op === 'clearfmt') cellsIn(c => { ['al', 'b', 'i', 'bg', 'fg'].forEach(k => delete c[k]); });
+        if (op === 'clearall') { if (!(await confirmBox('ล้างข้อมูลทั้งตาราง?', 'ข้อความในทุกช่องจะถูกลบ (โครงสร้างและการออกแบบยังอยู่)', 'ล้างข้อมูล'))) return; T().rows.forEach(r => r.forEach(c => { c.t = ''; })); }
+        if (op === 'paste') {
+          const r = await Swal.fire({ title: 'วางข้อมูลจาก Excel / Google Sheets', input: 'textarea', inputPlaceholder: 'คัดลอกช่วงเซลล์จาก Excel แล้ววาง (Ctrl/⌘+V) ที่นี่', inputAttributes: { rows: 10 },
+            html: '<label style="display:flex;gap:6px;align-items:center;justify-content:center;font-size:14px"><input type="checkbox" id="swRepl" checked> แทนที่ข้อมูลเดิมทั้งตาราง (แถวแรก = หัวตาราง)</label>', showCancelButton: true, confirmButtonText: 'ใส่ข้อมูล', cancelButtonText: 'ยกเลิก', reverseButtons: true,
+            preConfirm: v => ({ v, repl: document.getElementById('swRepl').checked }) });
+          if (!r.isConfirmed || !r.value.v.trim()) return;
+          const data = parseDelimited(r.value.v);
+          if (r.value.repl) { const w = Math.max(...data.map(x => x.length)); it.tb = UB.normTable({ ...T(), rows: data.map(row => Array.from({ length: w }, (_, i) => ({ t: row[i] || '' }))), colW: [], head: 1 }); sel = { r0: 0, c0: 0, r1: 0, c1: 0 }; }
+          else return fillFrom(box().r0, box().c0, data);
+        }
+        redraw();
+      });
+      $$('[data-cellc]', el).forEach(i => i.addEventListener('input', () => { cellsIn(c => { c[i.dataset.cellc] = i.value; }); drawGrid(); paint(); }));
+      $('[data-csv]', el).onchange = async e => {
+        const f = e.target.files[0]; e.target.value = ''; if (!f) return;
+        const data = parseDelimited((await f.text()).replace(/^﻿/, ''));
+        const w = Math.max(...data.map(x => x.length));
+        it.tb = UB.normTable({ ...T(), rows: data.map(row => Array.from({ length: w }, (_, i) => ({ t: row[i] || '' }))), colW: [], head: 1 });
+        sel = { r0: 0, c0: 0, r1: 0, c1: 0 }; redraw(); ok(`นำเข้า ${data.length} แถว`);
+      };
+      $$('[data-sd]', el).forEach(b => b.onclick = () => { side = b.dataset.sd; drawPanel(); });
+      function drawPanel() {
+        $$('[data-sd]', el).forEach(b => b.classList.toggle('on', b.dataset.sd === side));
+        const t = T(), s = t.st, b = box();
+        const seg = (k, list, obj = s, attr = 'tseg') => `<div class="seg flex-wrap">${list.map(([v, l]) => `<button type="button" data-${attr}="${k}" data-v="${v}" class="${String(obj[k]) === String(v) ? 'on' : ''}">${l}</button>`).join('')}</div>`;
+        const col = (k, l, allowT) => `<label class="flex items-center justify-between gap-2 text-sm text-slate-600">${l}<span class="flex items-center gap-1">${allowT ? `<button type="button" class="text-[11px] px-1.5 py-0.5 rounded border ${s[k] === 'transparent' ? 'border-navy-700 text-navy-800' : 'border-slate-300 text-slate-500'}" data-ttr="${k}">โปร่งใส</button>` : ''}<input type="color" class="h-7 w-9 rounded border border-slate-300 cursor-pointer" data-tc="${k}" value="${/^#[0-9a-f]{6}$/i.test(s[k] || '') ? s[k] : '#ffffff'}"></span></label>`;
+        const rg = (k, l, min, max, step = 1, unit = 'px') => `<div><div class="flex justify-between"><label class="lbl !mb-0">${l}</label><span class="text-xs text-slate-500"><span data-tout="${k}">${s[k]}</span>${unit}</span></div><input type="range" class="w-full accent-navy-800" data-tr="${k}" min="${min}" max="${max}" step="${step}" value="${s[k]}"></div>`;
+        const tg = (k, l, obj = s, attr = 'tt') => `<label class="flex items-center justify-between gap-2 text-sm text-slate-700 cursor-pointer py-0.5">${l}<input type="checkbox" class="tgl" data-${attr}="${k}" ${obj[k] ? 'checked' : ''}></label>`;
+        const sec = (title, body, open = true) => `<details class="rounded-xl border border-slate-200 bg-white" ${open ? 'open' : ''}><summary class="px-3 py-2 cursor-pointer text-sm font-semibold text-slate-700 select-none">${title}</summary><div class="px-3 pb-3 space-y-3">${body}</div></details>`;
+        if (side === 'design') panel.innerHTML = `
+          <div><label class="lbl">ธีมสำเร็จรูป</label><div class="grid grid-cols-2 gap-1.5">${UB.TBPRESETS.map(p => `<button type="button" class="flex items-center gap-2 px-2 py-1.5 rounded-lg border border-slate-200 hover:border-navy-400 text-xs text-left" data-tpre="${p.id}"><span class="w-6 h-4 rounded-sm border border-black/10 flex-none" style="background:linear-gradient(${p.s.headBg} 45%,${p.s.stripe ? p.s.stripeBg || '#f8fafc' : p.s.bg || '#fff'} 45%)"></span>${esc(p.name)}</button>`).join('')}</div></div>
+          ${sec('🔤 ตัวอักษร', `<div class="grid grid-cols-2 gap-3"><div><label class="lbl">ฟอนต์</label><select class="inp !py-1.5" data-ts="font"><option value="">ตามเว็บไซต์</option>${UB.FONTS.map(([v, l]) => `<option value="${v}" ${s.font === v ? 'selected' : ''}>${l}</option>`).join('')}</select></div>${rg('size', 'ขนาด', 10, 28)}</div>
+            ${col('color', 'สีตัวอักษร')}<div><label class="lbl">จัดข้อความ (ทั้งตาราง)</label>${seg('align', [['left', 'ซ้าย'], ['center', 'กลาง'], ['right', 'ขวา']])}</div><div><label class="lbl">แนวตั้งในช่อง</label>${seg('vAlign', [['top', 'บน'], ['middle', 'กลาง'], ['bottom', 'ล่าง']])}</div>`)}
+          ${sec('🟦 หัวตาราง', `${col('headBg', 'สีพื้นหัวตาราง')}${col('headFg', 'สีตัวอักษรหัวตาราง')}<div class="grid grid-cols-2 gap-3">${rg('headSize', 'ขนาด (0 = เท่าเนื้อหา)', 0, 32)}<div><label class="lbl">ความหนา</label><select class="inp !py-1.5" data-ts="headWeight">${[400, 500, 600, 700, 800].map(v => `<option ${s.headWeight == v ? 'selected' : ''}>${v}</option>`).join('')}</select></div></div><div><label class="lbl">จัดข้อความหัวตาราง</label>${seg('headAlign', [['left', 'ซ้าย'], ['center', 'กลาง'], ['right', 'ขวา']])}</div>`)}
+          ${sec('▤ พื้นและแถว', `${col('bg', 'สีพื้นตาราง', true)}${tg('stripe', 'แถวสลับสี')}${s.stripe ? col('stripeBg', 'สีแถวสลับ') : ''}${tg('hover', 'ไฮไลต์แถวเมื่อชี้เมาส์')}${s.hover ? col('hoverBg', 'สีไฮไลต์') : ''}
+            ${tg('firstColBold', 'คอลัมน์แรกตัวหนา')}<label class="flex items-center justify-between gap-2 text-sm text-slate-600">สีพื้นคอลัมน์แรก<span class="flex items-center gap-1"><button type="button" class="text-[11px] px-1.5 py-0.5 rounded border border-slate-300 text-slate-500" data-tclr="firstColBg">ไม่ใช้</button><input type="color" class="h-7 w-9 rounded border border-slate-300 cursor-pointer" data-tc="firstColBg" value="${s.firstColBg || '#f1f5f9'}"></span></label>
+            ${t.foot ? `${col('footBg', 'สีพื้นแถวสรุป')}${col('footFg', 'สีตัวอักษรแถวสรุป')}` : ''}`)}
+          ${sec('▦ เส้นขอบ มุม และเงา', `<div><label class="lbl">เส้นขอบ</label>${seg('border', [['all', 'ทุกช่อง'], ['rows', 'เส้นแนวนอน'], ['cols', 'เส้นแนวตั้ง'], ['outer', 'กรอบนอก'], ['none', 'ไม่มี']])}</div>
+            ${s.border !== 'none' ? `<div class="grid grid-cols-2 gap-3">${rg('bw', 'ความหนาเส้น', 1, 6)}<div class="flex items-end">${col('bc', 'สีเส้น')}</div></div>` : ''}
+            <div class="grid grid-cols-2 gap-3">${rg('radius', 'มุมมน', 0, 32)}${rg('pad', 'ระยะในช่อง', 2, 28)}</div><div><label class="lbl">เงา</label>${seg('shadow', [['none', 'ไม่มี'], ['soft', 'อ่อน'], ['md', 'กลาง'], ['strong', 'เข้ม']])}</div>${rg('minColW', 'ความกว้างคอลัมน์ขั้นต่ำ', 0, 300)}`)}
+          ${t.caption ? sec('🏷 ชื่อตาราง', `${col('capColor', 'สี')}<div class="grid grid-cols-2 gap-3">${rg('capSize', 'ขนาด', 12, 40)}<div><label class="lbl">ความหนา</label><select class="inp !py-1.5" data-ts="capWeight">${[400, 600, 700, 800].map(v => `<option ${s.capWeight == v ? 'selected' : ''}>${v}</option>`).join('')}</select></div></div><div>${seg('capAlign', [['left', 'ซ้าย'], ['center', 'กลาง'], ['right', 'ขวา']])}</div>`, false) : ''}`;
+        else panel.innerHTML = `
+          ${sec('📌 หัวและท้ายตาราง', `<div><label class="lbl">จำนวนแถวหัวตาราง</label>${seg('head', [[0, 'ไม่มี'], [1, '1 แถว'], [2, '2 แถว'], [3, '3 แถว']], t, 'tbs')}</div>
+            ${tg('headCol', 'คอลัมน์แรกเป็นหัวแถว', t, 'tbt')}${tg('foot', 'แถวสุดท้ายเป็นแถวสรุป / รวม', t, 'tbt')}`)}
+          ${sec('🏷 ชื่อและหมายเหตุ', `<div><label class="lbl">ชื่อตาราง (แสดงด้านบน · เว้นว่างได้)</label><input class="inp" data-tbx="caption" value="${esc(t.caption)}" placeholder="เช่น ตารางนัดพิจารณาคดี ประจำเดือน"></div>
+            <div><label class="lbl">หมายเหตุใต้ตาราง</label><input class="inp" data-tbx="note" value="${esc(t.note)}" placeholder="เช่น ข้อมูล ณ วันที่ ..."></div>`)}
+          ${sec('⚡ ฟังก์ชัน', `${tg('search', 'ช่องค้นหาในตาราง', t, 'tbt')}${tg('sort', 'คลิกหัวคอลัมน์เพื่อเรียงลำดับ', t, 'tbt')}${tg('sticky', 'หัวตารางติดด้านบนเมื่อเลื่อน', t, 'tbt')}${tg('wrap', 'ตัดขึ้นบรรทัดใหม่เมื่อข้อความยาว', t, 'tbt')}
+            <div><label class="lbl">ความสูงสูงสุด (0 = ไม่จำกัด · เกินแล้วเลื่อนดูในตาราง)</label><input type="number" class="inp" data-tbn="maxH" min="0" max="4000" value="${t.maxH}"></div>
+            <p class="text-xs text-slate-500">บนจอเล็ก ตารางกว้างจะเลื่อนซ้าย–ขวาได้อัตโนมัติ · ในผืนผ้าใบอิสระ ความสูงตามกรอบที่ลากปรับ</p>`)}
+          ${sec('↔ ความกว้างคอลัมน์', `<p class="text-xs text-slate-500">ใส่เป็นสัดส่วน เช่น 1, 3, 2 (0 = อัตโนมัติ) · คอลัมน์ที่เลือกอยู่: <b>${String.fromCharCode(65 + b.c0)}</b></p>
+            <div class="grid grid-cols-4 gap-2">${t.colW.map((v, c) => `<label class="text-xs text-slate-500 ${c >= b.c0 && c <= b.c1 ? 'font-bold text-navy-800' : ''}">${String.fromCharCode(65 + (c % 26))}<input type="number" class="inp !py-1 !px-2" min="0" max="2000" data-cw="${c}" value="${v}"></label>`).join('')}</div>`)}`;
+        const set = (k, v) => { T().st[k] = v; const o = $(`[data-tout="${k}"]`, panel); if (o) o.textContent = v; paint(); };
+        $$('[data-tr]', panel).forEach(i => i.addEventListener('input', () => set(i.dataset.tr, Number(i.value))));
+        $$('[data-tc]', panel).forEach(i => i.addEventListener('input', () => set(i.dataset.tc, i.value)));
+        $$('[data-ts]', panel).forEach(i => i.addEventListener('change', () => { set(i.dataset.ts, i.dataset.ts === 'font' ? i.value : Number(i.value)); }));
+        $$('[data-tt]', panel).forEach(i => i.addEventListener('change', () => { T().st[i.dataset.tt] = i.checked; paint(); drawPanel(); }));
+        $$('[data-tseg]', panel).forEach(b => b.onclick = () => { T().st[b.dataset.tseg] = b.dataset.v; paint(); drawPanel(); });
+        $$('[data-ttr]', panel).forEach(b => b.onclick = () => { T().st[b.dataset.ttr] = 'transparent'; paint(); drawPanel(); });
+        $$('[data-tclr]', panel).forEach(b => b.onclick = () => { T().st[b.dataset.tclr] = ''; paint(); drawPanel(); });
+        $$('[data-tpre]', panel).forEach(b => b.onclick = () => { const p = UB.TBPRESETS.find(x => x.id === b.dataset.tpre); T().st = { ...UB.TBDEF, font: T().st.font, size: T().st.size, ...p.s }; it.tb = UB.normTable(T()); paint(); drawPanel(); });
+        $$('[data-tbs]', panel).forEach(b => b.onclick = () => { T().head = Math.min(nr(), Number(b.dataset.v)); it.tb = UB.normTable(T()); redraw(); });
+        $$('[data-tbt]', panel).forEach(i => i.addEventListener('change', () => { T()[i.dataset.tbt] = i.checked; it.tb = UB.normTable(T()); drawGrid(); paint(); drawPanel(); }));
+        $$('[data-tbx]', panel).forEach(i => i.addEventListener('input', () => { T()[i.dataset.tbx] = i.value; paint(); }));
+        $$('[data-tbx]', panel).forEach(i => i.addEventListener('change', () => drawPanel()));
+        $$('[data-tbn]', panel).forEach(i => i.addEventListener('input', () => { T()[i.dataset.tbn] = Number(i.value) || 0; paint(); }));
+        $$('[data-cw]', panel).forEach(i => i.addEventListener('input', () => { T().colW[+i.dataset.cw] = Math.max(0, Number(i.value) || 0); drawGrid(); paint(); }));
+      }
+      redraw();
+      $('[data-apply]', el).onclick = () => { it.tb = UB.normTable(T()); onDone(it); close(); };
+    },
+  });
+}
+
 /* ---------------- ตัวออกแบบภาพ (ผืนผ้าใบอิสระ) ---------------- */
 const IMG_LABEL = {
   fit: [['cover', 'เต็มกรอบ'], ['contain', 'แสดงครบ'], ['fill', 'ยืดเต็ม']],
@@ -876,6 +1082,7 @@ function mountCanvas(host, w, hooks) {
       <button class="btn btn-light btn-sm" data-add="text">${icon('text', 'w-3.5 h-3.5')} ข้อความ</button>
       <button class="btn btn-light btn-sm" data-add="image">${icon('image', 'w-3.5 h-3.5')} ภาพ</button>
       <button class="btn btn-light btn-sm" data-add="pdf">${icon('file', 'w-3.5 h-3.5')} PDF</button>
+      <button class="btn btn-light btn-sm" data-add="table">${icon('table', 'w-3.5 h-3.5')} ตาราง</button>
       <span class="w-px h-6 bg-slate-200 mx-1"></span>
       <label class="flex items-center gap-1.5 text-xs text-slate-600"><input type="checkbox" class="tgl !w-8 !h-[18px] after:!w-3 after:!h-3" data-grid checked> เส้นตาราง</label>
       <label class="flex items-center gap-1.5 text-xs text-slate-600"><input type="checkbox" class="tgl !w-8 !h-[18px] after:!w-3 after:!h-3" data-snap checked> ยึดตามตาราง</label>
@@ -910,6 +1117,7 @@ function mountCanvas(host, w, hooks) {
     else if (it.type === 'video') inner = `<div class="w-full h-full grid place-items-center bg-slate-900 text-white" style="border-radius:${w.radius}px">${icon('video', 'w-10 h-10')}</div>`;
     else if (it.type === 'text') { ensureFont(it.ts && it.ts.font); inner = UB.textHtml(it.ts, { cw: W() }); }
     else if (it.type === 'divider') inner = `<div class="h-full flex flex-col justify-center">${UB.dividerHtml(it.ts, { cw: W() })}</div>`;
+    else if (it.type === 'table') { ensureFont(it.tb && it.tb.st && it.tb.st.font); inner = UB.tableHtml(it, { cw: W(), fill: true }); }
     else if (it.type === 'pdf') inner = `<div class="w-full h-full flex flex-col rounded-lg overflow-hidden border border-slate-300 bg-slate-200"><div class="flex items-center gap-1.5 px-2 py-1 bg-slate-800 text-white text-xs flex-none" style="font-size:calc(var(--hs) * .95)">📄 <span class="truncate">${esc(it.title || 'PDF')}</span></div><div class="flex-1 relative overflow-hidden bg-white" data-pdfthumb="${esc(it.src)}" data-pages><div class="absolute inset-0 grid place-items-center text-slate-400 text-xs">กำลังโหลดตัวอย่าง PDF…</div></div></div>`;
     else if (it.type === 'spacer') inner = `<div class="w-full h-full border border-dashed border-slate-400/70"></div>`;
     else inner = `<div class="w-full h-full overflow-hidden">${it.html}</div>`;
@@ -952,6 +1160,7 @@ function mountCanvas(host, w, hooks) {
       <button class="btn btn-light btn-sm" data-act="edit">${icon('edit', 'w-3.5 h-3.5')} แก้ไข</button>
       ${it.type === 'button' ? `<button class="btn btn-light btn-sm" data-act="design">🎨 ออกแบบ</button>` : ''}
       ${it.type === 'image' ? `<button class="btn btn-sm ${it.fx ? 'btn-gold' : 'btn-light'}" data-act="imgfx">🎨 ปรับแต่งภาพ</button>` : ''}
+      ${it.type === 'table' ? `<button class="btn btn-sm btn-gold" data-act="table">${icon('table', 'w-3.5 h-3.5')} แก้ไขตาราง</button>` : ''}
       <button class="btn btn-sm ${it.enter ? 'btn-gold' : 'btn-light'}" data-act="enter" title="แอนิเมชันตอนเลื่อนมาถึง">✨ แอนิเมชัน</button>
       <button class="btn btn-light btn-sm" data-act="front" title="นำมาไว้หน้าสุด">⬆ หน้า</button><button class="btn btn-light btn-sm" data-act="back" title="ส่งไปหลังสุด">⬇ หลัง</button>
       <button class="btn btn-light btn-sm" data-act="dup">${icon('copy', 'w-3.5 h-3.5')}</button>
@@ -974,6 +1183,7 @@ function mountCanvas(host, w, hooks) {
     if (a === 'edit') return hooks.edit(it);
     if (a === 'design') return hooks.design(it);
     if (a === 'imgfx') return designImage(it, n => { Object.assign(it, n); if (!n.fx) delete it.fx; if (!n.enter) delete it.enter; hooks.change(); });
+    if (a === 'table') return editTable(it, n => { Object.assign(it, n); hooks.change(); });
     if (a === 'enter') return editEnter(it, e => { if (e) it.enter = e; else delete it.enter; hooks.change(); });
     hooks.change();
   }
@@ -984,6 +1194,10 @@ function mountCanvas(host, w, hooks) {
     if (type === 'image') {
       const url = await pickMedia('image'); if (!url) return;
       it = { ...base, type: 'image', src: url, full: true, title: fileTitle(url), pos: { x: g, y: g, w: snap(320), h: snap(200), z: n + 1, locked: false } };
+    } else if (type === 'table') {
+      it = { ...base, type: 'table', title: 'ตาราง', tb: newTable(), pos: { x: g, y: g, w: snap(640), h: snap(260), z: n + 1, locked: false } };
+      const off = (n % 6) * g; it.pos.x += off; it.pos.y += off; clampPos(it.pos);
+      return editTable(it, done => { w.items.push(done); sel = done.id; hooks.change(); });
     } else if (type === 'pdf') {
       const url = await pickMedia('pdf'); if (!url) return;
       it = { ...itemFromUpload({ url }), pos: { x: g, y: g, w: snap(480), h: snap(620), z: n + 1, locked: false } };
@@ -1047,7 +1261,7 @@ function mountCanvas(host, w, hooks) {
   const endDrag = () => { if (drag && drag.moved) hooks.change(); else if (drag) drawSel(); drag = null; const t = $('.cv-tip', cv); if (t) t.remove(); };
   cv.addEventListener('pointerup', endDrag); cv.addEventListener('pointercancel', endDrag);
   // pointer capture ทำให้ target ของ dblclick เป็นผืนผ้าใบ จึงใช้ชิ้นงานที่ถูกกดล่าสุดแทน
-  cv.addEventListener('dblclick', () => { const it = lastDown && byId(lastDown); if (!it) return; it.type === 'button' ? hooks.design(it) : it.type === 'image' ? act('imgfx') : hooks.edit(it); });
+  cv.addEventListener('dblclick', () => { const it = lastDown && byId(lastDown); if (!it) return; it.type === 'button' ? hooks.design(it) : it.type === 'image' ? act('imgfx') : it.type === 'table' ? act('table') : hooks.edit(it); });
   wrap.addEventListener('keydown', e => {
     const it = sel && byId(sel); if (!it || /INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)) return;
     const step = e.shiftKey ? 1 : G();
@@ -1146,6 +1360,7 @@ const TYPE_META = {
   video: { name: 'วีดีโอ', ic: 'video', cls: 'bg-rose-50 text-rose-700' },
   button: { name: 'ปุ่มลิงก์', ic: 'link', cls: 'bg-emerald-50 text-emerald-700' },
   pdf: { name: 'PDF', ic: 'file', cls: 'bg-rose-50 text-rose-700' },
+  table: { name: 'ตาราง', ic: 'table', cls: 'bg-cyan-50 text-cyan-700' },
   text: { name: 'ข้อความ', ic: 'text', cls: 'bg-amber-50 text-amber-700' },
   divider: { name: 'เส้นคั่น', ic: 'minus', cls: 'bg-slate-100 text-slate-600' },
   spacer: { name: 'ช่องว่าง', ic: 'menu', cls: 'bg-slate-100 text-slate-500' },
@@ -1657,7 +1872,7 @@ async function viewWidgetEditor(id) {
 
     $('#addBtn').onclick = () => $('#addMenu').classList.toggle('hidden');
     $('#addClose').onclick = () => $('#addMenu').classList.add('hidden');
-    $$('[data-add]', P).forEach(b => b.onclick = () => editItem({ id: rid(), type: b.dataset.add, title: '', subtitle: '', src: '', link: '', newTab: true, icon: '', btnStyle: 'primary', html: '', active: true, start: '', end: '', ...(TEXTY.includes(b.dataset.add) ? { ts: UB.normText(b.dataset.add === 'text' ? { ...UB.TPRESETS.find(p => p.id === 'h2').s, content: 'หัวข้อ / ข้อความ' } : b.dataset.add === 'divider' ? { color: '#cbd5e1' } : {}) } : {}) }, true));
+    $$('[data-add]', P).forEach(b => b.onclick = () => editItem({ id: rid(), type: b.dataset.add, title: '', subtitle: '', src: '', link: '', newTab: true, icon: '', btnStyle: 'primary', html: '', active: true, start: '', end: '', ...(b.dataset.add === 'table' ? { title: 'ตาราง', tb: newTable() } : {}), ...(TEXTY.includes(b.dataset.add) ? { ts: UB.normText(b.dataset.add === 'text' ? { ...UB.TPRESETS.find(p => p.id === 'h2').s, content: 'หัวข้อ / ข้อความ' } : b.dataset.add === 'divider' ? { color: '#cbd5e1' } : {}) } : {}) }, true));
     $('#bulkUp').onchange = async e => {
       const files = [...e.target.files]; e.target.value = '';
       if (!files.length) return;
@@ -1727,6 +1942,7 @@ async function viewWidgetEditor(id) {
         const F = $('[data-form]', el);
         const draw = () => {
           const t = it.type;
+          if (t === 'table' && !it.tb) it.tb = newTable();
           if (t === 'pdf') it.pdf = Object.assign({ mode: 'single', h: 640, hM: 0, bar: true, dl: true }, it.pdf || {});
           F.innerHTML = `<div class="space-y-4">
             <div><label class="lbl">ประเภท</label><div class="seg flex-wrap">${Object.entries(TYPE_META).map(([k, mm]) => `<button data-ty="${k}" class="${t === k ? 'on' : ''} flex items-center justify-center gap-1.5">${icon(mm.ic, 'w-3.5 h-3.5')} ${mm.name}</button>`).join('')}</div></div>
@@ -1738,6 +1954,9 @@ async function viewWidgetEditor(id) {
             ${t === 'video' ? `<div><label class="lbl">วีดีโอ</label><div class="flex gap-2"><input class="inp text-sm" data-f="src" value="${esc(it.src)}" placeholder="ลิงก์ YouTube / Facebook หรือไฟล์ .mp4"><button class="btn btn-primary btn-sm" data-pick="video">${icon('upload', 'w-3.5 h-3.5')} อัปโหลด</button></div>
               <p class="text-xs text-slate-500 mt-1">รองรับ youtube.com/watch?v=..., youtu.be/..., YouTube Shorts, วีดีโอ Facebook และไฟล์ mp4/webm</p>
               <div class="mt-2"><label class="lbl">ภาพหน้าปก (เฉพาะไฟล์วีดีโอ — ไม่บังคับ)</label><div class="flex gap-2"><input class="inp text-xs font-mono" data-f="poster" value="${esc(it.poster || '')}"><button class="btn btn-light btn-sm" data-pick="poster">${icon('media', 'w-3.5 h-3.5')}</button></div></div></div>` : ''}
+            ${t === 'table' ? `<div class="p-3 rounded-xl border border-slate-200 bg-slate-50 space-y-2">
+              <div class="flex items-center justify-between"><label class="lbl !mb-0">ตาราง ${it.tb ? `(${it.tb.rows.length} แถว × ${it.tb.rows[0].length} คอลัมน์)` : ''}</label><button class="btn btn-primary btn-sm" data-tbedit>${icon('table', 'w-3.5 h-3.5')} แก้ไขข้อมูล / ออกแบบตาราง</button></div>
+              <div class="bg-white rounded-lg border border-slate-200 p-3 overflow-auto" style="max-height:260px">${UB.tableHtml(it)}</div></div>` : ''}
             ${t === 'pdf' ? `<div><label class="lbl">ไฟล์ PDF</label>
               <div class="flex gap-3 items-start"><div class="w-28 aspect-[3/4] rounded-lg overflow-hidden border border-slate-200 bg-white relative flex-none" ${it.src ? `data-pdfthumb="${esc(it.src)}" data-pages` : ''}>${icon('file', 'w-7 h-7 text-slate-300 m-auto mt-10')}</div>
               <div class="flex-1 space-y-2"><button class="btn btn-primary btn-sm w-full" data-pick="pdf">${icon('upload', 'w-3.5 h-3.5')} เลือก / อัปโหลด PDF</button><input class="inp text-xs font-mono" data-f="src" value="${esc(it.src)}" placeholder="หรือวาง URL ไฟล์ .pdf">
@@ -1764,7 +1983,7 @@ async function viewWidgetEditor(id) {
             ${t === 'image' && w.items.some(i => i.type === 'button' && i.id !== it.id) ? `<div class="p-3 rounded-xl bg-amber-50 border border-amber-200 text-sm text-amber-900 flex items-center gap-3">
               <span class="flex-1">รายการนี้เป็น <b>การ์ดภาพ</b> จึงแสดงเป็นภาพเต็มการ์ด ถ้าต้องการให้เป็นปุ่มมีโลโก้ + ข้อความเหมือนปุ่มอื่น</span>
               <button class="btn btn-primary btn-sm" data-tologo>แปลงเป็นปุ่มโลโก้</button></div>` : ''}
-            ${t !== 'html' && t !== 'divider' && t !== 'spacer' ? `<div class="p-3 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
+            ${!['html', 'divider', 'spacer', 'table'].includes(t) ? `<div class="p-3 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
               <label class="lbl !mb-0">${icon('link', 'w-3.5 h-3.5 inline')} ${t === 'text' ? 'ลิงก์เมื่อคลิกทั้งกล่องข้อความ' : 'ลิงก์เมื่อคลิก'} ${t === 'video' ? '(ไม่ใช้กับวีดีโอ)' : '(ไม่บังคับ)'}</label>
               ${t === 'image' ? `<label class="flex items-center justify-between gap-2 p-2 rounded-lg bg-white border border-slate-200 text-sm text-slate-700 cursor-pointer"><span>${icon('ext', 'w-3.5 h-3.5 inline')} <b>คลิกเพื่อเปิดภาพขนาดเต็ม</b> (ลิงก์ไปไฟล์ภาพต้นฉบับ · ใช้เมื่อไม่ได้ใส่ลิงก์อื่น)</span><input type="checkbox" class="tgl" data-f="full" ${it.full ? 'checked' : ''}></label>` : ''}
               ${t === 'pdf' ? '<p class="text-xs text-slate-500">PDF มีปุ่ม “เปิดเต็มจอ” ในตัวแสดงตัวอย่างอยู่แล้ว ลิงก์นี้ไม่จำเป็น</p>' : ''}
@@ -1805,6 +2024,7 @@ async function viewWidgetEditor(id) {
             draw();
           });
           const pp = $('[data-pp]', F); if (pp) pp.onclick = async () => { const s = await choosePage(); if (s) { it.link = `/p/${s}`; it.newTab = false; draw(); } };
+          const tbe = $('[data-tbedit]', F); if (tbe) tbe.onclick = () => editTable(it, n => { it.tb = n.tb; draw(); });
           $$('[data-pm]', F).forEach(b => b.onclick = () => { it.pdf.mode = b.dataset.pm; draw(); });
           $$('[data-pf]', F).forEach(i => i.addEventListener('input', () => { it.pdf[i.dataset.pf] = Number(i.value) || 0; }));
           $$('[data-pfc]', F).forEach(i => i.addEventListener('change', () => { it.pdf[i.dataset.pfc] = i.checked; }));
@@ -1819,6 +2039,7 @@ async function viewWidgetEditor(id) {
           if (it.type === 'pdf' && !it.src) return Swal.fire({ icon: 'warning', title: 'กรุณาเลือกไฟล์ PDF', confirmButtonText: 'ตกลง' });
           if (it.type === 'text' && !String(it.ts.content || '').trim()) return Swal.fire({ icon: 'warning', title: 'กรุณาพิมพ์ข้อความ', confirmButtonText: 'ตกลง' });
           if (!TEXTY.includes(it.type)) delete it.ts;
+          if (it.type !== 'table') delete it.tb;
           if (it.start && it.end && it.start > it.end) return Swal.fire({ icon: 'warning', title: 'วันเริ่มต้องไม่เกินวันสิ้นสุด', confirmButtonText: 'ตกลง' });
           if (isNew) { if (w.layout === 'canvas' && !it.pos) { const g = w.gridSize || 20; it.pos = { x: g, y: g, w: it.type === 'button' ? 240 : it.type === 'text' ? 400 : 320, h: it.type === 'button' ? 60 : it.type === 'text' ? 80 : TEXTY.includes(it.type) ? 40 : 200, z: w.items.length + 1, locked: false }; } w.items.push(it); } else w.items[idx] = it;
           close(); markDirty(); drawPanel();

@@ -561,12 +561,13 @@ function carCfg(w) {
   };
 }
 function normItem(i) {
-  const type = ['image', 'video', 'button', 'html', 'text', 'divider', 'spacer', 'pdf'].includes(i.type) ? i.type : 'image';
+  const type = ['image', 'video', 'button', 'html', 'text', 'divider', 'spacer', 'pdf', 'table'].includes(i.type) ? i.type : 'image';
   return {
     id: i.id || uid(), type,
     title: String(i.title || '').slice(0, 300), subtitle: String(i.subtitle || '').slice(0, 500),
     src: safeUrl(i.src), poster: safeUrl(i.poster), link: safeUrl(i.link), newTab: i.newTab !== false, full: !!i.full,
     pdf: type === 'pdf' ? normPdf(i.pdf) : undefined,
+    tb: type === 'table' ? UB.normTable(i.tb) : undefined,
     iconImg: safeUrl(i.iconImg), link2: safeUrl(i.link2), link2Text: String(i.link2Text || '').slice(0, 120),
     iconFa: safeFa(i.iconFa), style: i.style && typeof i.style === 'object' ? UB.norm(i.style) : null,
     pos: i.pos && typeof i.pos === 'object' ? { x: clamp(i.pos.x, 0, 4000, 0), y: clamp(i.pos.y, 0, 4000, 0), w: clamp(i.pos.w, 4, 4000, 200), h: clamp(i.pos.h, 4, 4000, 60), z: clamp(i.pos.z, 0, 999, 1), locked: !!i.pos.locked } : null,
@@ -700,7 +701,8 @@ a.uw-card:hover{transform:translateY(-2px)}.uw.shadow a.uw-card:hover{box-shadow
 .upd-view canvas{display:block;max-width:100%;height:auto;background:#fff;box-shadow:0 2px 10px rgba(15,23,42,.18)}
 .upd-view iframe{flex:1;width:100%;border:0;background:#fff}
 .upd-msg{margin:auto;color:#475569;font-size:13px;text-align:center;padding:12px}.upd-msg a{color:#1d4ed8;text-decoration:underline!important}
-.uw-grid>.upd-card,.uw-list>.uw-row-pdf{grid-column:1/-1}.upd-card{padding:0;overflow:visible;background:transparent;box-shadow:none}
+.uw-grid>.upd-card,.uw-list>.uw-row-pdf,.uw-grid>.uw-tbl,.uw-list>.uw-tbl{grid-column:1/-1}.uw-tbl{min-width:0}
+.uc.stack .uc-el.t-table{aspect-ratio:auto!important;height:auto!important}.uc.stack .uc-el.t-table .utb-w.fill{height:auto}.upd-card{padding:0;overflow:visible;background:transparent;box-shadow:none}
 .uw-btn{display:flex;align-items:center;justify-content:center;gap:10px;min-height:52px;padding:12px 18px;border-radius:var(--radius);font-weight:600;text-decoration:none;text-align:center;transition:all .2s;line-height:1.35;height:100%}
 .uw-btn .ic{font-size:1.25em}.uw-btn small{display:block;font-weight:400;opacity:.8;font-size:.8rem}
 .uw-btn.primary{background:var(--accent);color:#fff}.uw-btn.primary:hover{filter:brightness(1.12)}
@@ -808,6 +810,7 @@ function linkAttrs(it) { return `href="${esc(it.link)}"${it.newTab ? ' target="_
 function cardHtml(it, w) {
   if (!w.lightbox) it = withFull(it);
   if (it.type === 'pdf') return `<div class="uw-card upd-card">${pdfHtml(it)}</div>`;
+  if (it.type === 'table') return `<div class="uw-tbl">${UB.tableHtml(it)}</div>`;
   const ratioCls = ratioVal(w) === 'auto' || (w.layout === 'carousel' && carCfg(w).hMode !== 'ratio') ? ' auto' : '';
   const capOverlay = w.captionPos === 'overlay' && it.type === 'image';
   const cap = (w.showCaption && (it.title || it.subtitle))
@@ -843,6 +846,7 @@ function btnHtml(it, w, cw) {
 function rowHtml(it, w) {
   it = withFull(it);
   if (it.type === 'pdf') return `<div class="uw-row-pdf">${pdfHtml(it)}</div>`;
+  if (it.type === 'table') return `<div class="uw-tbl">${UB.tableHtml(it)}</div>`;
   if (it.type === 'video') return `<div class="uw-row video"><div class="uw-media" style="aspect-ratio:16/9">${videoHtml(it.src, it.poster)}</div>${it.title ? `<div class="uw-cap"><b>${esc(it.title)}</b>${it.subtitle ? `<small>${esc(it.subtitle)}</small>` : ''}</div>` : ''}</div>`;
   if (it.type === 'html') return `<div class="uw-html">${it.html}</div>`;
   if (TEXTY.includes(it.type)) return textItemHtml(it);
@@ -868,6 +872,7 @@ function canvasHtml(items, w) {
         inner = it.link ? `<a ${linkAttrs(it)} class="uc-img">${img}</a>` : img;
       } else if (it.type === 'video') inner = `<div class="uw-media" style="height:100%;border-radius:${w.radius}px">${videoHtml(it.src, it.poster)}</div>`;
       else if (it.type === 'pdf') inner = pdfHtml(it, { fill: true });
+      else if (it.type === 'table') inner = UB.tableHtml(it, { cw: W, fill: true });
       else if (TEXTY.includes(it.type)) inner = it.type === 'text' ? textItemHtml(it, W) : it.type === 'divider' ? UB.dividerHtml(it.ts, { cw: W }) : '';
       else inner = `<div class="uw-html">${it.html}</div>`;
       const en = it.enter && it.enter.type ? ` data-enter="${it.enter.type}"` : '', ev = en ? `;--edel:${it.enter.delay}ms;--edur:${it.enter.dur}ms` : '';
@@ -946,6 +951,13 @@ function runtimeJs(rootExpr, embed) {
     }).catch(function(){pdfFallback(box,url);});}
   var pdfs=R.querySelectorAll('.upd[data-pdf]');
   if(pdfs.length){if('IntersectionObserver' in window){var pio=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting){pio.unobserve(e.target);initPdf(e.target);}});},{rootMargin:'200px'});[].forEach.call(pdfs,function(b){pio.observe(b);});}else [].forEach.call(pdfs,initPdf);}
+  [].forEach.call(R.querySelectorAll('.utb-w'),function(w){var tb=w.querySelector('tbody');if(!tb)return;
+    var q=w.querySelector('.utb-q');if(q)q.addEventListener('input',function(){var v=q.value.trim().toLowerCase();[].forEach.call(tb.rows,function(r){r.classList.toggle('utb-hide',!!v&&r.textContent.toLowerCase().indexOf(v)<0);});});
+    if(!w.hasAttribute('data-sort'))return;var hr=w.querySelector('thead tr:last-child');if(!hr)return;
+    [].forEach.call(hr.cells,function(th,ci){th.addEventListener('click',function(){var dir=th.getAttribute('aria-sort')==='ascending'?-1:1;[].forEach.call(hr.cells,function(x){x.removeAttribute('aria-sort');});th.setAttribute('aria-sort',dir>0?'ascending':'descending');
+      var rows=[].slice.call(tb.rows),key=function(r){var t=(r.cells[ci]?r.cells[ci].textContent:'').trim(),n=parseFloat(t.replace(/[,\s฿%]/g,''));return isNaN(n)?t:n;};
+      rows.sort(function(a,b){var x=key(a),y=key(b);return (typeof x==='number'&&typeof y==='number'?x-y:String(x).localeCompare(String(y),'th'))*dir;});rows.forEach(function(r){tb.appendChild(r);});});});
+  });
   var ens=R.querySelectorAll('[data-enter]');[].forEach.call(ens,function(e){e.parentElement&&e.parentElement.classList.add('uw-js');});
   if(ens.length){if('IntersectionObserver' in window){var io=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting){e.target.classList.add('in');io.unobserve(e.target);}});},{threshold:.15});[].forEach.call(ens,function(e){io.observe(e);});}else [].forEach.call(ens,function(e){e.classList.add('in');});}
   [].forEach.call(R.querySelectorAll('.uim[data-tilt]'),function(el){
@@ -1062,6 +1074,7 @@ function exportWidget(w, { base, full = false, font = true, inline = true }) {
   const bg = w.bg === 'transparent' ? 'transparent' : w.bg;
   const reset = `${scope}{container-name:uwx;container-type:inline-size;display:block;background:${bg};font-family:'Sarabun',system-ui,-apple-system,'Segoe UI',Tahoma,sans-serif;color:#1e293b;line-height:1.5;text-align:left}
 ${scope} :where(div,a,span,h2,img,i,small,b,button,video,iframe){border:0;box-shadow:none;margin:0;outline:0;float:none;text-transform:none;letter-spacing:normal;text-shadow:none;max-width:none;min-height:0}
+${scope} :where(table,thead,tbody,tfoot,tr,th,td,caption,colgroup,col){border:0;box-shadow:none;margin:0;background-image:none;text-transform:none;letter-spacing:normal;text-shadow:none;float:none}${scope} :where(table){border-collapse:separate;border-spacing:0}${scope} :where(input){margin:0;box-shadow:none}
 ${scope} a,${scope} a:hover,${scope} a:visited,${scope} a:focus{text-decoration:none!important}
 ${scope} a.ub,${scope} a.ub:visited{color:var(--fg)!important}${scope} a.ub.h-invert:hover{color:var(--ivfg)!important}
 ${scope} a.uw-row,${scope} a.uw-card,${scope} a.uw-ml,${scope} a.uw-row:visited,${scope} a.uw-card:visited,${scope} a.uw-ml:visited{color:inherit!important}
@@ -1071,7 +1084,7 @@ ${scope} h2.uw-title{font-size:1.15rem;font-weight:700;color:var(--accent);paddi
   const css = reset + scopeCss(WIDGET_CSS + UB.CSS, scope);
   const html = abs(renderWidgetInner(w, { full }));
   let js = '';
-  if (/uw-car|ut-bar|data-lb|data-tilt|data-enter|data-pdf/.test(html)) js = `\n<script>${runtimeJs(`document.getElementById('${id}')`, false)}</script>`;
+  if (/uw-car|ut-bar|data-lb|data-tilt|data-enter|data-pdf|utb-q|data-sort/.test(html)) js = `\n<script>${runtimeJs(`document.getElementById('${id}')`, false)}</script>`;
   const links = [font ? '<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700&display=swap">' : '',
     needsFa(w) ? `<link rel="stylesheet" href="${UB.FA_CSS}">` : '',
     UB.fontUrl(widgetFonts(w)) ? `<link rel="stylesheet" href="${UB.fontUrl(widgetFonts(w))}">` : ''].filter(Boolean).join('\n');
@@ -1094,7 +1107,7 @@ ${links ? links + '\n' : ''}<style>${css}</style>
   if (code.length > 1.5 * 1048576) warnings.push(`โค้ดมีขนาด ${(code.length / 1048576).toFixed(1)} MB — ระบบจัดการเนื้อหาบางระบบจำกัดขนาด ถ้าวางไม่ได้ให้ย่อภาพหรือแยกส่งออกทีละส่วน`);
   return { code, bytes: Buffer.byteLength(code), warnings, id };
 }
-function widgetFonts(w) { return [w, ...tabChildren(w)].flatMap(x => (x.items || []).flatMap(i => [i.style && i.style.font, i.ts && i.ts.font])).filter(Boolean); }
+function widgetFonts(w) { return [w, ...tabChildren(w)].flatMap(x => (x.items || []).flatMap(i => [i.style && i.style.font, i.ts && i.ts.font, i.tb && i.tb.st && i.tb.st.font])).filter(Boolean); }
 function needsFa(w) { return [w, ...tabChildren(w)].some(x => (x.items || []).some(i => i.iconFa || (i.ts && i.ts.iconFa)) || (x.tabs || []).some(t => t.iconFa)); }
 function renderWidgetDoc(w, opts = {}) {
   return `<!DOCTYPE html><html lang="th"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
