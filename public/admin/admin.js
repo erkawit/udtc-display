@@ -514,6 +514,43 @@ function showEmbed(w) {
   });
 }
 
+/** นำหน้าเว็บเผยแพร่ไปใช้: ลิงก์ + โค้ด iframe (เลือกได้ว่าจะแสดงหัวเรื่อง/พื้นหลัง) */
+function showPageShare(p) {
+  const opt = { title: true, bg: true, h: 900 };
+  const box = (label, val, hint) => `<div><div class="flex items-center justify-between mb-1.5"><label class="lbl !mb-0">${label}</label><button class="btn btn-light btn-sm" data-cp="${esc(val)}">${icon('copy', 'w-3.5 h-3.5')} คัดลอก</button></div>
+    <textarea readonly class="inp font-mono text-xs !bg-slate-50" rows="${val.split('\n').length + (val.length > 120 ? 2 : 0)}">${esc(val)}</textarea>${hint ? `<p class="text-xs text-slate-500 mt-1">${hint}</p>` : ''}</div>`;
+  const codes = () => {
+    const link = `${ORIGIN}/p/${p.slug}`, q = `?embed=1${opt.title ? '' : '&title=0'}${opt.bg ? '' : '&bg=0'}`, src = link + q, t = esc(p.title);
+    return { link, src,
+      auto: `<iframe src="${src}" title="${t}" data-uw-embed style="width:100%;border:0;display:block" height="${opt.h}" loading="lazy"></iframe>\n<script src="${ORIGIN}/assets/embed.js"></script>`,
+      fixed: `<iframe src="${src}" title="${t}" style="width:100%;border:0;display:block" height="${opt.h}" loading="lazy"></iframe>`,
+      full: `<iframe src="${link}" title="${t}" style="position:fixed;inset:0;width:100%;height:100%;border:0;z-index:9999"></iframe>` };
+  };
+  openModal({
+    title: `นำหน้าเว็บไปใช้ — ${esc(p.title)}`, size: 'max-w-2xl',
+    body: `<div class="space-y-5">
+      ${p.status !== 'published' ? `<div class="p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-sm">⚠ หน้านี้ยังเป็น <b>ฉบับร่าง</b> — ผู้ชมภายนอกจะเปิดไม่ได้จนกว่าจะเปลี่ยนสถานะเป็น “เผยแพร่” แล้วบันทึก</div>` : ''}
+      <div class="p-3 rounded-xl border border-slate-200 bg-slate-50 grid sm:grid-cols-3 gap-3 items-end">
+        <label class="flex items-center justify-between gap-2 text-sm text-slate-700">แสดงหัวเรื่อง/ภาพปก<input type="checkbox" class="tgl" data-o="title" checked></label>
+        <label class="flex items-center justify-between gap-2 text-sm text-slate-700">พื้นหลังสีเทาอ่อน<input type="checkbox" class="tgl" data-o="bg" checked></label>
+        <div><label class="lbl">ความสูงเริ่มต้น (px)</label><input type="number" class="inp" data-o="h" value="900" min="200" max="6000"></div>
+        <p class="text-xs text-slate-500 sm:col-span-3">โค้ด iframe จะแสดงเฉพาะเนื้อหาของหน้า (ไม่มีเมนูด้านบนและส่วนท้ายของเว็บนี้) · ลิงก์ที่คลิกในหน้า จะเปิดทั้งหน้าต่าง</p>
+      </div>
+      <div data-codes class="space-y-5"></div>
+      <div class="flex gap-2"><a class="btn btn-light btn-sm" data-open target="_blank">${icon('ext', 'w-3.5 h-3.5')} เปิดดูแบบที่จะฝัง</a></div>
+    </div>`,
+    onMount: el => {
+      const draw = () => { const c = codes(); $('[data-codes]', el).innerHTML = `${box('ลิงก์หน้าเว็บ (เต็มหน้า มีเมนูและส่วนท้าย)', c.link)}
+        ${box('โค้ด iframe แบบปรับความสูงอัตโนมัติ (แนะนำ)', c.auto, 'iframe ยืด–หดตามเนื้อหาเอง ไม่มีแถบเลื่อน — วางทั้ง 2 บรรทัด')}
+        ${box('โค้ด iframe แบบกำหนดความสูงตายตัว', c.fixed, 'ใช้เมื่อเว็บปลายทางไม่อนุญาตให้ใส่ &lt;script&gt; — ปรับค่า height ให้พอดีกับเนื้อหา')}
+        ${box('โค้ดฝังแบบเต็มหน้าจอ (ทั้งหน้าเว็บรวมเมนู)', c.full)}`;
+        $('[data-open]', el).href = c.src; $$('[data-cp]', el).forEach(b => b.onclick = () => copyText(b.dataset.cp)); };
+      $$('[data-o]', el).forEach(i => i.addEventListener(i.type === 'checkbox' ? 'change' : 'input', () => { opt[i.dataset.o] = i.type === 'checkbox' ? i.checked : Math.max(200, Math.min(6000, +i.value || 900)); draw(); }));
+      draw();
+    },
+  });
+}
+
 /* ================================================================
  * Font Awesome icon picker
  * ================================================================ */
@@ -2540,10 +2577,18 @@ async function viewPages() {
         <td class="px-5 py-3"><div class="flex justify-end gap-1.5">
           <a href="#/pages/${p.id}" class="btn btn-primary btn-sm">${icon('edit', 'w-3.5 h-3.5')} แก้ไข</a>
           <a href="/p/${esc(p.slug)}" target="_blank" class="btn btn-light btn-sm" title="เปิดดู">${icon('ext', 'w-3.5 h-3.5')}</a>
+          <button class="btn btn-light btn-sm" data-shp="${p.id}" title="นำไปใช้ / โค้ด iframe">${icon('code', 'w-3.5 h-3.5')}</button>
+          <button class="btn btn-light btn-sm" data-renp="${p.id}" title="เปลี่ยนชื่อ">${icon('edit', 'w-3.5 h-3.5')}</button>
           <button class="btn btn-light btn-sm" data-cl="${esc(p.slug)}" title="คัดลอกลิงก์">${icon('link', 'w-3.5 h-3.5')}</button>
           <button class="btn btn-light btn-sm" data-dup="${p.id}" title="ทำสำเนา">${icon('copy', 'w-3.5 h-3.5')}</button>
           <button class="btn btn-danger btn-sm" data-del="${p.id}" title="ลบ">${icon('trash', 'w-3.5 h-3.5')}</button></div></td></tr>`).join('') || '<tr><td colspan="5" class="text-center py-12 text-slate-400">ยังไม่มีหน้าเว็บ</td></tr>'}</tbody></table></div></div>`;
   $$('[data-cl]').forEach(b => b.onclick = () => copyText(`${ORIGIN}/p/${b.dataset.cl}`));
+  $$('[data-shp]').forEach(b => b.onclick = () => showPageShare(list.find(x => x.id === b.dataset.shp)));
+  $$('[data-renp]').forEach(b => b.onclick = async () => {
+    const it = list.find(x => x.id === b.dataset.renp);
+    const r = await Swal.fire({ title: 'เปลี่ยนชื่อหน้าเว็บ', input: 'text', inputValue: it.title, showCancelButton: true, confirmButtonText: 'บันทึก', cancelButtonText: 'ยกเลิก', reverseButtons: true, inputValidator: v => !v.trim() && 'กรุณากรอกชื่อหน้า' });
+    if (!r.isConfirmed) return; const full = await api('GET', `/pages/${it.id}`); full.title = r.value.trim().slice(0, 300); await api('PUT', `/pages/${it.id}`, full); ok('เปลี่ยนชื่อแล้ว'); viewPages();
+  });
   $$('[data-dup]').forEach(b => b.onclick = async () => { const c = await api('POST', `/pages/${b.dataset.dup}/duplicate`); ok('ทำสำเนาแล้ว'); location.hash = `#/pages/${c.id}`; });
   $$('[data-del]').forEach(b => b.onclick = async () => {
     const p = list.find(x => x.id === b.dataset.del);
@@ -2581,10 +2626,11 @@ async function viewPageEditor(id) {
   <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5">
     <div class="flex items-center gap-3 min-w-0">
       <a href="#/pages" class="p-2 rounded-lg hover:bg-white border border-transparent hover:border-slate-200">${icon('back', 'w-5 h-5')}</a>
-      <div class="min-w-0"><div class="text-xs text-slate-500">หน้าเว็บเผยแพร่</div><h1 class="text-xl font-bold text-slate-900 truncate" id="pTitle">${esc(p.title)}</h1></div>
+      <div class="min-w-0"><div class="text-xs text-slate-500">หน้าเว็บเผยแพร่</div><div class="flex items-center gap-1.5 min-w-0"><h1 class="text-xl font-bold text-slate-900 truncate" id="pTitle">${esc(p.title)}</h1><button class="p-1.5 rounded-lg text-slate-400 hover:text-navy-700 hover:bg-white" id="renP" title="เปลี่ยนชื่อหน้า">${icon('edit', 'w-4 h-4')}</button></div></div>
       <span id="dirtyDot" class="hidden text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-800">ยังไม่บันทึก</span>
     </div>
     <div class="flex flex-wrap gap-2">
+      <button class="btn btn-light" id="shareP">${icon('code')} นำไปใช้ / iframe</button>
       <button class="btn btn-light" id="pvBtn">${icon('eye')} ดูตัวอย่าง</button>
       <button class="btn btn-primary" id="saveBtn">${icon('save')} บันทึก</button>
     </div>
@@ -2620,6 +2666,7 @@ async function viewPageEditor(id) {
     $$('[data-p]', S).forEach(i => i.addEventListener('input', () => {
       p[i.dataset.p] = i.type === 'checkbox' ? i.checked : i.type === 'number' ? Number(i.value) : i.value;
       if (i.dataset.p === 'slug') i.value = p.slug = i.value.toLowerCase().replace(/[^a-z0-9\-_]/g, '-');
+      if (i.dataset.p === 'title') $('#pTitle').textContent = i.value || 'หน้าใหม่';
       markDirty();
     }));
     $$('[data-st]', S).forEach(b => b.onclick = () => { p.status = b.dataset.st; markDirty(); drawSettings(); });
@@ -2722,6 +2769,11 @@ async function viewPageEditor(id) {
     } catch (e) { fail(e.message); return false; }
   };
   $('#saveBtn').onclick = save;
+  $('#renP').onclick = async () => {
+    const r = await Swal.fire({ title: 'เปลี่ยนชื่อหน้าเว็บ', input: 'text', inputValue: p.title, showCancelButton: true, confirmButtonText: 'บันทึก', cancelButtonText: 'ยกเลิก', reverseButtons: true, inputValidator: v => !v.trim() && 'กรุณากรอกชื่อหน้า' });
+    if (!r.isConfirmed) return; p.title = r.value.trim().slice(0, 300); $('#pTitle').textContent = p.title; markDirty(); await save();
+  };
+  $('#shareP').onclick = async () => { if (state.dirty && (await confirmBox('ยังไม่ได้บันทึก', 'บันทึกก่อนนำไปใช้หรือไม่?', 'บันทึก', false))) await save(); showPageShare(p); };
   $('#pvBtn').onclick = async () => {
     if (state.dirty && !(await save())) return;
     window.open(`/p/${p.slug}`, '_blank');

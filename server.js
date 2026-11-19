@@ -1415,7 +1415,7 @@ function demoIntro(intros) {
 function navPages() {
   return db.pages.filter(p => p.status === 'published' && p.showInMenu).sort((a, b) => (a.menuOrder || 0) - (b.menuOrder || 0));
 }
-function layoutPage({ title, body, description = '', active = '' }) {
+function layoutPage({ title, body, description = '', active = '', embed = false, transparent = false }) {
   const s = db.settings;
   const nav = navPages();
   const logo = s.logo ? `<img src="${esc(s.logo)}" alt="" class="h-11 w-11 object-contain">` : '';
@@ -1428,8 +1428,14 @@ function layoutPage({ title, body, description = '', active = '' }) {
 <script>tailwind.config={theme:{extend:{fontFamily:{sans:['Sarabun','system-ui','sans-serif']}}}}</script>
 <style>:root{--primary:${s.primary};--accent:${s.accent}}body{font-family:'Sarabun',system-ui,sans-serif}
 .prose-text p{margin:0 0 1em;line-height:1.85}.prose-text a{color:var(--primary);text-decoration:underline}
-.nav-link.active{color:var(--primary);border-color:var(--accent)}${UB.CSS}</style></head>
-<body class="bg-slate-50 text-slate-800 antialiased min-h-screen flex flex-col">
+.nav-link.active{color:var(--primary);border-color:var(--accent)}${UB.CSS}</style>${embed ? '' : '</head>'}
+${embed ? `<base target="_top"><style>html,body{overflow-x:hidden}${transparent ? 'html,body{background:transparent!important}' : ''}</style></head>
+<body class="${transparent ? '' : 'bg-slate-50 '}text-slate-800 antialiased">
+<main>${body}</main>
+<script src="/assets/embed.js"></script>
+<script>(function(){if(window.parent===window)return;var last=0;function post(){var h=Math.ceil(document.body.getBoundingClientRect().height);if(h!==last){last=h;parent.postMessage({type:'uw-resize',height:h},'*');}}
+if(window.ResizeObserver)new ResizeObserver(post).observe(document.body);addEventListener('load',post);setTimeout(post,300);setInterval(post,1500);})();</script>
+</body></html>` : `<body class="bg-slate-50 text-slate-800 antialiased min-h-screen flex flex-col">
 <div style="background:var(--primary)" class="h-1.5"></div>
 <header class="bg-white border-b border-slate-200 sticky top-0 z-30">
   <div class="max-w-6xl mx-auto px-4 sm:px-6 flex items-center justify-between h-20">
@@ -1448,7 +1454,7 @@ function layoutPage({ title, body, description = '', active = '' }) {
 </footer>
 <script src="/assets/embed.js"></script>
 <script>var b=document.getElementById('mnav');if(b)b.onclick=function(){document.getElementById('mnavbox').classList.toggle('hidden')}</script>
-</body></html>`;
+</body></html>`}`;
 }
 function textToHtml(t) {
   return esc(t).split(/\n{2,}/).map(p => `<p>${p.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
@@ -1501,14 +1507,15 @@ function renderBlock(b) {
   }
   return '';
 }
-function renderPage(p, preview = false) {
-  const cover = p.cover ? `<div class="relative h-56 sm:h-72 overflow-hidden"><img src="${esc(p.cover)}" class="absolute inset-0 w-full h-full object-cover" alt=""><div class="absolute inset-0 bg-gradient-to-t from-slate-900/80 to-slate-900/10"></div>
+function renderPage(p, preview = false, opt = {}) {
+  const cover0 = p.cover ? `<div class="relative h-56 sm:h-72 overflow-hidden"><img src="${esc(p.cover)}" class="absolute inset-0 w-full h-full object-cover" alt=""><div class="absolute inset-0 bg-gradient-to-t from-slate-900/80 to-slate-900/10"></div>
     <div class="relative max-w-6xl mx-auto px-4 sm:px-6 h-full flex flex-col justify-end pb-8"><h1 class="text-3xl sm:text-4xl font-bold text-white">${esc(p.title)}</h1>${p.description ? `<p class="text-slate-200 mt-2 max-w-2xl">${esc(p.description)}</p>` : ''}</div></div>`
     : `<div class="bg-white border-b border-slate-200"><div class="max-w-6xl mx-auto px-4 sm:px-6 py-10"><nav class="text-sm text-slate-500 mb-3"><a href="/" class="hover:underline">หน้าหลัก</a> <span class="mx-1">/</span> ${esc(p.title)}</nav><h1 class="text-3xl sm:text-4xl font-bold" style="color:var(--primary)">${esc(p.title)}</h1>${p.description ? `<p class="text-slate-600 mt-2 max-w-3xl">${esc(p.description)}</p>` : ''}</div></div>`;
+  const cover = opt.embed && opt.noTitle ? '' : cover0;
   const banner = preview && p.status !== 'published' ? `<div class="bg-amber-100 text-amber-900 text-center text-sm py-2">โหมดดูตัวอย่าง — หน้านี้ยังเป็น "ฉบับร่าง" ผู้เข้าชมทั่วไปจะมองไม่เห็น</div>` : '';
   const body = `${banner}${cover}<div class="max-w-6xl mx-auto px-4 sm:px-6 py-10 space-y-6">${p.blocks.map(renderBlock).join('\n')}
     <div class="pt-6 text-xs text-slate-400">ปรับปรุงล่าสุด ${new Date(p.updatedAt).toLocaleString('th-TH', { dateStyle: 'long', timeStyle: 'short', timeZone: 'Asia/Bangkok' })}</div></div>`;
-  return layoutPage({ title: p.title, description: p.description, body, active: p.slug });
+  return layoutPage({ title: p.title, description: p.description, body: opt.embed ? body.replace('px-4 sm:px-6 py-10 space-y-6', 'px-4 sm:px-6 py-6 space-y-6') : body, active: p.slug, embed: !!opt.embed, transparent: !!opt.transparent });
 }
 function renderHome() {
   const s = db.settings;
@@ -1934,7 +1941,8 @@ async function route(req, res) {
       const p = db.pages.find(x => x.slug === slug);
       const preview = !!currentUser(req);
       if (!p || (p.status !== 'published' && !preview)) return notFound(res);
-      return send(res, 200, renderPage(p, preview), { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache' });
+      const q = u.searchParams, embed = q.get('embed') === '1';
+      return send(res, 200, renderPage(p, preview, { embed, noTitle: q.get('title') === '0', transparent: q.get('bg') === '0' }), { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache' });
     }
     if (pathname === '/') return send(res, 200, renderHome(), { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache' });
     return notFound(res);
