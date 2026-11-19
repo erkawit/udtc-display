@@ -1281,18 +1281,25 @@ const INTRO_JS = `(function(){
   });
   document.addEventListener('click',function(){closeAll();});
   document.addEventListener('keydown',function(e){if(e.key==='Escape')closeAll();});
+  /* ถ้าหน้า Intro ถูกฝังใน iframe ให้เปลี่ยนหน้าทั้งหน้าต่าง (URL เปลี่ยนตาม กด refresh แล้วไม่ย้อนกลับมาหน้า Intro) */
+  var framed=false;try{framed=window.top!==window.self;}catch(e){framed=true;}
+  function abs(u){try{return new URL(u,location.href).href;}catch(e){return u;}}
+  function goTop(u){u=abs(u);if(!framed){location.href=u;return;}
+    try{parent.postMessage({type:'uw-intro-go',url:u},'*');}catch(e){}
+    try{window.top.location.href=u;}catch(e){}
+    setTimeout(function(){location.href=u;},700);}
   var a=document.querySelector('.in-auto');
-  if(a){var n=+a.getAttribute('data-s'),go=a.getAttribute('href'),sp=a.querySelector('b');var iv=setInterval(function(){n--;if(sp)sp.textContent=n;if(n<=0){clearInterval(iv);if(!window.__uwPreview)location.href=go;}},1000);
+  if(a){var n=+a.getAttribute('data-s'),go=a.getAttribute('href'),sp=a.querySelector('b');var iv=setInterval(function(){n--;if(sp)sp.textContent=n;if(n<=0){clearInterval(iv);if(!window.__uwPreview)goTop(go);}},1000);
     document.addEventListener('pointerdown',function(e){if(!a.contains(e.target)){clearInterval(iv);a.remove();}},{once:true});}
 })();`;
 function introButtonHtml(b, i, it) {
   const kids = b.children.filter(c => c.title);
   if (kids.length) {
     const btn = UB.buttonHtml({ ...b, link: '' }, { tag: 'div' }).replace(/<\/div>$/, `${CARET}</div>`);
-    const menu = `<div class="in-menu ${it.bar.pos === 'bottom' ? 'up' : 'down'}" role="menu">${kids.map(c => `<a role="menuitem" href="${esc(c.link || '#')}"${c.newTab ? ' target="_blank" rel="noopener"' : ''}>${c.iconFa ? `<i class="${esc(c.iconFa)}"></i>` : ''}${esc(c.title)}</a>`).join('')}</div>`;
+    const menu = `<div class="in-menu ${it.bar.pos === 'bottom' ? 'up' : 'down'}" role="menu">${kids.map(c => `<a role="menuitem" href="${esc(c.link || '#')}"${c.newTab ? ' target="_blank" rel="noopener"' : ' target="_top"'}>${c.iconFa ? `<i class="${esc(c.iconFa)}"></i>` : ''}${esc(c.title)}</a>`).join('')}</div>`;
     return `<div class="in-btn in-dd" style="--i:${i}">${btn}${menu}</div>`;
   }
-  return `<div class="in-btn" style="--i:${i}">${UB.buttonHtml(b, { target: '_self' })}</div>`;
+  return `<div class="in-btn" style="--i:${i}">${UB.buttonHtml(b, { target: '_top' })}</div>`;
 }
 function introFonts(it) { return [it.font, ...it.buttons.map(b => b.style && b.style.font)]; }
 function renderIntro(it, { preview = false } = {}) {
@@ -1309,7 +1316,7 @@ function renderIntro(it, { preview = false } = {}) {
   const img = bg.image ? `<picture>${bg.imageMobile ? `<source media="(max-width:768px)" srcset="${esc(bg.imageMobile)}">` : ''}<img src="${esc(bg.image)}" alt="${esc(it.title || it.name)}" fetchpriority="high"></picture>` : '';
   const head = hd.show && (hd.text || hd.sub) ? `<div class="in-head p-${hd.pos}${hd.shadow ? ' sh' : ''}">${hd.text ? `<h1>${esc(hd.text)}</h1>` : ''}${hd.sub ? `<p>${esc(hd.sub)}</p>` : ''}</div>` : '';
   const barHtml = btns.length ? `<nav class="in-bar p-${bar.pos} a-${bar.align} s-${bar.style} ab-${an.bar}" aria-label="เมนูหน้าแรก"><div class="in-panel"><div class="in-items${bar.cols ? ' grid' : ''}${an.items !== 'none' ? ' ai-on ai-' + an.items : ''}">${btns.map((b, i) => introButtonHtml(b, i, it)).join('')}</div></div></nav>` : '';
-  const auto = it.autoGo.on && it.autoGo.link ? `<a class="in-auto" href="${esc(it.autoGo.link)}" data-s="${it.autoGo.seconds}">เข้าสู่เว็บไซต์อัตโนมัติใน <b>${it.autoGo.seconds}</b> วินาที</a>` : '';
+  const auto = it.autoGo.on && it.autoGo.link ? `<a class="in-auto" href="${esc(it.autoGo.link)}" target="_top" data-s="${it.autoGo.seconds}">เข้าสู่เว็บไซต์อัตโนมัติใน <b>${it.autoGo.seconds}</b> วินาที</a>` : '';
   return `<!DOCTYPE html><html lang="th"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>${esc(it.title || db.settings.siteName)}</title><link rel="icon" href="${esc(db.settings.logo || '/assets/logo.svg')}">
 ${bg.image ? `<link rel="preload" as="image" href="${esc(bg.image)}">` : ''}

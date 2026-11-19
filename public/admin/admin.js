@@ -2662,7 +2662,8 @@ async function viewIntros() {
 
 function showIntroShare(it) {
   const url = `${ORIGIN}/intro/${it.slug}`, main = `${ORIGIN}/intro`;
-  const ifr = `<iframe src="${url}" title="${it.title || it.name}" style="position:fixed;inset:0;width:100%;height:100%;border:0;z-index:9999"></iframe>`;
+  const ifr = `<iframe src="${url}" title="${it.title || it.name}" style="position:fixed;inset:0;width:100%;height:100%;border:0;z-index:9999"></iframe>
+<script>addEventListener('message',function(e){if(e.origin==='${ORIGIN}'&&e.data&&e.data.type==='uw-intro-go'&&/^https?:\\/\\//.test(e.data.url))location.href=e.data.url;});</script>`;
   const box = (label, val, hint) => `<div><div class="flex items-center justify-between mb-1.5"><label class="lbl !mb-0">${label}</label><button class="btn btn-light btn-sm" data-cp="${esc(val)}">${icon('copy', 'w-3.5 h-3.5')} คัดลอก</button></div>
     <textarea readonly class="inp font-mono text-xs !bg-slate-50" rows="${val.length > 90 ? 3 : 1}">${esc(val)}</textarea>${hint ? `<p class="text-xs text-slate-500 mt-1">${hint}</p>` : ''}</div>`;
   openModal({
@@ -2675,7 +2676,7 @@ function showIntroShare(it) {
       </div>
       ${box('ลิงก์หน้า Intro นี้', url)}
       ${box('ลิงก์หน้า Intro หลัก (เปลี่ยนตามที่ตั้งเป็นหลัก)', main, 'ใช้ลิงก์นี้ถ้าต้องการสลับหน้า Intro ตามวาระโดยไม่ต้องแก้เว็บศาล (ต้องเปิดเครื่องแม่ข่ายให้ภายนอกเข้าถึงได้)')}
-      ${box('โค้ดฝังแบบเต็มหน้าจอ (iframe)', ifr, 'วางในหน้าเปล่าของระบบจัดการเว็บ — ถ้าเครื่องแม่ข่ายเป็น IP ภายใน ผู้ใช้ภายนอกจะมองไม่เห็นและ Chrome จะถามสิทธิ์เครือข่ายภายใน')}
+      ${box('โค้ดฝังแบบเต็มหน้าจอ (iframe)', ifr, 'วางในหน้าเปล่าของระบบจัดการเว็บ (คัดลอกทั้ง 2 บรรทัด — บรรทัด script ช่วยให้เปลี่ยนหน้าทั้งหน้าต่างเมื่อกดลิงก์/เข้าเว็บอัตโนมัติ) — ถ้าเครื่องแม่ข่ายเป็น IP ภายใน ผู้ใช้ภายนอกจะมองไม่เห็นและ Chrome จะถามสิทธิ์เครือข่ายภายใน')}
     </div>`,
     onMount: el => {
       $$('[data-cp]', el).forEach(b => b.onclick = () => copyText(b.dataset.cp));
