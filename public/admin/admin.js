@@ -821,14 +821,14 @@ function editTable(it0, onDone) {
           <label class="btn btn-light btn-sm !px-2 cursor-pointer" title="สีตัวอักษรในเซลล์"><span class="font-bold underline decoration-rose-500 decoration-2">A</span><input type="color" class="w-0 h-0 opacity-0" data-cellc="fg" value="#b91c1c"></label>
           <button class="btn btn-light btn-sm" data-op="clearfmt" title="ล้างรูปแบบเซลล์ที่เลือก">ล้างรูปแบบ</button>
           <span class="w-px h-6 bg-slate-300 mx-1"></span>
-          <button class="btn btn-light btn-sm !text-navy-800 font-semibold" data-op="img" title="แทรกภาพลงในช่องที่เลือก (ตำแหน่งเคอร์เซอร์)">🖼 แทรกภาพ</button><button class="btn btn-light btn-sm !text-navy-800 font-semibold" data-op="link" title="แทรกลิงก์ / ทำข้อความที่เลือกให้เป็นลิงก์">🔗 แทรกลิงก์</button>
+          <button class="btn btn-light btn-sm !text-navy-800 font-semibold" data-op="img" title="แทรกภาพลงในช่องที่เลือก (ตำแหน่งเคอร์เซอร์)">🖼 แทรกภาพ</button><button class="btn btn-light btn-sm !text-navy-800 font-semibold" data-op="qr" title="สร้าง/ออกแบบ QR Code แล้ววางในช่องที่เลือก · วางเคอร์เซอร์บนโค้ด QR เดิมแล้วกดเพื่อแก้ไข">${icon('qr', 'w-3.5 h-3.5 inline')} แทรก QR Code</button><button class="btn btn-light btn-sm !text-navy-800 font-semibold" data-op="link" title="แทรกลิงก์ / ทำข้อความที่เลือกให้เป็นลิงก์">🔗 แทรกลิงก์</button>
           <span class="w-px h-6 bg-slate-300 mx-1"></span>
           <button class="btn btn-light btn-sm" data-op="paste">📋 วางจาก Excel</button><label class="btn btn-light btn-sm cursor-pointer">📄 นำเข้า CSV<input type="file" accept=".csv,.tsv,.txt,text/csv" class="hidden" data-csv></label>
           <button class="btn btn-light btn-sm !text-rose-600" data-op="clearall">ล้างข้อมูล</button>
         </div>
         <div class="flex items-center gap-2 text-xs text-slate-500" data-selinfo></div>
         <div class="overflow-auto rounded-xl border border-slate-300 bg-white" style="max-height:46vh" data-gridwrap><table class="w-full border-collapse text-sm" data-grid></table></div>
-        <p class="text-xs text-slate-500">คลิกช่องเพื่อพิมพ์ · <b>Shift + คลิก</b> เลือกหลายช่อง (เพื่อรวมเซลล์/จัดรูปแบบพร้อมกัน) · <b>Tab</b> ไปช่องถัดไป · <b>วางข้อมูลที่คัดลอกจาก Excel/Google Sheets</b> ลงในช่องได้เลย · ปุ่ม <b>🖼 แทรกภาพ</b> / <b>🔗 แทรกลิงก์</b> จะใส่ที่ตำแหน่งเคอร์เซอร์ในช่อง (ภาพแสดงเป็นโค้ด ![ชื่อ|กว้าง](url) ในช่องแก้ไข) · ทำตัวหนาด้วย **ข้อความ**</p>
+        <p class="text-xs text-slate-500">คลิกช่องเพื่อพิมพ์ · <b>Shift + คลิก</b> เลือกหลายช่อง (เพื่อรวมเซลล์/จัดรูปแบบพร้อมกัน) · <b>Tab</b> ไปช่องถัดไป · <b>วางข้อมูลที่คัดลอกจาก Excel/Google Sheets</b> ลงในช่องได้เลย · ปุ่ม <b>🖼 แทรกภาพ</b> / <b>QR Code</b> / <b>🔗 แทรกลิงก์</b> จะใส่ที่ตำแหน่งเคอร์เซอร์ในช่อง (ภาพแสดงเป็นโค้ด ![ชื่อ|กว้าง](url) ในช่องแก้ไข) · ทำตัวหนาด้วย **ข้อความ**</p>
         <div><div class="text-xs font-semibold text-slate-500 mb-1">ตัวอย่างการแสดงผลจริง</div><div class="rounded-xl chk-pattern border border-slate-200 p-4 overflow-auto" style="max-height:38vh" data-pv></div></div>
       </div>
       <div class="space-y-3 min-w-0"><div class="seg" data-side><button data-sd="design">🎨 ออกแบบ</button><button data-sd="struct">⚙ โครงสร้างและฟังก์ชัน</button></div><div data-panel class="space-y-3"></div></div></div>`,
@@ -928,6 +928,30 @@ function editTable(it0, onDone) {
           if (lk) { if (!/^(https?:\/\/|\/|mailto:|tel:|#)/i.test(lk)) return fail('ลิงก์ต้องขึ้นต้นด้วย https:// หรือ /'); code = `[${code}](${lk})`; }
           insertAt(code); drawGrid(); paint(); return;
         }
+        if (op === 'qr') {
+          if (!T().qrs) T().qrs = {};
+          const cell = T().rows[b.r0][b.c0], re = /!\[[^\]\n|]*(?:\|\d{1,4}%?)?\]\(qr:([\w-]{1,40})\)/g;
+          const k = caret && caret.r === b.r0 && caret.c === b.c0 ? caret : null;
+          let hit = null, mm;
+          while ((mm = re.exec(cell.t))) { if (T().qrs[mm[1]] && (!k || (k.a >= mm.index && k.a <= mm.index + mm[0].length))) { hit = mm[1]; if (k) break; } }
+          if (hit && !k && (cell.t.match(re) || []).length > 1) hit = null;
+          if (hit) return designQr({ title: 'QR Code', qr: T().qrs[hit] }, n => { T().qrs[hit] = n.qr; drawGrid(); paint(); ok('แก้ไข QR Code ในตารางแล้ว'); });
+          return designQr({ title: '', qr: { ...newQr(), maxW: 1200 } }, async n => {
+            const q = n.qr, isLink = /^(https?:|tel:|mailto:)/i.test(q.text);
+            const r = await Swal.fire({ title: 'วาง QR Code ในช่องตาราง', html: `<div style="text-align:left;font-size:14px;display:grid;gap:10px">
+              <label>ความกว้างในช่อง<div style="display:flex;gap:6px;margin-top:4px"><input id="swQW" type="number" min="30" max="1200" value="110" class="swal2-input" style="margin:0;flex:1"><select id="swQU" class="swal2-select" style="margin:0"><option value="">px</option><option value="%">% ของช่อง</option></select></div></label>
+              ${isLink ? '<label style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="swQL" checked> คลิกที่ QR แล้วเปิดลิงก์ในโค้ด</label>' : ''}</div>`,
+              showCancelButton: true, confirmButtonText: 'วางในช่อง', cancelButtonText: 'ยกเลิก', reverseButtons: true, focusConfirm: false,
+              preConfirm: () => ({ w: Math.max(30, Math.min(1200, +document.getElementById('swQW').value || 110)), u: document.getElementById('swQU').value, link: !!(document.getElementById('swQL') || {}).checked }) });
+            if (!r.isConfirmed) return;
+            let id; do { id = 'q' + Math.random().toString(36).slice(2, 8); } while (T().qrs[id]);
+            T().qrs[id] = q;
+            const alt = (q.cap || 'QR Code').replace(/[\[\]|\n]/g, ' ').slice(0, 60), wv = r.value.u === '%' ? Math.min(100, r.value.w) + '%' : r.value.w;
+            let code = `![${alt}|${wv}](qr:${id})`;
+            if (r.value.link && isLink) code = `[${code}](${q.text.replace(/\s/g, '%20').replace(/\)/g, '%29')})`;
+            insertAt(code); drawGrid(); paint(); ok('วาง QR Code ในตารางแล้ว');
+          });
+        }
         if (op === 'link') {
           const cell = T().rows[b.r0][b.c0], k = caret && caret.r === b.r0 && caret.c === b.c0 && caret.b > caret.a ? caret : null;
           const selTxt = k ? cell.t.slice(k.a, k.b) : '';
@@ -1015,7 +1039,7 @@ function editTable(it0, onDone) {
         $$('[data-cw]', panel).forEach(i => i.addEventListener('input', () => { T().colW[+i.dataset.cw] = Math.max(0, Number(i.value) || 0); drawGrid(); paint(); }));
       }
       redraw();
-      $('[data-apply]', el).onclick = () => { it.tb = UB.normTable(T()); onDone(it); close(); };
+      $('[data-apply]', el).onclick = () => { if (T().qrs) { const all = T().rows.flat().map(c => c.t).join('\n') + (T().note || ''); for (const k of Object.keys(T().qrs)) if (!all.includes(`(qr:${k})`)) delete T().qrs[k]; } it.tb = UB.normTable(T()); onDone(it); close(); };
     },
   });
 }

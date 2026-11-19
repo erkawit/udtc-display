@@ -192,10 +192,15 @@
     return o;
   }
   /** ข้อความแบบง่าย: **ตัวหนา** *เอียง* __ขีดเส้นใต้__ [ข้อความ](ลิงก์) และลิงก์ https:// คลิกได้ ขึ้นบรรทัดใหม่ได้ */
-  function richText(src) {
+  function richText(src, opts = {}) {
     let h = esc(src);
     const links = [];
     // ภาพ: ![คำอธิบาย|กว้าง](url)  กว้าง = 120 หรือ 50%
+    // QR Code ที่ออกแบบในตาราง: ![ชื่อ|กว้าง](qr:รหัส)
+    if (opts.qrs) h = h.replace(/!\[([^\]\n|]*)(?:\|(\d{1,4})(%|px)?)?\]\(qr:([\w-]{1,40})\)/g, (m, alt, w, unit, id) => {
+      const q = opts.qrs[id]; if (!q) return m;
+      const ww = w ? `${Math.min(+w, unit === '%' ? 100 : 2000)}${unit === '%' ? '%' : 'px'}` : '96px';
+      links.push(`<span class="urt-qr" role="img" aria-label="${alt || 'QR Code'}" style="width:${ww}">${qrHtml({ qr: q }, { noLink: true })}</span>`); return `\u0000${links.length - 1}\u0000`; });
     h = h.replace(/!\[([^\]\n|]*)(?:\|(\d{1,4})(%|px)?)?\]\(((?:https?:\/\/|\/)[^\s)]+)\)/g, (m, alt, w, unit, u) => { links.push(`<img class="urt-img" src="${u}" alt="${alt}" loading="lazy"${w ? ` style="width:${Math.min(+w, unit === '%' ? 100 : 2000)}${unit === '%' ? '%' : 'px'}"` : ''}>`); return `\u0000${links.length - 1}\u0000`; });
     h = h.replace(/\[([^\]\n]+)\]\(((?:https?:\/\/|\/|#|mailto:|tel:)[^\s)]+)\)/g, (m, t, u) => { links.push(`<a href="${u}" target="_blank" rel="noopener">${t}</a>`); return `\u0000${links.length - 1}\u0000`; });
     h = h.replace(/(^|[\s(])(https?:\/\/[^\s<]+[^\s<.,;:!?)])/g, (m, pre, u) => { links.push(`<a href="${u}" target="_blank" rel="noopener">${u}</a>`); return `${pre}\u0000${links.length - 1}\u0000`; });
@@ -447,6 +452,7 @@ a.ub:focus-visible{outline:3px solid var(--glow);outline-offset:2px}
     const head = Math.max(0, Math.min(rows.length, Math.round(Number(t.head ?? 1))));
     return { rows, head, headCol: !!t.headCol, foot: !!t.foot && rows.length - head > 1, caption: String(t.caption || '').slice(0, 300), note: String(t.note || '').slice(0, 500),
       colW: Array.from({ length: nc }, (_, c) => Math.max(0, Math.min(2000, Number((t.colW || [])[c]) || 0))),
+      qrs: (() => { const o = {}; if (t.qrs && typeof t.qrs === 'object') for (const k of Object.keys(t.qrs).slice(0, 100)) if (/^[\w-]{1,40}$/.test(k)) o[k] = normQr(t.qrs[k]); return o; })(),
       sort: !!t.sort, search: !!t.search, sticky: t.sticky !== false, maxH: Math.max(0, Math.min(4000, Number(t.maxH) || 0)), wrap: t.wrap !== false, st };
   }
   /** เซลล์ที่ถูกเซลล์อื่นรวมทับ (colspan/rowspan) */
@@ -468,7 +474,7 @@ a.ub:focus-visible{outline:3px solid var(--glow);outline-offset:2px}
       `--tbcc:${s.capColor}`, `--tbcs:${px(s.capSize)}`, `--tbcw:${s.capWeight}`, `--tbca:${s.capAlign}`, s.firstColBg ? `--tbfc:${s.firstColBg}` : ''].filter(Boolean).join(';');
     const cell = (c, ri, ci, tag, scope) => {
       const st = [c.al ? `text-align:${c.al}` : '', c.b ? 'font-weight:700' : '', c.i ? 'font-style:italic' : '', c.bg ? `background:${c.bg}` : '', c.fg ? `color:${c.fg}` : ''].filter(Boolean).join(';');
-      return `<${tag}${scope ? ` scope="${scope}"` : ''}${c.cs > 1 ? ` colspan="${c.cs}"` : ''}${c.rs > 1 ? ` rowspan="${c.rs}"` : ''}${st ? ` style="${st}"` : ''}>${richText(c.t)}</${tag}>`;
+      return `<${tag}${scope ? ` scope="${scope}"` : ''}${c.cs > 1 ? ` colspan="${c.cs}"` : ''}${c.rs > 1 ? ` rowspan="${c.rs}"` : ''}${st ? ` style="${st}"` : ''}>${richText(c.t, { qrs: T.qrs })}</${tag}>`;
     };
     const tr = ri => {
       const isH = ri < T.head, isF = ri === footAt;
@@ -486,6 +492,7 @@ a.ub:focus-visible{outline:3px solid var(--glow);outline-offset:2px}
   }
   const TB_CSS = `
 .urt-img{display:inline-block;max-width:100%;height:auto;vertical-align:middle;border-radius:4px}
+.urt-qr{display:inline-block;max-width:100%;vertical-align:middle;line-height:1.3;margin:2px 0}.urt-qr .uqr{max-width:100%;gap:.3em}.urt-qr .uqr-cap{font-size:.85em!important}.urt-qr .uqr-band{font-size:.75em}.urt-qr svg{display:block!important;width:100%!important;height:auto!important}
 .utb td a,.utb th a{color:inherit;text-decoration:underline!important;text-underline-offset:2px}.utb a:has(>.urt-img){text-decoration:none!important}
 .utb-w{font-family:var(--tbf);font-size:var(--tbs);color:var(--tbc);display:flex;flex-direction:column;gap:.6em;min-width:0;box-sizing:border-box}
 .utb-w.fill{height:100%}.utb-w.fill .utb-sc{flex:1;min-height:0}
