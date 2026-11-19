@@ -761,6 +761,7 @@ a.uw-row:hover{border-color:var(--accent);background:#f8fafc}
 .uw-bw{height:100%;min-height:52px;display:flex}
 .uc{position:relative;width:100%;container-type:inline-size}
 .uc-el{position:absolute;box-sizing:border-box}
+.uc.uc-flow{transition:aspect-ratio .35s ease}.uc.uc-flow>.uc-el{transition:top var(--ucms,.35s) ease,height var(--ucms,.35s) ease}.uc.uc-flow.uc-now,.uc.uc-flow.uc-now>.uc-el{transition:none!important}
 .uc-el.t-text>.ux{height:100%;display:flex;flex-direction:column;justify-content:var(--tva)}.uc-el.t-text>.ux.fit{display:flex;max-width:none}
 .uc-el.t-divider{display:flex;flex-direction:column;justify-content:center}
 @media(max-width:639px){.uc:not(.stack) .ux{font-size:var(--tfs)}}
@@ -769,6 +770,7 @@ a.uw-row:hover{border-color:var(--accent);background:#f8fafc}
 .uc.stack .uc-el{position:relative;left:auto!important;top:auto!important;width:100%!important;height:auto!important}
 .uc.stack .uc-el.t-button,.uc.stack .uc-el.t-text,.uc.stack .uc-el.t-divider,.uc.stack .uc-el.t-spacer{aspect-ratio:auto!important}
 .uc.stack .uc-el.t-text .ux{height:auto!important}
+.uc.stack .uc-el.has-vp{aspect-ratio:auto!important;height:auto!important}.uc.stack .uvp.fill{height:auto}.uc.stack .uvp.fill .uvp-body{flex:none}.uc.stack .uvp.fill .uvp-in{height:auto}.uc.stack .uvp.fill .uvp-media{aspect-ratio:var(--vr);height:auto}
 .uc.stack .utb-w{--tbs:var(--tbsm)!important;--tbp:var(--tbpm)!important;--tbhs:var(--tbhsm)!important;--tbcs:var(--tbcsm)!important}
 .uc.stack .uc-el.t-qr{aspect-ratio:auto!important;height:auto!important}.uc.stack .uqr.fill{container-type:normal;height:auto;max-width:min(var(--qmw),320px);font-size:16px!important}.uc.stack .uqr.fill .uqr-frame,.uc.stack .uqr.fill>.uqr-code{width:100%!important}.uc.stack .uqr.fill .uqr-cap{white-space:normal}
 .uc.stack .ub{min-height:54px;font-size:16px!important;padding:12px 16px!important;border-radius:min(var(--r),14px)}
@@ -915,9 +917,9 @@ function canvasHtml(items, w) {
       else if (TEXTY.includes(it.type)) inner = it.type === 'text' ? textItemHtml(it, W) : it.type === 'divider' ? UB.dividerHtml(it.ts, { cw: W }) : '';
       else inner = `<div class="uw-html">${it.html}</div>`;
       const en = it.enter && it.enter.type ? ` data-enter="${it.enter.type}"` : '', ev = en ? `;--edel:${it.enter.delay}ms;--edur:${it.enter.dur}ms` : '';
-      return `<div class="uc-el t-${it.type}${it.fx ? ' fxi' : ''}"${en} style="left:${pct(p.x, W)}%;top:${pct(p.y, H)}%;width:${pct(p.w, W)}%;height:${pct(p.h, H)}%;z-index:${p.z || 1};aspect-ratio:${p.w}/${p.h}${ev}">${inner}</div>`;
+      return `<div class="uc-el t-${it.type}${it.fx ? ' fxi' : ''}${it.type === 'video' && it.vp && it.vp.on ? ' has-vp' : ''}"${en} data-g="${p.x},${p.y},${p.w},${p.h}" style="left:${pct(p.x, W)}%;top:${pct(p.y, H)}%;width:${pct(p.w, W)}%;height:${pct(p.h, H)}%;z-index:${p.z || 1};aspect-ratio:${p.w}/${p.h}${ev}">${inner}</div>`;
     }).join('');
-  return `<div class="uc${w.stackMobile ? ' stack' : ''}" style="aspect-ratio:${W}/${H};${w.canvasMax ? `max-width:${W}px;margin:0 auto;` : ''}">${els}</div>`;
+  return `<div class="uc${w.stackMobile ? ' stack' : ''}" data-cw="${W}" data-ch="${H}" style="aspect-ratio:${W}/${H};${w.canvasMax ? `max-width:${W}px;margin:0 auto;` : ''}">${els}</div>`;
 }
 function tabsHtml(w) {
   const tabs = (w.tabs || []).filter(t => t.active !== false);
@@ -976,11 +978,25 @@ o.addEventListener('click',function(e){if(e.target!==a)close();});document.addEv
 function runtimeJs(rootExpr, embed) {
   return `(function(){var R=${rootExpr};if(!R)return;
   var showLB=${LIGHTBOX_FN};
-  /* กรอบวีดีโอ: กดแถบหัวข้อเพื่อยุบ/ขยาย — ยุบแล้วหยุดเล่น */
-  [].forEach.call(R.querySelectorAll('.uvp-bar[data-uvp]'),function(b){var P=b.parentNode;b.addEventListener('click',function(){var c=!P.classList.contains('closed');P.classList.toggle('closed',c);b.setAttribute('aria-expanded',c?'false':'true');
+  /* กรอบวีดีโอ: กดแถบหัวข้อเพื่อยุบ/ขยาย — ยุบแล้วหยุดเล่น · บนผืนผ้าใบ ชิ้นที่อยู่ใต้กรอบเลื่อนขึ้น–ลงตาม */
+  function ucFlow(uc,instant){
+    if(!uc||!uc.getAttribute('data-cw'))return;var CW=+uc.getAttribute('data-cw'),CH=+uc.getAttribute('data-ch'),els=[].slice.call(uc.children).filter(function(e){return e.classList&&e.classList.contains('uc-el')&&e.getAttribute('data-g');});
+    if(!els.length||getComputedStyle(els[0]).position!=='absolute'){uc.classList.remove('uc-flow');uc.style.aspectRatio='';els.forEach(function(e){e.style.top='';e.style.height='';});return;}
+    var k=CW/(uc.clientWidth||CW),G=els.map(function(e){var g=e.getAttribute('data-g').split(',').map(Number);return{e:e,x:g[0],y:g[1],w:g[2],h:g[3],d:0,nh:g[3]};});
+    G.forEach(function(a){var P=a.e.querySelector('.uvp.closed');if(!P)return;var bar=P.querySelector('.uvp-bar'),bw=parseFloat(getComputedStyle(P).borderTopWidth)||0;var ch=Math.min(a.h,((bar?bar.offsetHeight:0)+bw*2)*k);a.nh=ch;var dl=a.h-ch;if(dl<=0)return;
+      G.forEach(function(b){if(b!==a&&b.y>=a.y+a.h-1&&b.x<a.x+a.w&&b.x+b.w>a.x)b.d+=dl;});});
+    var mb0=0,mb1=0;G.forEach(function(a){mb0=Math.max(mb0,a.y+a.h);mb1=Math.max(mb1,a.y-a.d+a.nh);});
+    var H=Math.max(1,CH-Math.max(0,mb0-mb1));
+    uc.classList.add('uc-flow');if(instant)uc.classList.add('uc-now');
+    G.forEach(function(a){a.e.style.top=((a.y-a.d)/CW*100)+'cqw';a.e.style.height=(a.nh/CW*100)+'cqw';});
+    uc.style.aspectRatio=CW+'/'+H;
+    if(instant){void uc.offsetHeight;setTimeout(function(){uc.classList.remove('uc-now');},30);}
+  }
+  [].forEach.call(R.querySelectorAll('.uc'),function(uc){if(uc.querySelector('.uvp.closed'))ucFlow(uc,true);if(uc.querySelector('.uvp')&&window.ResizeObserver){var lw=uc.clientWidth;new ResizeObserver(function(){if(uc.clientWidth!==lw){lw=uc.clientWidth;if(uc.classList.contains('uc-flow')||uc.querySelector('.uvp.closed'))ucFlow(uc,true);}}).observe(uc);}});
+  [].forEach.call(R.querySelectorAll('.uvp-bar[data-uvp]'),function(b){var P=b.parentNode;b.addEventListener('click',function(){var c=!P.classList.contains('closed'),ms=parseInt(getComputedStyle(P).getPropertyValue('--vpms'))||0;P.classList.toggle('closed',c);b.setAttribute('aria-expanded',c?'false':'true');
     [].forEach.call(P.querySelectorAll('video'),function(v){if(c)try{v.pause();}catch(e){}});
-    [].forEach.call(P.querySelectorAll('iframe'),function(f){if(c){var s=f.getAttribute('src');if(s){f.setAttribute('data-src',s);setTimeout(function(){if(P.classList.contains('closed'))f.removeAttribute('src');},parseInt(getComputedStyle(P).getPropertyValue('--vpms'))||300);}}else{var d=f.getAttribute('data-src');if(d&&!f.getAttribute('src'))f.setAttribute('src',d);}});
-    if(typeof post==='function')setTimeout(post,(parseInt(getComputedStyle(P).getPropertyValue('--vpms'))||300)+30);});});
+    [].forEach.call(P.querySelectorAll('iframe'),function(f){if(c){var s=f.getAttribute('src');if(s){f.setAttribute('data-src',s);setTimeout(function(){if(P.classList.contains('closed'))f.removeAttribute('src');},ms+20);}}else{var d=f.getAttribute('data-src');if(d&&!f.getAttribute('src'))f.setAttribute('src',d);}});
+    var uc=P.closest&&P.closest('.uc');if(uc){uc.style.setProperty('--ucms',ms+'ms');if(c)requestAnimationFrame(function(){ucFlow(uc);});else ucFlow(uc);}});});
   /* วีดีโอสตรีม HLS (.m3u8): Safari เล่นได้เอง เบราว์เซอร์อื่นโหลด hls.js */
   (function(){var vs=[].slice.call(R.querySelectorAll('video[data-hls]'));if(!vs.length)return;var t=document.createElement('video');if(t.canPlayType('application/vnd.apple.mpegurl')){vs.forEach(function(v){v.src=v.getAttribute('data-hls');});return;}
     var s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/hls.js@1.5.17/dist/hls.min.js';s.onload=function(){if(!window.Hls||!Hls.isSupported())return;vs.forEach(function(v){var h=new Hls();h.loadSource(v.getAttribute('data-hls'));h.attachMedia(v);});};document.head.appendChild(s);})();
