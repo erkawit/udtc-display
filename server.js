@@ -756,6 +756,7 @@ a.uw-row:hover{border-color:var(--accent);background:#f8fafc}
 .uc.stack .uc-el{position:relative;left:auto!important;top:auto!important;width:100%!important;height:auto!important}
 .uc.stack .uc-el.t-button,.uc.stack .uc-el.t-text,.uc.stack .uc-el.t-divider,.uc.stack .uc-el.t-spacer{aspect-ratio:auto!important}
 .uc.stack .uc-el.t-text .ux{height:auto!important}
+.uc.stack .utb-w{--tbs:var(--tbsm)!important;--tbp:var(--tbpm)!important;--tbhs:var(--tbhsm)!important;--tbcs:var(--tbcsm)!important}
 .uc.stack .uc-el.t-qr{aspect-ratio:auto!important;height:auto!important}.uc.stack .uqr.fill{container-type:normal;height:auto;max-width:min(var(--qmw),320px);font-size:16px!important}.uc.stack .uqr.fill .uqr-frame,.uc.stack .uqr.fill>.uqr-code{width:100%!important}.uc.stack .uqr.fill .uqr-cap{white-space:normal}
 .uc.stack .ub{min-height:54px;font-size:16px!important;padding:12px 16px!important;border-radius:min(var(--r),14px)}
 .uc.stack .ub .ui{font-size:20px!important}.uc.stack .ub.pos-top .ui{font-size:28px!important}}

@@ -409,7 +409,7 @@ a.ub:focus-visible{outline:3px solid var(--glow);outline-offset:2px}
 @media (prefers-reduced-motion:reduce){.uim,.uim *{animation:none!important;transition:none!important}[data-enter]{opacity:1!important;transform:none!important;filter:none!important}}
 `;
   /* ---------------- ตาราง ---------------- */
-  const TBDEF = { font: '', size: 15, color: '#1e293b', bg: '#ffffff', headBg: '#1e3a5f', headFg: '#ffffff', headWeight: 700, headSize: 0,
+  const TBDEF = { font: '', size: 15, minFs: 14, color: '#1e293b', bg: '#ffffff', headBg: '#1e3a5f', headFg: '#ffffff', headWeight: 700, headSize: 0,
     footBg: '#f1f5f9', footFg: '#0f172a', stripe: true, stripeBg: '#f8fafc', hover: true, hoverBg: '#eef2ff',
     border: 'all', bw: 1, bc: '#e2e8f0', radius: 12, pad: 10, shadow: 'soft', align: 'left', headAlign: 'left', vAlign: 'middle',
     firstColBold: false, firstColBg: '', capColor: '#0f172a', capSize: 20, capAlign: 'left', capWeight: 700, minColW: 80 };
@@ -444,7 +444,7 @@ a.ub:focus-visible{outline:3px solid var(--glow);outline-offset:2px}
     const st = Object.assign({}, TBDEF, t.st || {});
     for (const k in TBOPT) if (!TBOPT[k].includes(st[k])) st[k] = TBDEF[k];
     const n = (k, a, b) => { const v = Number(st[k]); st[k] = Number.isFinite(v) ? Math.min(b, Math.max(a, v)) : TBDEF[k]; };
-    n('size', 8, 48); n('headSize', 0, 60); n('headWeight', 300, 900); n('bw', 0, 8); n('radius', 0, 40); n('pad', 0, 40); n('capSize', 10, 60); n('capWeight', 300, 900); n('minColW', 0, 600);
+    n('size', 8, 48); n('minFs', 0, 32); n('headSize', 0, 60); n('headWeight', 300, 900); n('bw', 0, 8); n('radius', 0, 40); n('pad', 0, 40); n('capSize', 10, 60); n('capWeight', 300, 900); n('minColW', 0, 600);
     for (const k of ['color', 'bg', 'headBg', 'headFg', 'footBg', 'footFg', 'stripeBg', 'hoverBg', 'bc', 'capColor']) if (!hex(st[k]) && st[k] !== 'transparent') st[k] = TBDEF[k];
     if (st.firstColBg && !hex(st.firstColBg)) st.firstColBg = '';
     st.stripe = !!st.stripe; st.hover = !!st.hover; st.firstColBold = !!st.firstColBold;
@@ -468,10 +468,12 @@ a.ub:focus-visible{outline:3px solid var(--glow);outline-offset:2px}
     const T = normTable(it.tb), s = T.st, cw = opts.cw, px = v => cw ? `calc(${v} * 100cqw / ${cw})` : `${v}px`;
     const cov = tableCover(T.rows), nr = T.rows.length, footAt = T.foot ? nr - 1 : -1;
     const sh = { none: 'none', soft: '0 4px 14px rgba(15,23,42,.08)', md: '0 10px 28px rgba(15,23,42,.14)', strong: '0 20px 48px rgba(15,23,42,.22)' }[s.shadow];
-    const vars = [`--tbf:${s.font ? `'${s.font}',` : ''}inherit`, `--tbs:${px(s.size)}`, `--tbc:${s.color}`, `--tbbg:${s.bg}`, `--tbhb:${s.headBg}`, `--tbhf:${s.headFg}`, `--tbhw:${s.headWeight}`,
-      `--tbhs:${s.headSize ? px(s.headSize) : '1em'}`, `--tbfb:${s.footBg}`, `--tbff:${s.footFg}`, `--tbsb:${s.stripeBg}`, `--tbhv:${s.hoverBg}`, `--tbbw:${px(s.bw)}`, `--tbbc:${s.bc}`,
-      `--tbr:${px(s.radius)}`, `--tbp:${px(s.pad)}`, `--tbsh:${sh}`, `--tbal:${s.align}`, `--tbha:${s.headAlign}`, `--tbva:${s.vAlign}`, `--tbmw:${px(s.minColW)}`,
-      `--tbcc:${s.capColor}`, `--tbcs:${px(s.capSize)}`, `--tbcw:${s.capWeight}`, `--tbca:${s.capAlign}`, s.firstColBg ? `--tbfc:${s.firstColBg}` : ''].filter(Boolean).join(';');
+    // บนผืนผ้าใบ ตัวอักษรย่อตามความกว้างที่แสดงจริง แต่ไม่เล็กกว่า "ขนาดขั้นต่ำ"
+    const mn = cw && s.minFs ? Math.min(s.minFs, s.size) : 0, fpx = v => mn ? `max(${mn}px, ${px(v)})` : px(v);
+    const vars = [`--tbf:${s.font ? `'${s.font}',` : ''}inherit`, `--tbs:${fpx(s.size)}`, cw ? `--tbsm:${s.size}px;--tbpm:${s.pad}px;--tbhsm:${s.headSize ? s.headSize + 'px' : '1em'};--tbcsm:${s.capSize}px` : '', `--tbc:${s.color}`, `--tbbg:${s.bg}`, `--tbhb:${s.headBg}`, `--tbhf:${s.headFg}`, `--tbhw:${s.headWeight}`,
+      `--tbhs:${s.headSize ? fpx(s.headSize) : '1em'}`, `--tbfb:${s.footBg}`, `--tbff:${s.footFg}`, `--tbsb:${s.stripeBg}`, `--tbhv:${s.hoverBg}`, `--tbbw:${px(s.bw)}`, `--tbbc:${s.bc}`,
+      `--tbr:${px(s.radius)}`, `--tbp:${mn ? `max(${Math.min(s.pad, 6)}px, ${px(s.pad)})` : px(s.pad)}`, `--tbsh:${sh}`, `--tbal:${s.align}`, `--tbha:${s.headAlign}`, `--tbva:${s.vAlign}`, `--tbmw:${px(s.minColW)}`,
+      `--tbcc:${s.capColor}`, `--tbcs:${fpx(s.capSize)}`, `--tbcw:${s.capWeight}`, `--tbca:${s.capAlign}`, s.firstColBg ? `--tbfc:${s.firstColBg}` : ''].filter(Boolean).join(';');
     const cell = (c, ri, ci, tag, scope) => {
       const st = [c.al ? `text-align:${c.al}` : '', c.b ? 'font-weight:700' : '', c.i ? 'font-style:italic' : '', c.bg ? `background:${c.bg}` : '', c.fg ? `color:${c.fg}` : ''].filter(Boolean).join(';');
       return `<${tag}${scope ? ` scope="${scope}"` : ''}${c.cs > 1 ? ` colspan="${c.cs}"` : ''}${c.rs > 1 ? ` rowspan="${c.rs}"` : ''}${st ? ` style="${st}"` : ''}>${richText(c.t, { qrs: T.qrs })}</${tag}>`;
