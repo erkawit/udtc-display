@@ -540,6 +540,17 @@ function boxCfg(w) {
     vAlign: ['top', 'middle', 'bottom'].includes(w.boxVAlign) ? w.boxVAlign : 'top',
   };
 }
+/** เส้นขอบรอบภาพ/ปุ่มภาพ ในกริดและสไลด์ */
+function cbCfg(w) {
+  return {
+    mode: ['none', 'always', 'hover'].includes(w.cbMode) ? w.cbMode : 'none',
+    scope: w.cbScope === 'all' ? 'all' : 'link',
+    w: clamp(w.cbW, 1, 12, 3), style: ['solid', 'dashed', 'dotted', 'double'].includes(w.cbStyle) ? w.cbStyle : 'solid',
+    color: color(w.cbColor, '#1e3a5f'), hColor: color(w.cbHColor, '#d4a72c'),
+    anim: ['none', 'glow', 'pulse', 'spin', 'lift', 'zoom'].includes(w.cbAnim) ? w.cbAnim : 'glow',
+    off: clamp(w.cbOff, 0, 16, 0),
+  };
+}
 /** สัดส่วนภาพที่ใช้จริง (รองรับกำหนดเอง กว้าง:สูง) */
 function ratioVal(w) {
   if (w.ratio === 'custom') return `${clamp(w.ratioW, 1, 10000, 16)}/${clamp(w.ratioH, 1, 10000, 9)}`;
@@ -602,6 +613,7 @@ function normWidget(w, existing) {
     captionAlign: w.captionAlign === 'center' ? 'center' : 'left', capColor: color(w.capColor, '#1e293b'),
     imgPad: clamp(w.imgPad, 0, 60, 0), panelRadius: clamp(w.panelRadius, 0, 40, 0), btnMinH: clamp(w.btnMinH, 0, 600, 0),
     lightbox: !!w.lightbox, link2Color: color(w.link2Color, '#c2410c'),
+    ...(c => ({ cbMode: c.mode, cbScope: c.scope, cbW: c.w, cbStyle: c.style, cbColor: c.color, cbHColor: c.hColor, cbAnim: c.anim, cbOff: c.off }))(cbCfg(w)),
     ...(b => ({ boxWMode: b.wMode, boxW: b.w, boxWPct: b.wPct, boxAlign: b.align, boxHMode: b.hMode, boxH: b.h, boxHM: b.hM, boxVAlign: b.vAlign }))(boxCfg(w)),
     ...(c => ({ carWMode: c.wMode, carW: c.w, carWPct: c.wPct, carAlign: c.align, carHMode: c.hMode, carH: c.h, carHM: c.hM,
       imgPos: c.pos, transEffect: c.fx, transMs: c.ms, transEase: c.ease, pauseHover: c.pauseHover, carBg: c.bg }))(carCfg(w)),
@@ -767,6 +779,20 @@ a.uw-row:hover{border-color:var(--accent);background:#f8fafc}
 .uw.capc .uw-cap{text-align:center}.uw-cap b{color:var(--capc,inherit)}
 .uw-media.pad{padding:var(--imgpad);background:#fff}.uw-media.pad img{object-fit:contain}
 .uw-ml{display:block;color:inherit;text-decoration:none;cursor:pointer}
+.uw-card.cbx::after{content:'';position:absolute;inset:var(--cbo);border:var(--cbw) var(--cbs) var(--cbc);border-radius:max(0px,calc(var(--radius) - var(--cbo)));pointer-events:none;z-index:3;transition:border-color .25s,opacity .3s,inset .3s}
+.uw.cbm-hover .uw-card.cbx::after{opacity:0;inset:calc(var(--cbo) + 8px)}
+.uw.cbm-hover .uw-card.cbx:hover::after,.uw.cbm-hover .uw-card.cbx:focus-within::after{opacity:1;inset:var(--cbo)}
+.uw-card.cbx:hover::after,.uw-card.cbx:focus-within::after{border-color:var(--cbhc)}
+.uw.cba-glow .uw-card.cbx:hover,.uw.cba-glow .uw-card.cbx:focus-within{box-shadow:0 0 0 1px var(--cbhc),0 0 14px 2px color-mix(in srgb,var(--cbhc) 60%,transparent),0 0 34px color-mix(in srgb,var(--cbhc) 35%,transparent)!important}
+.uw.cba-pulse .uw-card.cbx:hover{animation:ucb-pulse 1.3s ease-out infinite}
+@keyframes ucb-pulse{0%{outline:var(--cbw) solid var(--cbhc);outline-offset:0}100%{outline:var(--cbw) solid transparent;outline-offset:12px}}
+@property --cba{syntax:'<angle>';inherits:false;initial-value:0deg}
+.uw.cba-spin .uw-card.cbx:hover::after,.uw.cba-spin .uw-card.cbx:focus-within::after{border-style:solid;border-color:transparent;background:conic-gradient(from var(--cba),var(--cbhc),#fff,var(--cbhc) 30%,var(--cbc) 50%,var(--cbhc) 70%,#fff,var(--cbhc)) border-box;-webkit-mask:linear-gradient(#000 0 0) padding-box,linear-gradient(#000 0 0) border-box;-webkit-mask-composite:xor;mask:linear-gradient(#000 0 0) padding-box exclude,linear-gradient(#000 0 0) border-box;animation:ucb-spin 2.2s linear infinite}
+@keyframes ucb-spin{to{--cba:360deg}}
+.uw.cba-lift .uw-card.cbx:hover{transform:translateY(-6px)!important;box-shadow:0 14px 30px rgba(15,23,42,.18)!important}
+.uw-card.ci .uw-media img{transition:transform .35s}.uw.cba-zoom .uw-card.cbx:hover .uw-media img{transform:scale(1.07)}
+@media (hover:none){.uw.cbm-hover .uw-card.cbx::after{opacity:1;inset:var(--cbo)}}
+@media (prefers-reduced-motion:reduce){.uw .uw-card.cbx,.uw .uw-card.cbx::after{animation:none!important;transition:none!important}}
 .uw-card.lk:hover{transform:translateY(-2px)}.uw.shadow .uw-card.lk:hover{box-shadow:0 6px 24px rgba(15,23,42,.14)}
 .uw-l2{display:block;padding:0 12px 12px;font-size:.88rem;font-weight:600;color:var(--l2c);text-decoration:none}.uw.capc .uw-l2{text-align:center}.uw-l2:hover{text-decoration:underline}
 .uw-title.ts-plain:before,.uw-title.ts-pill:before,.uw-title.ts-center:before{display:none}
@@ -827,7 +853,8 @@ function cardHtml(it, w) {
     if (it.link) { head = `<a class="uw-ml" ${linkAttrs(it)}>${media}${capOverlay ? '' : cap}</a>`; lk = true; }
     else if (w.lightbox && it.src) { head = `<a class="uw-ml" href="${esc(it.src)}" data-lb data-lbt="${esc(it.title)}">${media}${capOverlay ? '' : cap}</a>`; lk = true; }
     else head = media + (capOverlay ? '' : cap);
-    return `<div class="uw-card${lk ? ' lk' : ''}">${head}${l2}</div>`;
+    const cb = cbCfg(w), cbx = cb.mode !== 'none' && (cb.scope === 'all' || lk) ? ' cbx' : '';
+    return `<div class="uw-card ci${lk ? ' lk' : ''}${cbx}">${head}${l2}</div>`;
   }
   if (it.type === 'video') {
     return `<div class="uw-card"><div class="uw-media${ratioCls === ' auto' ? '' : ''}" style="${w.ratio === 'auto' ? 'aspect-ratio:16/9' : ''}">${videoHtml(it.src, it.poster)}</div>${w.captionPos === 'overlay' ? cap.replace(' overlay', '') : cap}</div>`;
@@ -923,6 +950,8 @@ function renderWidgetInner(w, { full = false } = {}) {
   const title = w.showTitle && w.title ? `<h2 class="uw-title ts-${w.titleStyle || 'bar'}"><span>${esc(w.title)}</span></h2>` : '';
   const bx = boxCfg(w), cb = carCfg(w).bg;
   let bstyle = cb ? `;--car-bg:${cb}` : '', bcls = cb ? ` cbg${cb === 'transparent' ? ' cbg-t' : ''}` : '';
+  const cbc = cbCfg(w);
+  if (cbc.mode !== 'none' && w.layout !== 'canvas') { bcls += ` cbm-${cbc.mode} cba-${cbc.anim}`; bstyle += `;--cbw:${cbc.w}px;--cbs:${cbc.style};--cbc:${cbc.color};--cbhc:${cbc.hColor};--cbo:${cbc.off}px`; }
   if (w.layout !== 'canvas') {
     if (bx.wMode !== 'auto') bstyle += `;max-width:${bx.wMode === 'px' ? bx.w + 'px' : bx.wPct + '%'};margin:${bx.align === 'left' ? '0 auto 0 0' : bx.align === 'right' ? '0 0 0 auto' : '0 auto'}`;
     if (bx.hMode !== 'auto') { bcls += ` bh bh-${bx.hMode}`; bstyle += `;--bh:${bx.h}px;--bhm:${bx.hM || bx.h}px;--bva:${bx.vAlign === 'middle' ? 'center' : bx.vAlign === 'bottom' ? 'flex-end' : 'flex-start'}`; }

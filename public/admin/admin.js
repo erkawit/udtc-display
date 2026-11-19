@@ -1856,7 +1856,9 @@ async function viewWidgetEditor(id) {
     const num = (k, t, min, max, unit) => `<div><label class="lbl">${t}</label><div class="flex items-center gap-2"><input type="number" class="inp" data-k="${k}" min="${min}" max="${max}" value="${w[k]}"><span class="text-xs text-slate-500 w-6">${unit}</span></div></div>`;
     const isCar = w.layout === 'carousel';
     const isC = w.layout === 'canvas', isT = w.layout === 'tabs', isG = w.layout === 'grid' || w.layout === 'carousel';
+    for (const [k, v] of Object.entries({ cbMode: 'none', cbScope: 'link', cbW: 3, cbStyle: 'solid', cbColor: '#1e3a5f', cbHColor: '#d4a72c', cbAnim: 'glow', cbOff: 0 })) if (w[k] == null) w[k] = v;
     const wseg = (k, list) => `<div class="seg flex-wrap">${list.map(([v, t]) => `<button data-wseg="${k}" data-v="${v}" class="${String(w[k]) === String(v) ? 'on' : ''}">${t}</button>`).join('')}</div>`;
+    const wseg3 = (k, list) => wseg(k, list).replace('class="seg flex-wrap"', 'class="seg !grid grid-cols-3 gap-1"');
     const wcol = (k, t) => `<div><label class="lbl">${t}</label><div class="flex gap-2"><input type="color" class="h-9 w-11 rounded border border-slate-300 cursor-pointer" data-k="${k}" value="${/^#[0-9a-f]{6}$/i.test(w[k] || '') ? w[k] : '#1e293b'}"></div></div>`;
     P.innerHTML = `
       ${sec('รูปแบบ', `<div class="grid grid-cols-2 gap-2">
@@ -1935,6 +1937,16 @@ async function viewWidgetEditor(id) {
         ${rng('imgPad', 'ระยะขอบรอบภาพ (เหมาะกับโลโก้ / QR Code)', 0, 40, 'px')}
         ${tg('lightbox', 'คลิกภาพเพื่อขยายดู (เมื่อภาพไม่มีลิงก์)')}
         ${wcol('link2Color', 'สีลิงก์ที่ 2 ใต้ภาพ (เช่น “ดาวน์โหลดแบบฟอร์ม”)')}</div>`) : ''}
+      ${isG ? sec('เส้นขอบปุ่มภาพ / เอฟเฟกต์เมื่อชี้เมาส์', `<div class="space-y-3">
+        <div><label class="lbl">แสดงเส้นขอบ</label>${wseg('cbMode', [['none', 'ไม่มี'], ['always', 'แสดงตลอด'], ['hover', 'เฉพาะเมื่อชี้เมาส์']])}</div>
+        ${(w.cbMode || 'none') === 'none' ? '<p class="text-xs text-slate-500">เพิ่มกรอบรอบภาพที่ใช้เป็นปุ่มกด ให้ผู้ใช้เห็นชัดว่าคลิกได้ — เลือก “แสดงตลอด” หรือ “เฉพาะเมื่อชี้เมาส์”</p>' : `
+        <div><label class="lbl">ใช้กับ</label>${wseg('cbScope', [['link', 'เฉพาะภาพที่มีลิงก์ (ปุ่มภาพ)'], ['all', 'ภาพทุกภาพ']])}</div>
+        <div class="grid grid-cols-2 gap-3">${wcol('cbColor', w.cbMode === 'hover' ? 'สีเส้นขอบ (รอง)' : 'สีเส้นขอบ')}${wcol('cbHColor', 'สีเมื่อชี้เมาส์')}</div>
+        ${rng('cbW', 'ความหนาเส้น', 1, 12, 'px')}
+        ${rng('cbOff', 'ระยะเส้นจากขอบการ์ด (เข้าด้านใน)', 0, 16, 'px')}
+        <div><label class="lbl">ลายเส้น</label>${wseg('cbStyle', [['solid', '━ เส้นทึบ'], ['dashed', '┅ เส้นประ'], ['dotted', '⋯ จุด'], ['double', '═ เส้นคู่']])}</div>
+        <div><label class="lbl">Animation เมื่อชี้เมาส์</label>${wseg3('cbAnim', [['none', 'เปลี่ยนสีอย่างเดียว'], ['glow', '✨ เรืองแสง'], ['pulse', '◎ คลื่นกระจาย'], ['spin', '🌀 เส้นไล่สีวิ่งรอบ'], ['lift', '⬆ ยกลอย'], ['zoom', '🔍 ซูมภาพ']])}</div>
+        <p class="text-xs text-slate-500">บนมือถือ/แท็บเล็ต (ไม่มีเมาส์) โหมด “เฉพาะเมื่อชี้เมาส์” จะแสดงเส้นขอบตลอด เพื่อให้รู้ว่ากดได้ · ชี้เมาส์ที่ภาพในตัวอย่างด้านซ้ายเพื่อทดลอง</p>`}</div>`) : ''}
       ${isC || isT ? '' : sec('จำกัดจำนวน (แก้ปัญหาภาพเยอะเกินไป)', `<div class="space-y-3">
         <div><label class="lbl">แสดงสูงสุด (0 = ไม่จำกัด)</label><input type="number" min="0" class="inp" data-k="limit" value="${w.limit}"></div>
         <div class="grid grid-cols-2 gap-3"><div><label class="lbl">ข้อความปุ่ม</label><input class="inp" data-k="moreLabel" value="${esc(w.moreLabel)}" placeholder="ดูทั้งหมด"></div>
