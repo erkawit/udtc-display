@@ -2762,6 +2762,7 @@ async function viewIntros() {
           <a href="#/intros/${it.id}" class="btn btn-primary btn-sm flex-1">${icon('edit', 'w-3.5 h-3.5')} แก้ไข</a>
           <a href="/intro/${esc(it.slug)}" target="_blank" class="btn btn-light btn-sm" title="เปิดดู">${icon('ext', 'w-3.5 h-3.5')}</a>
           ${it.isMain ? '' : `<button class="btn btn-light btn-sm" data-main="${it.id}" title="ตั้งเป็นหน้า Intro หลัก (/intro)">★ ตั้งเป็นหลัก</button>`}
+          <button class="btn btn-light btn-sm" data-reni="${it.id}" title="เปลี่ยนชื่อ">${icon('edit', 'w-3.5 h-3.5')}</button>
           <button class="btn btn-light btn-sm" data-dupi="${it.id}" title="ทำสำเนา">${icon('copy', 'w-3.5 h-3.5')}</button>
           <button class="btn btn-danger btn-sm" data-deli="${it.id}" title="ลบ">${icon('trash', 'w-3.5 h-3.5')}</button>
         </div>
@@ -2777,13 +2778,28 @@ async function viewIntros() {
     const it = await api('POST', '/intros', r.value); location.hash = `#/intros/${it.id}`;
   };
   $('#demoI').onclick = async () => { const it = await api('POST', '/intros/demo'); ok('เพิ่มตัวอย่างแล้ว'); location.hash = `#/intros/${it.id}`; };
-  $$('[data-main]').forEach(b => b.onclick = async () => { await api('POST', `/intros/${b.dataset.main}/main`); ok('ตั้งเป็นหน้า Intro หลักแล้ว'); viewIntros(); });
+  $$('[data-main]').forEach(b => b.onclick = async () => { await api('POST', `/intros/${b.dataset.main}/main`); await viewIntros(); introMainNotice(list.find(x => x.id === b.dataset.main)); });
+  $$('[data-reni]').forEach(b => b.onclick = async () => {
+    const it = list.find(x => x.id === b.dataset.reni);
+    const r = await Swal.fire({ title: 'เปลี่ยนชื่อหน้า Intro', input: 'text', inputValue: it.name, showCancelButton: true, confirmButtonText: 'บันทึก', cancelButtonText: 'ยกเลิก', reverseButtons: true, inputValidator: v => !v.trim() && 'กรุณากรอกชื่อ' });
+    if (!r.isConfirmed) return; const full = await api('GET', `/intros/${it.id}`); full.name = r.value.trim().slice(0, 200); await api('PUT', `/intros/${it.id}`, full); ok('เปลี่ยนชื่อแล้ว'); viewIntros();
+  });
   $$('[data-dupi]').forEach(b => b.onclick = async () => { const c = await api('POST', `/intros/${b.dataset.dupi}/duplicate`); ok('ทำสำเนาแล้ว'); location.hash = `#/intros/${c.id}`; });
   $$('[data-deli]').forEach(b => b.onclick = async () => { const it = list.find(x => x.id === b.dataset.deli); if (!(await confirmBox('ลบหน้า Intro?', it.name, 'ลบ'))) return; await api('DELETE', `/intros/${it.id}`); ok('ลบแล้ว'); viewIntros(); });
 }
 
+function introMainNotice(it) {
+  const main = `${ORIGIN}/intro`;
+  Swal.fire({ icon: 'success', title: 'ตั้งเป็นหน้า Intro หลักแล้ว', confirmButtonText: 'เข้าใจแล้ว', width: 560,
+    html: `<div style="text-align:left;font-size:14px;line-height:1.6"><p><b>${esc(it ? it.name : '')}</b> จะแสดงที่ลิงก์ <code>${esc(main)}</code> ทันที</p>
+      <p style="margin-top:8px">หน้าเว็บศาลจะเปลี่ยนตามทันที <b>เฉพาะเมื่อ</b> ใช้ลิงก์หรือโค้ดฝังของ “หน้า Intro หลัก” (<code>/intro</code>) — ถ้าใช้ไฟล์ index.html ที่ดาวน์โหลดไว้ หรือลิงก์ที่มีชื่อเฉพาะ (<code>/intro/ชื่อ</code>) จะยังเป็นหน้าเดิม</p>
+      <p style="margin-top:8px;color:#64748b">ดูโค้ดได้ที่ปุ่ม “นำไปใช้ / ส่งออก” → หัวข้อ “สลับหน้า Intro ได้ทันที”</p></div>` });
+}
 function showIntroShare(it) {
   const url = `${ORIGIN}/intro/${it.slug}`, main = `${ORIGIN}/intro`;
+  const lis = `<script>addEventListener('message',function(e){if(e.origin==='${ORIGIN}'&&e.data&&e.data.type==='uw-intro-go'&&/^https?:\\/\\//.test(e.data.url))location.href=e.data.url;});</script>`;
+  const ifrMain = `<iframe src="${main}" title="${esc(it.title || 'หน้าแรก')}" style="position:fixed;inset:0;width:100%;height:100%;border:0;z-index:9999"></iframe>\n${lis}`;
+  const docMain = `<!DOCTYPE html>\n<html lang="th"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(it.title || 'หน้าแรก')}</title><style>html,body{margin:0;height:100%;overflow:hidden;background:#0f172a}</style></head>\n<body>\n${ifrMain}\n</body></html>`;
   const ifr = `<iframe src="${url}" title="${it.title || it.name}" style="position:fixed;inset:0;width:100%;height:100%;border:0;z-index:9999"></iframe>
 <script>addEventListener('message',function(e){if(e.origin==='${ORIGIN}'&&e.data&&e.data.type==='uw-intro-go'&&/^https?:\\/\\//.test(e.data.url))location.href=e.data.url;});</script>`;
   const box = (label, val, hint) => `<div><div class="flex items-center justify-between mb-1.5"><label class="lbl !mb-0">${label}</label><button class="btn btn-light btn-sm" data-cp="${esc(val)}">${icon('copy', 'w-3.5 h-3.5')} คัดลอก</button></div>
@@ -2792,9 +2808,15 @@ function showIntroShare(it) {
     title: `นำหน้า Intro ไปใช้ — ${esc(it.name)}`, size: 'max-w-2xl',
     body: `<div class="space-y-5">
       <div class="p-4 rounded-xl bg-emerald-50 border border-emerald-200">
-        <div class="font-semibold text-emerald-900">แนะนำ: ดาวน์โหลดเป็นไฟล์ HTML (ฝังภาพไว้ในไฟล์)</div>
+        <div class="font-semibold text-emerald-900">ดาวน์โหลดหน้านี้เป็นไฟล์ HTML (ฝังภาพไว้ในไฟล์ — หน้าคงที่)</div>
         <p class="text-sm text-emerald-900/80 mt-1">ได้ไฟล์ <span class="font-mono">index.html</span> ไฟล์เดียว นำไปวางเป็นหน้า Intro ของเว็บศาลได้ทันที ไม่เรียกเครื่องแม่ข่ายภายใน จึงไม่ขึ้นหน้าต่างขอสิทธิ์ และบุคคลภายนอกเห็นภาพครบ</p>
         <button class="btn btn-primary mt-3" data-dl>${icon('down')} ดาวน์โหลด index.html</button><div data-warn class="mt-3 space-y-1.5"></div>
+      </div>
+      <div class="p-4 rounded-xl bg-amber-50 border border-amber-200 space-y-3">
+        <div class="font-semibold text-amber-900">★ สลับหน้า Intro ได้ทันที (ตามที่ “ตั้งเป็นหน้าหลัก”)</div>
+        <p class="text-sm text-amber-900/80">วางโค้ดนี้ในเว็บศาล <b>ครั้งเดียว</b> — ต่อจากนี้กด “ตั้งเป็นหน้าหลัก” ที่หน้า Intro ใดในระบบ หน้าเว็บศาลจะเปลี่ยนตามทันทีโดยไม่ต้องแก้เว็บศาลอีก (ต้องเปิดเครื่องแม่ข่ายให้ภายนอกเข้าถึงได้ เช่น Vercel)</p>
+        <button class="btn btn-gold btn-sm" data-dlmain>${icon('down')} ดาวน์โหลด index.html แบบสลับอัตโนมัติ</button>
+        ${box('หรือโค้ดฝังเต็มหน้าจอ (วางในหน้าแรกของเว็บศาล)', ifrMain)}
       </div>
       ${box('ลิงก์หน้า Intro นี้', url)}
       ${box('ลิงก์หน้า Intro หลัก (เปลี่ยนตามที่ตั้งเป็นหลัก)', main, 'ใช้ลิงก์นี้ถ้าต้องการสลับหน้า Intro ตามวาระโดยไม่ต้องแก้เว็บศาล (ต้องเปิดเครื่องแม่ข่ายให้ภายนอกเข้าถึงได้)')}
@@ -2802,6 +2824,7 @@ function showIntroShare(it) {
     </div>`,
     onMount: el => {
       $$('[data-cp]', el).forEach(b => b.onclick = () => copyText(b.dataset.cp));
+      $('[data-dlmain]', el).onclick = () => { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([docMain], { type: 'text/html' })); a.download = 'index.html'; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 2000); ok('ดาวน์โหลดแล้ว'); };
       $('[data-dl]', el).onclick = async () => {
         try {
           const r = await api('POST', `/intros/${it.id}/export`, { base: ORIGIN });
@@ -2824,10 +2847,12 @@ async function viewIntroEditor(id) {
   <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5">
     <div class="flex items-center gap-3 min-w-0">
       <a href="#/intros" class="p-2 rounded-lg hover:bg-white border border-transparent hover:border-slate-200">${icon('back', 'w-5 h-5')}</a>
-      <div class="min-w-0"><div class="text-xs text-slate-500">หน้า Intro</div><h1 class="text-xl font-bold text-slate-900 truncate" id="iTitle">${esc(it.name)}</h1></div>
+      <div class="min-w-0"><div class="text-xs text-slate-500">หน้า Intro</div><div class="flex items-center gap-1.5 min-w-0"><h1 class="text-xl font-bold text-slate-900 truncate" id="iTitle">${esc(it.name)}</h1><button class="p-1.5 rounded-lg text-slate-400 hover:text-navy-700 hover:bg-white" id="renI" title="เปลี่ยนชื่อ">${icon('edit', 'w-4 h-4')}</button></div></div>
+      <span id="mainBadge"></span>
       <span id="dirtyDot" class="hidden text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-800">ยังไม่บันทึก</span>
     </div>
     <div class="flex flex-wrap gap-2">
+      <button class="btn btn-light hidden" id="setMainBtn" title="ให้ลิงก์ /intro แสดงหน้านี้ทันที">★ ตั้งเป็นหน้าหลัก</button>
       <button class="btn btn-light" id="shareBtn">${icon('code')} นำไปใช้ / ส่งออก</button>
       <a class="btn btn-light" id="openBtn" href="/intro/${esc(it.slug)}" target="_blank">${icon('ext')} เปิดดู</a>
       <button class="btn btn-primary" id="saveBtn">${icon('save')} บันทึก</button>
@@ -2871,6 +2896,20 @@ async function viewIntroEditor(id) {
     } catch (e) { fail(e.message); }
   };
   document.onkeydown = e => { if ((e.ctrlKey || e.metaKey) && e.key === 's' && $('#saveBtn')) { e.preventDefault(); $('#saveBtn').click(); } };
+  const refreshMain = async () => {
+    const lst = await api('GET', '/intros'), me = lst.find(x => x.id === it.id), isMain = !!(me && me.isMain);
+    $('#mainBadge').innerHTML = isMain ? '<span class="text-xs px-2 py-0.5 rounded-full bg-gold-500 text-white font-semibold whitespace-nowrap">★ หน้า Intro หลัก</span>' : '';
+    $('#setMainBtn').classList.toggle('hidden', isMain);
+  };
+  refreshMain();
+  $('#setMainBtn').onclick = async () => {
+    if (state.dirty && (await confirmBox('ยังไม่ได้บันทึก', 'บันทึกการแก้ไขก่อนตั้งเป็นหน้าหลักหรือไม่?', 'บันทึก', false))) await $('#saveBtn').onclick();
+    await api('POST', `/intros/${it.id}/main`); await refreshMain(); introMainNotice(it);
+  };
+  $('#renI').onclick = async () => {
+    const r = await Swal.fire({ title: 'เปลี่ยนชื่อหน้า Intro', input: 'text', inputValue: it.name, showCancelButton: true, confirmButtonText: 'ตกลง', cancelButtonText: 'ยกเลิก', reverseButtons: true, inputValidator: v => !v.trim() && 'กรุณากรอกชื่อ' });
+    if (!r.isConfirmed) return; it.name = r.value.trim().slice(0, 200); $('#iTitle').textContent = it.name; markDirty(); await $('#saveBtn').onclick();
+  };
   $('#shareBtn').onclick = async () => { if (state.dirty && (await confirmBox('ยังไม่ได้บันทึก', 'บันทึกก่อนนำไปใช้หรือไม่?', 'บันทึก', false))) await $('#saveBtn').onclick(); showIntroShare(it); };
 
   /* control helpers (data-p = path) */
@@ -2887,6 +2926,7 @@ async function viewIntroEditor(id) {
       const v = i.type === 'checkbox' ? i.checked : i.dataset.n !== undefined || i.type === 'number' ? Number(i.value) : i.value;
       setP(it, i.dataset.p, v);
       const o = $(`[data-o="${i.dataset.p}"]`, P); if (o) o.textContent = i.value;
+      if (i.dataset.p === 'name') $('#iTitle').textContent = v || 'หน้า Intro';
       const x = $(`[data-px="${i.dataset.p}"]`, P); if (x) x.value = i.value;
       if (i.dataset.p === 'font') ensureFont(v);
       markDirty(); if (i.dataset.rd !== undefined) draw();

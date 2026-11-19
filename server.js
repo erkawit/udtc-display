@@ -396,7 +396,7 @@ function loadDb() {
     console.log('สร้างฐานข้อมูลเริ่มต้นแล้ว (admin / caogikojt02)');
   }
   db.settings = Object.assign(seed().settings, db.settings || {});
-  for (const k of ['users', 'widgets', 'pages', 'media', 'buttonPresets', 'intros']) db[k] = db[k] || [];
+  for (const k of ['users', 'widgets', 'pages', 'media', 'buttonPresets', 'intros']) db[k] = db[k] || []; migrateIntros();
 }
 let FRESH_INSTALL = false;
 if (!NEON) {
@@ -1202,6 +1202,7 @@ function normIntroBtn(b) {
 function normIntro(x, existing) {
   const bg = x.bg || {}, bar = x.bar || {}, an = x.anim || {}, hd = x.head || {}, ag = x.autoGo || {};
   return Object.assign({}, existing || {}, {
+    headMigrated: true,
     name: String(x.name || 'หน้า Intro').slice(0, 200), title: String(x.title || '').slice(0, 200),
     font: UB.FONTS.some(f => f[0] === x.font) ? x.font : 'Sarabun',
     bg: {
@@ -1378,13 +1379,22 @@ function exportIntro(it, base) {
   if (/\/\/(localhost|127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/.test(base) && stat.ext) warnings.push(`มีลิงก์ ${stat.ext} รายการที่ชี้ไปยัง ${base} (IP ภายใน) — บุคคลภายนอกเปิดไม่ได้ ควรใช้ลิงก์เต็ม เช่น https://udtc.coj.go.th/...`);
   return { html, bytes: Buffer.byteLength(html), warnings };
 }
+/** ภาพตัวอย่างหน้า Intro รุ่นก่อนมีชื่อหัวเรื่องฝังอยู่ในภาพ (แก้ไม่ได้) — ย้ายมาเป็นข้อความที่แก้ไขได้ */
+function introHeadDemo() { return { show: true, text: 'ศาลจังหวัดอุดรธานี', sub: 'ยินดีต้อนรับ', color: '#ffffff', size: 64, pos: 'upper', shadow: true }; }
+function migrateIntros() {
+  for (const it of db.intros || []) {
+    if (it.headMigrated) continue;
+    if (it.bg && it.bg.image === '/assets/samples/intro-bg.svg' && !(it.head && (it.head.text || it.head.sub))) it.head = { ...(it.head || {}), ...introHeadDemo() };
+    it.headMigrated = true;
+  }
+}
 function demoIntro(intros) {
   const t = now();
   const slug = uniqueSlug(intros, 'main');
   const it = normIntro({
     name: 'หน้า Intro หลัก (ตัวอย่าง)', title: 'ศาลจังหวัดอุดรธานี', font: 'Kanit',
     bg: { image: '/assets/samples/intro-bg.svg', fit: 'cover', pos: 'center', color: '#0f172a', overlayOpacity: 0, kenburns: true },
-    head: { show: false },
+    head: introHeadDemo(),
     bar: { pos: 'bottom', align: 'center', style: 'glass', bg: '#0f172a', opacity: 45, radius: 22, pad: 16, gap: 14, offset: 36, maxWidth: 1000, btnH: 60, btnW: 210, cols: 0, mobileCols: 1 },
     anim: { bar: 'slide-up', items: 'stagger-up', delay: 300, duration: 700, stagger: 110 },
     buttons: [
@@ -1870,7 +1880,7 @@ function serverInfoLocal() {
 }
 function loadDbDefaults() {
   db.settings = Object.assign(seed().settings, db.settings || {});
-  for (const k of ['users', 'widgets', 'pages', 'media', 'buttonPresets', 'intros']) db[k] = db[k] || [];
+  for (const k of ['users', 'widgets', 'pages', 'media', 'buttonPresets', 'intros']) db[k] = db[k] || []; migrateIntros();
 }
 
 /* ------------------------------------------------------------------ */
