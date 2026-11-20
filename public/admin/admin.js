@@ -531,19 +531,19 @@ function showPageShare(p) {
     body: `<div class="space-y-5">
       ${p.status !== 'published' ? `<div class="p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-sm">⚠ หน้านี้ยังเป็น <b>ฉบับร่าง</b> — ผู้ชมภายนอกจะเปิดไม่ได้จนกว่าจะเปลี่ยนสถานะเป็น “เผยแพร่” แล้วบันทึก</div>` : ''}
       <div class="p-3 rounded-xl border border-slate-200 bg-slate-50 grid sm:grid-cols-3 gap-3 items-end">
-        <label class="flex items-center justify-between gap-2 text-sm text-slate-700">แสดงหัวเรื่อง/ภาพปก<input type="checkbox" class="tgl" data-o="title" checked></label>
+        ${p.chrome && p.chrome.title ? '<label class="flex items-center justify-between gap-2 text-sm text-slate-700">แสดงหัวเรื่อง/ภาพปก<input type="checkbox" class="tgl" data-o="title" checked></label>' : '<div class="text-xs text-slate-500">หัวเรื่องหน้า: ปิดอยู่ (ตั้งที่ “ส่วนประกอบรอบเนื้อหา”)</div>'}
         <label class="flex items-center justify-between gap-2 text-sm text-slate-700">พื้นหลังสีเทาอ่อน<input type="checkbox" class="tgl" data-o="bg" checked></label>
         <div><label class="lbl">ความสูงเริ่มต้น (px)</label><input type="number" class="inp" data-o="h" value="900" min="200" max="6000"></div>
-        <p class="text-xs text-slate-500 sm:col-span-3">โค้ด iframe จะแสดงเฉพาะเนื้อหาของหน้า (ไม่มีเมนูด้านบนและส่วนท้ายของเว็บนี้) · ลิงก์ที่คลิกในหน้า จะเปิดทั้งหน้าต่าง</p>
+        <p class="text-xs text-slate-500 sm:col-span-3">โค้ด iframe แสดงเฉพาะเนื้อหาของหน้าเสมอ (ไม่มีแถบโลโก้/เมนูและส่วนท้าย) · ลิงก์ที่คลิกในหน้า จะเปิดทั้งหน้าต่าง</p>
       </div>
       <div data-codes class="space-y-5"></div>
       <div class="flex gap-2"><a class="btn btn-light btn-sm" data-open target="_blank">${icon('ext', 'w-3.5 h-3.5')} เปิดดูแบบที่จะฝัง</a></div>
     </div>`,
     onMount: el => {
-      const draw = () => { const c = codes(); $('[data-codes]', el).innerHTML = `${box('ลิงก์หน้าเว็บ (เต็มหน้า มีเมนูและส่วนท้าย)', c.link)}
+      const draw = () => { const c = codes(); $('[data-codes]', el).innerHTML = `${box('ลิงก์หน้าเว็บ', c.link)}
         ${box('โค้ด iframe แบบปรับความสูงอัตโนมัติ (แนะนำ)', c.auto, 'iframe ยืด–หดตามเนื้อหาเอง ไม่มีแถบเลื่อน — วางทั้ง 2 บรรทัด')}
         ${box('โค้ด iframe แบบกำหนดความสูงตายตัว', c.fixed, 'ใช้เมื่อเว็บปลายทางไม่อนุญาตให้ใส่ &lt;script&gt; — ปรับค่า height ให้พอดีกับเนื้อหา')}
-        ${box('โค้ดฝังแบบเต็มหน้าจอ (ทั้งหน้าเว็บรวมเมนู)', c.full)}`;
+        ${box('โค้ดฝังแบบเต็มหน้าจอ', c.full)}`;
         $('[data-open]', el).href = c.src; $$('[data-cp]', el).forEach(b => b.onclick = () => copyText(b.dataset.cp)); };
       $$('[data-o]', el).forEach(i => i.addEventListener(i.type === 'checkbox' ? 'change' : 'input', () => { opt[i.dataset.o] = i.type === 'checkbox' ? i.checked : Math.max(200, Math.min(6000, +i.value || 900)); draw(); }));
       draw();
@@ -2656,6 +2656,11 @@ async function viewPageEditor(id) {
         ${p.cover ? `<div class="relative rounded-lg overflow-hidden border border-slate-200 aspect-[16/7] mb-2"><img src="${esc(p.cover)}" class="w-full h-full object-cover"><button class="absolute top-1.5 right-1.5 p-1 rounded-md bg-white/90 text-rose-600" id="rmCover">${icon('x')}</button></div>` : ''}
         <button class="btn btn-light btn-sm w-full" id="pickCover">${icon('media', 'w-3.5 h-3.5')} ${p.cover ? 'เปลี่ยนภาพปก' : 'เลือกภาพปก'}</button></div>
       <div class="pt-3 border-t border-slate-100 space-y-2">
+        <div class="text-sm font-semibold text-slate-700">ส่วนประกอบรอบเนื้อหา</div>
+        <p class="text-xs text-slate-500 -mt-1">ปิดทั้งหมด = แสดงเฉพาะเนื้อหาที่วางไว้ (เหมาะกับนำไปใช้ในเว็บศาล)</p>
+        ${[['header', 'แถบโลโก้และเมนูด้านบน'], ['title', 'หัวเรื่องหน้า + เส้นทาง (หน้าหลัก / …)'], ['footer', 'ส่วนท้ายเว็บ'], ['updated', 'วันที่ปรับปรุงล่าสุด']].map(([k, t]) => `<label class="flex items-center justify-between text-sm"><span>${t}</span><input type="checkbox" class="tgl" data-ch="${k}" ${p.chrome && p.chrome[k] ? 'checked' : ''}></label>`).join('')}
+      </div>
+      <div class="pt-3 border-t border-slate-100 space-y-2">
         <label class="flex items-center justify-between text-sm"><span>แสดงในเมนูด้านบน</span><input type="checkbox" class="tgl" data-p="showInMenu" ${p.showInMenu ? 'checked' : ''}></label>
         <div class="flex items-center justify-between text-sm"><span>ลำดับในเมนู</span><input type="number" class="inp !w-20 text-center" data-p="menuOrder" value="${p.menuOrder || 0}"></div>
       </div>
@@ -2670,6 +2675,7 @@ async function viewPageEditor(id) {
       markDirty();
     }));
     $$('[data-st]', S).forEach(b => b.onclick = () => { p.status = b.dataset.st; markDirty(); drawSettings(); });
+    $$('[data-ch]', S).forEach(c => c.onchange = () => { p.chrome = { ...(p.chrome || {}), [c.dataset.ch]: c.checked }; markDirty(); });
     $('#pickCover').onclick = async () => { const u = await pickMedia('image'); if (u) { p.cover = u; markDirty(); drawSettings(); } };
     const rc = $('#rmCover'); if (rc) rc.onclick = () => { p.cover = ''; markDirty(); drawSettings(); };
     $('#cpLink').onclick = () => copyText(`${ORIGIN}/p/${p.slug}`);

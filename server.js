@@ -648,11 +648,14 @@ function normBlock(b) {
   }
   return o;
 }
+/** ส่วนประกอบรอบเนื้อหาของหน้าเว็บเผยแพร่ — ค่าเริ่มต้น: แสดงเฉพาะเนื้อหา */
+function pageChrome(c) { c = c && typeof c === 'object' ? c : {}; return { header: !!c.header, title: !!c.title, footer: !!c.footer, updated: !!c.updated }; }
 function normPage(p, existing) {
   return Object.assign({}, existing || {}, {
     title: String(p.title || 'หน้าใหม่').slice(0, 300), description: String(p.description || '').slice(0, 1000),
     cover: safeUrl(p.cover), status: p.status === 'published' ? 'published' : 'draft',
     showInMenu: !!p.showInMenu, menuOrder: clamp(p.menuOrder, 0, 999, 0),
+    chrome: pageChrome(p.chrome),
     blocks: Array.isArray(p.blocks) ? p.blocks.map(normBlock) : (existing ? existing.blocks : []),
     updatedAt: now(),
   });
@@ -1415,10 +1418,25 @@ function demoIntro(intros) {
 function navPages() {
   return db.pages.filter(p => p.status === 'published' && p.showInMenu).sort((a, b) => (a.menuOrder || 0) - (b.menuOrder || 0));
 }
-function layoutPage({ title, body, description = '', active = '', embed = false, transparent = false }) {
+function layoutPage({ title, body, description = '', active = '', embed = false, transparent = false, header = true, footer = true }) {
   const s = db.settings;
   const nav = navPages();
   const logo = s.logo ? `<img src="${esc(s.logo)}" alt="" class="h-11 w-11 object-contain">` : '';
+  const ftr = `<footer class="mt-16 text-slate-300" style="background:var(--primary)">
+  <div class="max-w-6xl mx-auto px-4 sm:px-6 py-8 flex flex-col md:flex-row gap-4 md:items-center md:justify-between">
+    <div><div class="font-semibold text-white">${esc(s.siteName)}</div><div class="text-sm mt-1 opacity-80 whitespace-pre-line">${esc(s.footer)}</div></div>
+    <div class="text-xs opacity-60">© ${new Date().getFullYear() + 543} ${esc(s.siteName)}</div>
+  </div>
+</footer>`;
+  const hdr = `<div style="background:var(--primary)" class="h-1.5"></div>
+<header class="bg-white border-b border-slate-200 sticky top-0 z-30">
+  <div class="max-w-6xl mx-auto px-4 sm:px-6 flex items-center justify-between h-20">
+    <a href="/" class="flex items-center gap-3 min-w-0">${logo}<div class="min-w-0"><div class="font-bold text-lg leading-tight truncate" style="color:var(--primary)">${esc(s.siteName)}</div><div class="text-xs text-slate-500 tracking-wide truncate">${esc(s.siteNameEn)}</div></div></a>
+    <nav class="hidden md:flex items-center gap-1">${nav.map(p => `<a href="/p/${esc(p.slug)}" class="nav-link px-3 py-2 text-[15px] text-slate-600 hover:text-slate-900 border-b-2 border-transparent ${p.slug === active ? 'active' : ''}">${esc(p.title)}</a>`).join('')}</nav>
+    ${nav.length ? `<button id="mnav" class="md:hidden p-2 rounded-lg hover:bg-slate-100" aria-label="เมนู"><svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button>` : ''}
+  </div>
+  <div id="mnavbox" class="md:hidden hidden border-t border-slate-100 px-4 py-2">${nav.map(p => `<a href="/p/${esc(p.slug)}" class="block px-3 py-2.5 rounded-lg text-slate-700 hover:bg-slate-50">${esc(p.title)}</a>`).join('')}</div>
+</header>`;
   return `<!DOCTYPE html><html lang="th"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>${esc(title)} | ${esc(s.siteName)}</title>${description ? `<meta name="description" content="${esc(description)}">` : ''}
 <link rel="icon" href="${esc(s.logo || '/assets/logo.svg')}">
@@ -1436,22 +1454,9 @@ ${embed ? `<base target="_top"><style>html,body{overflow-x:hidden}${transparent 
 <script>(function(){if(window.parent===window)return;var last=0;function post(){var h=Math.ceil(document.body.getBoundingClientRect().height);if(h!==last){last=h;parent.postMessage({type:'uw-resize',height:h},'*');}}
 if(window.ResizeObserver)new ResizeObserver(post).observe(document.body);addEventListener('load',post);setTimeout(post,300);setInterval(post,1500);})();</script>
 </body></html>` : `<body class="bg-slate-50 text-slate-800 antialiased min-h-screen flex flex-col">
-<div style="background:var(--primary)" class="h-1.5"></div>
-<header class="bg-white border-b border-slate-200 sticky top-0 z-30">
-  <div class="max-w-6xl mx-auto px-4 sm:px-6 flex items-center justify-between h-20">
-    <a href="/" class="flex items-center gap-3 min-w-0">${logo}<div class="min-w-0"><div class="font-bold text-lg leading-tight truncate" style="color:var(--primary)">${esc(s.siteName)}</div><div class="text-xs text-slate-500 tracking-wide truncate">${esc(s.siteNameEn)}</div></div></a>
-    <nav class="hidden md:flex items-center gap-1">${nav.map(p => `<a href="/p/${esc(p.slug)}" class="nav-link px-3 py-2 text-[15px] text-slate-600 hover:text-slate-900 border-b-2 border-transparent ${p.slug === active ? 'active' : ''}">${esc(p.title)}</a>`).join('')}</nav>
-    ${nav.length ? `<button id="mnav" class="md:hidden p-2 rounded-lg hover:bg-slate-100" aria-label="เมนู"><svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button>` : ''}
-  </div>
-  <div id="mnavbox" class="md:hidden hidden border-t border-slate-100 px-4 py-2">${nav.map(p => `<a href="/p/${esc(p.slug)}" class="block px-3 py-2.5 rounded-lg text-slate-700 hover:bg-slate-50">${esc(p.title)}</a>`).join('')}</div>
-</header>
+${header ? hdr : ''}
 <main class="flex-1">${body}</main>
-<footer class="mt-16 text-slate-300" style="background:var(--primary)">
-  <div class="max-w-6xl mx-auto px-4 sm:px-6 py-8 flex flex-col md:flex-row gap-4 md:items-center md:justify-between">
-    <div><div class="font-semibold text-white">${esc(s.siteName)}</div><div class="text-sm mt-1 opacity-80 whitespace-pre-line">${esc(s.footer)}</div></div>
-    <div class="text-xs opacity-60">© ${new Date().getFullYear() + 543} ${esc(s.siteName)}</div>
-  </div>
-</footer>
+${footer ? ftr : ''}
 <script src="/assets/embed.js"></script>
 <script>var b=document.getElementById('mnav');if(b)b.onclick=function(){document.getElementById('mnavbox').classList.toggle('hidden')}</script>
 </body></html>`}`;
@@ -1511,11 +1516,12 @@ function renderPage(p, preview = false, opt = {}) {
   const cover0 = p.cover ? `<div class="relative h-56 sm:h-72 overflow-hidden"><img src="${esc(p.cover)}" class="absolute inset-0 w-full h-full object-cover" alt=""><div class="absolute inset-0 bg-gradient-to-t from-slate-900/80 to-slate-900/10"></div>
     <div class="relative max-w-6xl mx-auto px-4 sm:px-6 h-full flex flex-col justify-end pb-8"><h1 class="text-3xl sm:text-4xl font-bold text-white">${esc(p.title)}</h1>${p.description ? `<p class="text-slate-200 mt-2 max-w-2xl">${esc(p.description)}</p>` : ''}</div></div>`
     : `<div class="bg-white border-b border-slate-200"><div class="max-w-6xl mx-auto px-4 sm:px-6 py-10"><nav class="text-sm text-slate-500 mb-3"><a href="/" class="hover:underline">หน้าหลัก</a> <span class="mx-1">/</span> ${esc(p.title)}</nav><h1 class="text-3xl sm:text-4xl font-bold" style="color:var(--primary)">${esc(p.title)}</h1>${p.description ? `<p class="text-slate-600 mt-2 max-w-3xl">${esc(p.description)}</p>` : ''}</div></div>`;
-  const cover = opt.embed && opt.noTitle ? '' : cover0;
+  const ch = pageChrome(p.chrome), showT = ch.title && !(opt.embed && opt.noTitle);
+  const cover = showT ? cover0 : '';
   const banner = preview && p.status !== 'published' ? `<div class="bg-amber-100 text-amber-900 text-center text-sm py-2">โหมดดูตัวอย่าง — หน้านี้ยังเป็น "ฉบับร่าง" ผู้เข้าชมทั่วไปจะมองไม่เห็น</div>` : '';
-  const body = `${banner}${cover}<div class="max-w-6xl mx-auto px-4 sm:px-6 py-10 space-y-6">${p.blocks.map(renderBlock).join('\n')}
-    <div class="pt-6 text-xs text-slate-400">ปรับปรุงล่าสุด ${new Date(p.updatedAt).toLocaleString('th-TH', { dateStyle: 'long', timeStyle: 'short', timeZone: 'Asia/Bangkok' })}</div></div>`;
-  return layoutPage({ title: p.title, description: p.description, body: opt.embed ? body.replace('px-4 sm:px-6 py-10 space-y-6', 'px-4 sm:px-6 py-6 space-y-6') : body, active: p.slug, embed: !!opt.embed, transparent: !!opt.transparent });
+  const body = `${banner}${cover}<div class="max-w-6xl mx-auto px-4 sm:px-6 ${showT || ch.header ? 'py-10' : 'py-6'} space-y-6">${p.blocks.map(renderBlock).join('\n')}
+    ${ch.updated ? `<div class="pt-6 text-xs text-slate-400">ปรับปรุงล่าสุด ${new Date(p.updatedAt).toLocaleString('th-TH', { dateStyle: 'long', timeStyle: 'short', timeZone: 'Asia/Bangkok' })}</div>` : ''}</div>`;
+  return layoutPage({ title: p.title, description: p.description, body: opt.embed ? body.replace('px-4 sm:px-6 py-10 space-y-6', 'px-4 sm:px-6 py-6 space-y-6') : body, active: p.slug, embed: !!opt.embed, transparent: !!opt.transparent, header: ch.header, footer: ch.footer });
 }
 function renderHome() {
   const s = db.settings;
