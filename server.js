@@ -527,7 +527,7 @@ function safeJoin(base, rel) {
 /* ------------------------------------------------------------------ */
 /* Normalizers (validate input from admin)                            */
 /* ------------------------------------------------------------------ */
-const LAYOUTS = ['grid', 'carousel', 'list', 'canvas', 'tabs'];
+const LAYOUTS = ['grid', 'carousel', 'list', 'canvas', 'tabs', 'code'];
 const safeFa = c => /^[a-z0-9\- ]{3,80}$/i.test(String(c || '')) ? String(c).trim() : '';
 const RATIOS = ['auto', '16/9', '16/6', '21/9', '4/3', '3/2', '1/1', '3/4', '2/3', 'custom'];
 const EASES = { smooth: 'cubic-bezier(.4,0,.2,1)', ease: 'ease', linear: 'linear', 'ease-in-out': 'ease-in-out', bounce: 'cubic-bezier(.34,1.4,.64,1)' };
@@ -594,12 +594,30 @@ function normItem(i) {
     active: i.active !== false, start: String(i.start || ''), end: String(i.end || ''),
   };
 }
+/** ส่วนแสดงผลแบบเขียนโค้ด HTML / CSS / JS */
+function normCode(c) {
+  c = c && typeof c === 'object' ? c : {};
+  return { html: String(c.html || '').slice(0, 600000), css: String(c.css || '').slice(0, 200000), js: String(c.js || '').slice(0, 100000), tailwind: !!c.tailwind, pad: c.pad === false ? false : true };
+}
+/** แทนที่ {{widget:slug}} ด้วยเนื้อหาของส่วนแสดงผลอื่น (ซ้อนได้ 2 ชั้น) */
+function expandCode(html, depth = 0) {
+  return String(html || '').replace(/\{\{\s*widget\s*:\s*([\w-]+)\s*\}\}/g, (m, slug) => {
+    const o = db.widgets.find(x => x.slug === slug);
+    if (!o) return `<div class="uw-empty">ไม่พบส่วนแสดงผล "${esc(slug)}"</div>`;
+    if (o.layout === 'code') return depth < 2 ? `<div class="uw-code">${expandCode(o.code && o.code.html, depth + 1)}</div>` : '';
+    return renderWidgetInner(o);
+  });
+}
+/** CSS ของส่วนแสดงผลแบบโค้ด (ตัวเอง + ส่วนที่ฝังไว้ด้วย {{widget:…}} หรืออยู่ในแท็บ) */
+function codeCss(w) { const seen = new Set(); return [w, ...tabChildren(w), ...codeChildren(w)].filter(x => x && x.layout === 'code' && x.code && x.code.css && !seen.has(x.id) && seen.add(x.id)).map(x => x.code.css).join('\n'); }
+function codeChildren(w) { return w.layout === 'code' && w.code ? [...String(w.code.html).matchAll(/\{\{\s*widget\s*:\s*([\w-]+)\s*\}\}/g)].map(m => db.widgets.find(x => x.slug === m[1])).filter(Boolean) : []; }
 function normWidget(w, existing) {
   const out = Object.assign({}, existing || {}, {
     name: String(w.name || 'ส่วนแสดงผลใหม่').slice(0, 200),
     description: String(w.description || '').slice(0, 500),
     title: String(w.title || '').slice(0, 200), showTitle: !!w.showTitle,
     layout: LAYOUTS.includes(w.layout) ? w.layout : 'grid',
+    code: w.layout === 'code' || w.code ? normCode(w.code) : undefined,
     columns: clamp(w.columns, 1, 6, 3), mobileColumns: clamp(w.mobileColumns, 1, 3, 1),
     gap: clamp(w.gap, 0, 48, 12), ratio: RATIOS.includes(w.ratio) ? w.ratio : 'auto',
     ratioW: clamp(w.ratioW, 1, 10000, 16), ratioH: clamp(w.ratioH, 1, 10000, 9),
@@ -687,6 +705,7 @@ function isVisible(item, at = new Date()) {
 }
 
 const WIDGET_CSS = `
+.uw-codew{background:var(--bg);padding:var(--pad)}.uw-codew.np{padding:0}.uw-code{min-width:0}
 *{box-sizing:border-box}html,body{margin:0;padding:0}
 body{font-family:'Sarabun',system-ui,-apple-system,'Segoe UI',Tahoma,sans-serif;color:#1e293b;-webkit-font-smoothing:antialiased}
 .uw{background:var(--bg);padding:var(--pad)}
@@ -890,7 +909,7 @@ function rowHtml(it, w) {
   if (it.type === 'qr') return `<div class="uw-qr">${UB.qrHtml(it)}</div>`;
   if (it.type === 'video' && it.vp && it.vp.on) return `<div class="uw-vpw">${UB.videoPanelHtml(it)}</div>`;
   if (it.type === 'video') return `<div class="uw-row video"><div class="uw-media uw-vid" style="aspect-ratio:${vRatio(it, '16/9')}">${videoHtml(it.src, it.poster, '', it.vo)}</div>${it.title ? `<div class="uw-cap"><b>${esc(it.title)}</b>${it.subtitle ? `<small>${esc(it.subtitle)}</small>` : ''}</div>` : ''}</div>`;
-  if (it.type === 'html') return `<div class="uw-html">${it.html}</div>`;
+  if (it.type === 'html') return `<div class="uw-html ux">${it.html}</div>`;
   if (TEXTY.includes(it.type)) return textItemHtml(it);
   const lead = it.type === 'image' && it.src
     ? `<span class="th${w.ratio === 'auto' ? ' auto' : ''}"><img src="${esc(it.src)}" alt="" loading="lazy"></span>`
@@ -944,6 +963,7 @@ function renderWidgetInner(w, { full = false } = {}) {
   const total = items.length;
   if (!full && w.limit > 0) items = items.slice(0, w.limit);
   const vars = `--bg:${w.bg};--pad:${w.padding}px;--gap:${w.gap}px;--cols:${w.layout === 'carousel' ? w.columns : w.columns};--mcols:${w.mobileColumns};--ratio:${ratioVal(w)};--fit:${w.fit};--radius:${w.radius}px;--accent:${w.accent};--prad:${w.panelRadius || 0}px;--imgpad:${w.imgPad || 0}px;--capc:${w.capColor || 'inherit'};--l2c:${w.link2Color || '#c2410c'}${w.btnMinH ? `;--bminh:${w.btnMinH}px` : ''}`;
+  if (w.layout === 'code') return `<div class="uw uw-codew${w.code && w.code.pad === false ? ' np' : ''}" style="--bg:${w.bg};--pad:${w.padding}px"><div class="uw-code">${expandCode(w.code && w.code.html)}</div></div>`;
   let body;
   if (w.layout === 'tabs') body = tabsHtml(w);
   else if (!items.length) body = `<div class="uw-empty">ยังไม่มีรายการแสดงผล</div>`;
@@ -1083,7 +1103,7 @@ function scopeCss(css, scope) {
   const pre = sel => {
     sel = sel.trim();
     if (sel === '*') return `${scope},${scope} *`;
-    if (/^(html|body)$/.test(sel)) return scope;
+    if (/^(html|body|:root)$/.test(sel)) return scope;
     sel = sel.replace(/^(html|body)\b\s*/, '');
     return sel ? `${scope} ${sel}` : scope;
   };
@@ -1149,10 +1169,11 @@ ${scope} a.uw-row,${scope} a.uw-card,${scope} a.uw-ml,${scope} a.uw-row:visited,
 ${scope} a.uw-l2{color:var(--l2c)!important}${scope} button.ut-tab{margin:0;line-height:1.3;text-transform:none;min-height:0}${scope} .ut-pill .ut-tab.on,${scope} .ut-button .ut-tab.on{color:var(--tfg)!important}
 ${scope} .uw-more a{color:var(--accent)!important}${scope} .uw-more a:hover{color:#fff!important}
 ${scope} h2.uw-title{font-size:1.15rem;font-weight:700;color:var(--accent);padding:0;line-height:1.3}${scope} button{font-family:inherit}`;
-  const css = reset + scopeCss(WIDGET_CSS + UB.CSS, scope);
+  const css = reset + scopeCss(WIDGET_CSS + UB.CSS + '\n' + codeCss(w), scope);
   const html = abs(renderWidgetInner(w, { full }));
   let js = '';
   if (/uw-car|ut-bar|data-lb|data-tilt|data-enter|data-pdf|utb-q|data-sort|data-hls|data-uvp/.test(html)) js = `\n<script>${runtimeJs(`document.getElementById('${id}')`, false)}</script>`;
+  if (w.layout === 'code' && w.code && w.code.js) js += `\n<script>try{(function(root){${w.code.js}\n})(document.querySelector('#${id} .uw-code'));}catch(e){console.error(e)}</script>`;
   const links = [font ? '<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700&display=swap">' : '',
     needsFa(w) ? `<link rel="stylesheet" href="${UB.FA_CSS}">` : '',
     UB.fontUrl(widgetFonts(w)) ? `<link rel="stylesheet" href="${UB.fontUrl(widgetFonts(w))}">` : ''].filter(Boolean).join('\n');
@@ -1166,6 +1187,7 @@ ${links ? links + '\n' : ''}<style>${css}</style>
   if (sched.length) warnings.push(`มี ${sched.length} รายการที่กำหนดวันเริ่ม/สิ้นสุด — โค้ดนี้ส่งออกเฉพาะรายการที่แสดงอยู่ ณ ตอนนี้ และจะไม่ซ่อน/แสดงตามวันอัตโนมัติ`);
   if (all.some(x => (x.items || []).some(i => i.type === 'html'))) warnings.push('มีรายการแบบ HTML — ตรวจสอบว่าเว็บปลายทางรองรับโค้ดนั้น');
   if (js) warnings.push('มีสไลด์ / แท็บ / การคลิกขยายภาพ ซึ่งต้องใช้ <script> — หากเว็บปลายทางตัด script ออก ส่วนนี้จะแสดงได้แต่กดใช้งานไม่ได้ (แท็บจะค้างที่แท็บแรก)');
+  if (w.layout === 'code' && w.code && w.code.tailwind) warnings.push('เปิดใช้ Tailwind ไว้ — คลาสของ Tailwind ใช้ได้เฉพาะแบบ iframe (โค้ดส่งออกนี้ไม่รวม Tailwind เพราะจะไปเปลี่ยนหน้าตาเว็บปลายทางทั้งหน้า) ควรใช้คลาส ux-… ที่ระบบเตรียมไว้ หรือเขียน CSS เอง');
   if (w.layout === 'tabs') warnings.push('แบบแท็บรวมเนื้อหาจากส่วนแสดงผลอื่น — หากแก้ส่วนใดส่วนหนึ่ง ต้องส่งออกแท็บนี้ใหม่');
   const privateBase = /\/\/(localhost|127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.|[^/]*\.local\b)/.test(base);
   if (inline && stat.inlined) warnings.unshift(`ฝังภาพไว้ในโค้ดแล้ว ${stat.inlined} ภาพ (${(stat.inlineBytes / 1048576).toFixed(2)} MB) — หน้าเว็บปลายทางจะไม่เรียกไฟล์จากเครื่องแม่ข่าย จึงไม่ขึ้นหน้าต่างขอสิทธิ์ “เข้าถึงอุปกรณ์ในเครือข่ายภายใน”`);
@@ -1176,15 +1198,16 @@ ${links ? links + '\n' : ''}<style>${css}</style>
   return { code, bytes: Buffer.byteLength(code), warnings, id };
 }
 function widgetFonts(w) { return [w, ...tabChildren(w)].flatMap(x => (x.items || []).flatMap(i => [i.style && i.style.font, i.ts && i.ts.font, i.tb && i.tb.st && i.tb.st.font, i.vp && i.vp.on && i.vp.font])).filter(Boolean); }
-function needsFa(w) { return [w, ...tabChildren(w)].some(x => (x.items || []).some(i => i.iconFa || (i.ts && i.ts.iconFa) || (i.type === 'video' && i.vp && i.vp.on && i.vp.icon !== '')) || (x.tabs || []).some(t => t.iconFa)); }
+function needsFa(w) { if (w.layout === 'code' && w.code && /\bfa-[a-z]/.test(w.code.html)) return true; return [w, ...tabChildren(w), ...codeChildren(w)].some(x => (x.items || []).some(i => i.iconFa || (i.ts && i.ts.iconFa) || (i.type === 'video' && i.vp && i.vp.on && i.vp.icon !== '')) || (x.tabs || []).some(t => t.iconFa)); }
 function renderWidgetDoc(w, opts = {}) {
   return `<!DOCTYPE html><html lang="th"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>${esc(w.name)}</title><base target="_top">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700&display=swap" rel="stylesheet">
 ${needsFa(w) ? `<link rel="stylesheet" href="${UB.FA_CSS}">` : ''}
 ${UB.fontUrl(widgetFonts(w)) ? `<link rel="stylesheet" href="${UB.fontUrl(widgetFonts(w))}">` : ''}
-<style>${WIDGET_CSS}${UB.CSS}body{background:${w.bg === 'transparent' ? 'transparent' : w.bg}}</style></head>
-<body>${renderWidgetInner(w, opts)}<script>${WIDGET_JS}</script></body></html>`;
+${w.layout === 'code' && w.code && w.code.tailwind ? '<script src="https://cdn.tailwindcss.com"></script><script>tailwind.config={corePlugins:{preflight:false}}</script>' : ''}
+<style>${WIDGET_CSS}${UB.CSS}body{background:${w.bg === 'transparent' ? 'transparent' : w.bg}}</style>${codeCss(w) ? `\n<style>${codeCss(w).replace(/<\/style/gi, '<\\/style')}</style>` : ''}</head>
+<body>${renderWidgetInner(w, opts)}<script>${WIDGET_JS}</script>${w.layout === 'code' && w.code && w.code.js ? `<script>try{(function(root){${w.code.js.replace(/<\/script/gi, '<\\/script')}\n})(document.querySelector('.uw-code'));}catch(e){console.error(e)}</script>` : ''}</body></html>`;
 }
 
 
@@ -1507,7 +1530,7 @@ function renderBlock(b) {
         <span class="flex-1 min-w-0"><span class="block font-semibold text-slate-900">${esc(b.title || 'เอกสาร')}</span>${b.note ? `<span class="block text-sm text-slate-500">${esc(b.note)}</span>` : ''}</span>
         <span class="text-sm font-medium" style="color:var(--primary)">ดาวน์โหลด ↓</span></a>`;
     }
-    case 'html': return `<div>${b.html}</div>`;
+    case 'html': return `<div class="ux">${b.html}</div>`;
     case 'divider': return `<hr class="border-slate-200 my-2">`;
   }
   return '';
@@ -1661,6 +1684,14 @@ async function api(req, res, pathname, query) {
       if (!/^https?:\/\/[^\s"'<>]+$/i.test(base)) base = `${isHttps(req) ? 'https' : 'http'}://${req.headers.host}`;
       return json(res, 200, exportWidget(w, { base, full: !!b.full, font: b.font !== false, inline: b.inline !== false }));
     }
+    if (seg[2] === 'to-code' && m === 'POST') {
+      // แปลงเป็นโค้ด HTML ที่แก้ต่อได้ (คลาสเดิมของระบบยังใช้ได้ในโหมดโค้ด)
+      const inner = renderWidgetInner(w).replace(/^<div class="uw /, '<div class="uw ').replace(/ id="uvp[a-z0-9]+"/g, '');
+      const pretty = inner.replace(/></g, '>\n<');
+      const c = normWidget({ name: w.name + ' (โค้ด HTML)', layout: 'code', bg: w.bg, padding: 0, code: { html: pretty, css: '/* เขียน CSS เพิ่มเติมที่นี่ */\n', pad: false } });
+      c.id = uid(); c.slug = uniqueSlug(db.widgets, w.slug + '-html'); c.createdAt = now(); c.items = [];
+      db.widgets.push(c); save(); return json(res, 201, c);
+    }
     if (seg[2] === 'duplicate' && m === 'POST') {
       const c = JSON.parse(JSON.stringify(w));
       c.id = uid(); c.name += ' (สำเนา)'; c.slug = uniqueSlug(db.widgets, w.slug + '-copy'); c.createdAt = c.updatedAt = now();
@@ -1678,6 +1709,11 @@ async function api(req, res, pathname, query) {
   }
 
   /* pages */
+  if (seg[0] === 'code-preview' && m === 'POST') {
+    const b = await readJson(req);
+    const w = normWidget({ name: 'preview', layout: 'code', bg: b.bg || '#ffffff', padding: b.padding == null ? 16 : b.padding, code: b.code || { html: b.html || '' } });
+    return send(res, 200, renderWidgetDoc(w), { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' });
+  }
   if (seg[0] === 'pages') {
     if (!seg[1]) {
       if (m === 'GET') return json(res, 200, db.pages.map(p => ({ ...p, blockCount: p.blocks.length, blocks: undefined })));

@@ -353,7 +353,7 @@ async function viewDashboard() {
 /* ================================================================
  * Widgets list
  * ================================================================ */
-const LAYOUT_NAME = { grid: 'กริด', carousel: 'สไลด์', list: 'รายการลิงก์', canvas: 'ผืนผ้าใบ', tabs: 'แท็บ (รวมหลายส่วน)' };
+const LAYOUT_NAME = { grid: 'กริด', carousel: 'สไลด์', list: 'รายการลิงก์', canvas: 'ผืนผ้าใบ', tabs: 'แท็บ (รวมหลายส่วน)', code: 'เขียนโค้ด HTML' };
 async function viewWidgets() {
   const list = await api('GET', '/widgets');
   $('#view').innerHTML = `${pageHead('ส่วนแสดงผล (iframe)', 'แต่ละส่วนมีลิงก์แยก นำไปฝังในเว็บไซต์ด้วย &lt;iframe&gt; ได้', `<button class="btn btn-light" id="demoW">${icon('widget')} เพิ่มชุดตัวอย่าง</button><button class="btn btn-primary" id="newW">${icon('plus')} สร้างส่วนแสดงผล</button>`)}
@@ -409,7 +409,7 @@ async function viewWidgets() {
       html: `<div class="text-left space-y-3">
         <div><label class="lbl">ชื่อ (ใช้ภายในหลังบ้าน)</label><input id="sw-name" class="inp" placeholder="เช่น แบนเนอร์หน้าแรก"></div>
         <div><label class="lbl">Slug สำหรับลิงก์ (a-z, 0-9, -)</label><input id="sw-slug" class="inp font-mono" placeholder="เช่น home-banner"></div>
-        <div><label class="lbl">รูปแบบเริ่มต้น</label><select id="sw-layout" class="inp"><option value="carousel">สไลด์ (Carousel)</option><option value="grid">กริด (Grid)</option><option value="list">รายการลิงก์ (List)</option><option value="canvas">ผืนผ้าใบอิสระ — ลากวางปุ่มบนตาราง (Canvas)</option><option value="tabs">แท็บ — รวมหลายส่วนแสดงผล จัดคอลัมน์ได้ (Tabs)</option></select></div></div>`,
+        <div><label class="lbl">รูปแบบเริ่มต้น</label><select id="sw-layout" class="inp"><option value="carousel">สไลด์ (Carousel)</option><option value="grid">กริด (Grid)</option><option value="list">รายการลิงก์ (List)</option><option value="canvas">ผืนผ้าใบอิสระ — ลากวางปุ่มบนตาราง (Canvas)</option><option value="tabs">แท็บ — รวมหลายส่วนแสดงผล จัดคอลัมน์ได้ (Tabs)</option><option value="code">เขียนโค้ด HTML / CSS — ออกแบบโครงสร้างเองด้วยแท็ก (Code)</option></select></div></div>`,
       preConfirm: () => {
         const name = $('#sw-name').value.trim(), slug = $('#sw-slug').value.trim();
         if (!name) return Swal.showValidationMessage('กรุณากรอกชื่อ');
@@ -423,6 +423,7 @@ async function viewWidgets() {
     if (d.layout === 'list') Object.assign(d, { columns: 1, ratio: 'auto', shadow: false });
     if (d.layout === 'grid') Object.assign(d, { columns: 3, mobileColumns: 2, ratio: '4/3' });
     if (d.layout === 'canvas') Object.assign(d, { canvasW: 1200, canvasH: 400, gridSize: 20, stackMobile: true, shadow: false });
+    if (d.layout === 'code') Object.assign(d, { bg: '#ffffff', padding: 16, code: { html: `<section class="ux-section sm">\n  <div class="ux-head"><h2>${d.name.replace(/[<>&]/g, '')}</h2></div>\n  <p class="ux-text">เริ่มเขียน HTML ที่นี่ หรือกด “แทรกโครงสร้าง” เพื่อเลือกส่วนประกอบสำเร็จรูป</p>\n</section>\n`, css: '', js: '' } });
     if (d.layout === 'tabs') Object.assign(d, { showTitle: false, bg: 'transparent', gap: 20, tabs: [{ label: 'แท็บที่ 1', activeBg: '#1e3a5f', activeFg: '#ffffff', blocks: [] }, { label: 'แท็บที่ 2', activeBg: '#b8862b', activeFg: '#ffffff', blocks: [] }] });
     try { const w = await api('POST', '/widgets', d); ok('สร้างแล้ว'); location.hash = `#/widgets/${w.id}`; } catch (e) { fail(e.message); }
   };
@@ -548,6 +549,206 @@ function showPageShare(p) {
       $$('[data-o]', el).forEach(i => i.addEventListener(i.type === 'checkbox' ? 'change' : 'input', () => { opt[i.dataset.o] = i.type === 'checkbox' ? i.checked : Math.max(200, Math.min(6000, +i.value || 900)); draw(); }));
       draw();
     },
+  });
+}
+
+/* ================================================================
+ * ตัวแก้ไขโค้ด HTML / CSS / JS + ชุดโครงสร้างสำเร็จรูป + ตัวอย่างสด
+ * ================================================================ */
+const IMG_PH = '/assets/samples/hero-1.svg';
+const CODE_SNIPPETS = [
+  ['โครงสร้าง', [
+    ['หัวข้อส่วน', `<div class="ux-head"><h2>หัวข้อของส่วนนี้</h2></div>\n`],
+    ['ส่วนเนื้อหา (กล่องกว้างสุด 1200px)', `<section class="ux-section">\n  <div class="ux-container">\n    <div class="ux-head"><h2>หัวข้อ</h2></div>\n    <p class="ux-text">เนื้อหา…</p>\n  </div>\n</section>\n`],
+    ['2 คอลัมน์ ภาพ + ข้อความ', `<div class="ux-split">\n  <img class="ux-img ux-shadow" src="${IMG_PH}" alt="">\n  <div>\n    <h2 class="ux-title">หัวข้อ</h2>\n    <div class="ux-divider gold"></div>\n    <p class="ux-text">รายละเอียด…</p>\n    <a class="ux-btn" href="#">อ่านเพิ่มเติม</a>\n  </div>\n</div>\n`],
+    ['กริด 3 คอลัมน์ (เปล่า)', `<div class="ux-grid c3">\n  <div class="ux-box">ช่องที่ 1</div>\n  <div class="ux-box">ช่องที่ 2</div>\n  <div class="ux-box">ช่องที่ 3</div>\n</div>\n`],
+    ['แถวจัดกึ่งกลาง', `<div class="ux-row center">\n  …\n</div>\n`],
+  ]],
+  ['ส่วนประกอบ', [
+    ['แบนเนอร์ (Hero)', `<div class="ux-hero" style="background-image:url('${IMG_PH}');--h:340px">\n  <div class="ux-hero-in">\n    <h1>ศาลจังหวัดอุดรธานี</h1>\n    <p>ให้บริการประชาชนด้วยความรวดเร็ว โปร่งใส เป็นธรรม</p>\n    <a class="ux-btn gold" href="#">เริ่มต้นใช้บริการ</a>\n  </div>\n</div>\n`],
+    ['การ์ดข่าว 3 คอลัมน์', `<div class="ux-grid c3">\n${[1, 2, 3].map(n => `  <a class="ux-card" href="#">\n    <img src="${IMG_PH}" alt="">\n    <div class="ux-card-body">\n      <span class="ux-badge">ข่าวประชาสัมพันธ์</span>\n      <h3>หัวข้อข่าวที่ ${n}</h3>\n      <p>รายละเอียดโดยย่อของข่าว…</p>\n    </div>\n  </a>`).join('\n')}\n</div>\n`],
+    ['ปุ่มบริการพร้อมไอคอน 4 คอลัมน์', `<div class="ux-grid c4">\n${[['fa-solid fa-scale-balanced', 'ตรวจสอบคดี'], ['fa-solid fa-file-pdf', 'แบบฟอร์ม'], ['fa-solid fa-calendar-check', 'วันนัดพิจารณา'], ['fa-solid fa-phone', 'ติดต่อศาล']].map(([i, t]) => `  <a class="ux-tile" href="#"><i class="${i}"></i>${t}</a>`).join('\n')}\n</div>\n`],
+    ['ปุ่ม', `<a class="ux-btn" href="#">ปุ่มหลัก</a>\n<a class="ux-btn gold" href="#">ปุ่มทอง</a>\n<a class="ux-btn outline" href="#">ปุ่มเส้นขอบ</a>\n`],
+    ['ตัวเลขสถิติ', `<div class="ux-grid c4">\n${[['1,250', 'คดีที่รับ'], ['98%', 'ความพึงพอใจ'], ['24', 'บริการออนไลน์'], ['15 นาที', 'เวลารอเฉลี่ย']].map(([b, t]) => `  <div class="ux-stat"><b>${b}</b><span>${t}</span></div>`).join('\n')}\n</div>\n`],
+    ['ประกาศ / แจ้งเตือน', `<div class="ux-notice warn"><i class="fa-solid fa-triangle-exclamation"></i><div><b>ประกาศ</b> ข้อความแจ้งเตือน…</div></div>\n`],
+    ['รายการเครื่องหมายถูก', `<ul class="ux-list check">\n  <li>บัตรประจำตัวประชาชน</li>\n  <li>สำเนาทะเบียนบ้าน</li>\n  <li>เอกสารอื่นที่เกี่ยวข้อง</li>\n</ul>\n`],
+    ['ตาราง', `<div class="ux-scroll">\n<table class="ux-table">\n  <thead><tr><th>ลำดับ</th><th>รายการ</th><th>ค่าธรรมเนียม</th></tr></thead>\n  <tbody>\n    <tr><td>1</td><td>คัดสำเนาเอกสาร</td><td>50 บาท</td></tr>\n    <tr><td>2</td><td>ขอใบสำคัญ</td><td>100 บาท</td></tr>\n  </tbody>\n</table>\n</div>\n`],
+    ['คำถามที่พบบ่อย (กดเปิด/ปิด)', `<div class="ux-faq">\n  <details open><summary>คำถามที่ 1</summary><div>คำตอบ…</div></details>\n  <details><summary>คำถามที่ 2</summary><div>คำตอบ…</div></details>\n</div>\n`],
+    ['ข้อมูลติดต่อ', `<div class="ux-contact">\n  <div><span class="ux-icon-circle"><i class="fa-solid fa-phone"></i></span><div><b>โทรศัพท์</b><br>042-xxx-xxx</div></div>\n  <div><span class="ux-icon-circle"><i class="fa-solid fa-envelope"></i></span><div><b>อีเมล</b><br>udtc@coj.go.th</div></div>\n  <div><span class="ux-icon-circle"><i class="fa-solid fa-location-dot"></i></span><div><b>ที่อยู่</b><br>…</div></div>\n</div>\n`],
+    ['เส้นคั่น', `<hr class="ux-divider">\n`],
+  ]],
+  ['สื่อ', [
+    ['ภาพ', `<img class="ux-img" src="${IMG_PH}" alt="คำอธิบายภาพ">\n`],
+    ['วีดีโอ YouTube', `<div class="ux-video"><iframe src="https://www.youtube-nocookie.com/embed/VIDEO_ID" allowfullscreen loading="lazy"></iframe></div>\n`],
+    ['แผนที่ Google Maps', `<div class="ux-video"><iframe src="https://maps.google.com/maps?q=ศาลจังหวัดอุดรธานี&output=embed" loading="lazy"></iframe></div>\n`],
+  ]],
+];
+const VOID_TAGS = /^(area|base|br|col|embed|hr|img|input|link|meta|source|track|wbr)$/i;
+/** ช่องเขียนโค้ด: เลขบรรทัด, Tab เยื้อง, ขึ้นบรรทัดคงระดับเยื้อง, ปิดแท็กอัตโนมัติ */
+function codeArea(ta, { html = false, onSave } = {}) {
+  const wrap = ta.parentNode, gut = $('[data-gut]', wrap);
+  const nums = () => { const n = ta.value.split('\n').length; if (gut.childElementCount !== n) gut.textContent = Array.from({ length: n }, (_, i) => i + 1).join('\n'); gut.scrollTop = ta.scrollTop; };
+  const put = (txt, selBack = 0) => { ta.setRangeText(txt, ta.selectionStart, ta.selectionEnd, 'end'); if (selBack) ta.selectionStart = ta.selectionEnd = ta.selectionEnd - selBack; ta.dispatchEvent(new Event('input')); };
+  ta.addEventListener('scroll', () => { gut.scrollTop = ta.scrollTop; });
+  ta.addEventListener('input', nums);
+  ta.addEventListener('keydown', e => {
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') { e.preventDefault(); onSave && onSave(); return; }
+    if (e.key === 'Tab') {
+      e.preventDefault();
+      const v = ta.value, a = ta.selectionStart, b = ta.selectionEnd, ls = v.lastIndexOf('\n', a - 1) + 1;
+      if (a === b && !e.shiftKey) return put('  ');
+      const le = v.indexOf('\n', b - (b > a && v[b - 1] === '\n' ? 1 : 0)); const end = le < 0 ? v.length : le;
+      const blk = v.slice(ls, end), nb = e.shiftKey ? blk.replace(/^ {1,2}/gm, '') : blk.replace(/^/gm, '  ');
+      ta.setRangeText(nb, ls, end, 'select'); ta.dispatchEvent(new Event('input')); return;
+    }
+    if (e.key === 'Enter' && !e.shiftKey) {
+      const v = ta.value, a = ta.selectionStart, ls = v.lastIndexOf('\n', a - 1) + 1, ind = (v.slice(ls).match(/^[ \t]*/) || [''])[0];
+      const prev = v.slice(ls, a), next = v.slice(a, a + 2);
+      e.preventDefault();
+      if (html && /<([a-z][\w-]*)[^>]*>$/i.test(prev) && next.startsWith('</')) return put('\n' + ind + '  \n' + ind, ind.length + 1);
+      if (!html && /\{\s*$/.test(prev) && next.startsWith('}')) return put('\n' + ind + '  \n' + ind, ind.length + 1);
+      return put('\n' + ind + (/[{]\s*$/.test(prev) ? '  ' : ''));
+    }
+    if (html && e.key === '>' && !e.ctrlKey && !e.metaKey) {
+      const v = ta.value, a = ta.selectionStart, m = v.slice(Math.max(0, a - 200), a).match(/<([a-z][\w-]*)(\s[^<>]*)?$/i);
+      if (m && !VOID_TAGS.test(m[1]) && !/\/$/.test(m[2] || '')) { e.preventDefault(); return put(`></${m[1]}>`, m[1].length + 3); }
+    }
+  });
+  nums();
+  return { insert: txt => { ta.focus(); put(txt); } };
+}
+const codeBox = (key, ph, rows = 20) => `<div class="cbx relative flex rounded-xl border border-slate-700 bg-[#0f172a] overflow-hidden ${key === 'html' ? '' : 'hidden'}" data-cbox="${key}">
+  <pre data-gut class="select-none text-right text-[12px] leading-[1.6] font-mono text-slate-500 py-3 px-2 m-0 overflow-hidden bg-[#0b1222] border-r border-slate-800" style="min-width:2.8em"></pre>
+  <textarea data-code="${key}" spellcheck="false" wrap="off" class="flex-1 min-w-0 bg-transparent text-[13px] leading-[1.6] font-mono text-slate-100 p-3 outline-none resize-none caret-amber-300" style="tab-size:2;height:var(--cbh,60vh)" placeholder="${esc(ph)}"></textarea></div>`;
+/**
+ * ตัวแก้ไขโค้ดพร้อมตัวอย่างสด
+ * host: element · st: { html, css, js, tailwind } · opts: { tabs:['html','css','js'], bg, padding, onChange, onSave, page }
+ */
+function mountCodeEditor(host, st, opts = {}) {
+  const tabs = opts.tabs || ['html', 'css', 'js'];
+  host.innerHTML = `<div class="grid xl:grid-cols-2 gap-4 items-start">
+    <div class="space-y-2 min-w-0">
+      <div class="flex flex-wrap items-center gap-1.5">
+        <div class="seg">${tabs.map((t, i) => `<button data-ctab="${t}" class="${i ? '' : 'on'}">${{ html: 'HTML', css: 'CSS', js: 'JavaScript' }[t]}</button>`).join('')}</div>
+        <div class="relative" data-snipwrap><button class="btn btn-gold btn-sm" data-snipbtn>${icon('plus', 'w-3.5 h-3.5')} แทรกโครงสร้าง</button>
+          <div data-snipmenu class="hidden absolute z-30 left-0 mt-1 w-72 max-h-[60vh] overflow-y-auto bg-white rounded-xl shadow-2xl border border-slate-200 p-1.5 text-sm">
+            ${CODE_SNIPPETS.map(([g, list]) => `<div class="px-2 pt-2 pb-1 text-[11px] font-semibold text-slate-400 uppercase">${g}</div>${list.map(([n], i) => `<button class="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-navy-50 text-slate-700" data-snip="${esc(g)}|${i}">${esc(n)}</button>`).join('')}`).join('')}
+          </div></div>
+        <button class="btn btn-light btn-sm" data-cins="img" title="แทรกภาพจากคลังสื่อ">${icon('image', 'w-3.5 h-3.5')} ภาพ</button>
+        <button class="btn btn-light btn-sm" data-cins="link" title="แทรกลิงก์ / ไฟล์">${icon('link', 'w-3.5 h-3.5')} ลิงก์</button>
+        <button class="btn btn-light btn-sm" data-cins="icon" title="แทรกไอคอน Font Awesome">${icon('sparkle', 'w-3.5 h-3.5')} ไอคอน</button>
+        ${opts.page ? '' : `<button class="btn btn-light btn-sm" data-cins="widget" title="ฝังส่วนแสดงผลอื่นในตำแหน่งนี้">${icon('widget', 'w-3.5 h-3.5')} ส่วนแสดงผล</button>`}
+      </div>
+      ${tabs.map(t => codeBox(t, t === 'html' ? 'พิมพ์ HTML เช่น <div class="ux-grid c3">…</div>' : t === 'css' ? '.my-box { color: #1e3a5f; }' : '// root = กล่องเนื้อหานี้ เช่น root.querySelector(...)')).join('')}
+      <div class="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-500">
+        <span><b>Tab</b> เยื้อง · <b>Shift+Tab</b> ถอยเยื้อง · พิมพ์ <code>&lt;div&gt;</code> ปิดแท็กให้อัตโนมัติ · <b>Ctrl+S</b> บันทึก</span>
+        ${opts.page ? '' : `<label class="flex items-center gap-1.5 ml-auto"><input type="checkbox" class="tgl" data-tw ${st.tailwind ? 'checked' : ''}> ใช้คลาส Tailwind (เฉพาะแบบ iframe)</label>`}
+      </div>
+      <details class="text-xs text-slate-600 rounded-xl border border-slate-200 bg-slate-50 p-3"><summary class="cursor-pointer font-semibold text-slate-700">คลาสสำเร็จรูป ux-… ที่ใช้ได้ทันที</summary>
+        <div class="mt-2 grid sm:grid-cols-2 gap-x-4 gap-y-1 font-mono text-[11px] leading-relaxed">
+          <div><b>ux-container</b> กล่องกว้างสุด 1200px</div><div><b>ux-section</b> เว้นระยะบน–ล่าง (.sm .lg)</div>
+          <div><b>ux-grid c2…c6</b> กริด (มือถือย่ออัตโนมัติ)</div><div><b>ux-split</b> 2 คอลัมน์ (มือถือเรียงลง)</div>
+          <div><b>ux-row</b> แถว (.center .between)</div><div><b>ux-head</b> หัวข้อมีแถบทอง</div>
+          <div><b>ux-title / ux-text / ux-muted</b></div><div><b>ux-card / ux-card-body</b> การ์ด</div>
+          <div><b>ux-tile</b> ปุ่มไอคอน</div><div><b>ux-btn</b> (.gold .outline .sm .lg .block)</div>
+          <div><b>ux-hero</b> แบนเนอร์ภาพพื้นหลัง</div><div><b>ux-badge / ux-stat / ux-notice</b></div>
+          <div><b>ux-list check / link</b></div><div><b>ux-table / ux-faq / ux-video</b></div>
+          <div class="sm:col-span-2 font-sans">เปลี่ยนสีหลักทั้งชุด: ในแท็บ CSS ใส่ <code>.uw-code{--ux-primary:#7c2d12;--ux-accent:#d97706}</code></div>
+        </div></details>
+    </div>
+    <div class="min-w-0 xl:sticky xl:top-20 space-y-2">
+      <div class="flex items-center justify-between"><span class="text-sm font-semibold text-slate-700">ตัวอย่างสด</span>
+        <div class="seg whitespace-nowrap">${[['100%', 'เต็ม'], ['768px', 'แท็บเล็ต'], ['390px', 'มือถือ']].map(([v, t], i) => `<button data-pvw="${v}" class="${i ? '' : 'on'}">${t}</button>`).join('')}</div></div>
+      <div class="rounded-xl border border-slate-200 chk-pattern p-2 overflow-auto"><iframe data-cpv sandbox="allow-scripts allow-popups" class="bg-white mx-auto block rounded-lg border-0" style="width:100%;height:var(--cbh,60vh)"></iframe></div>
+      <div data-cmsg class="text-xs text-slate-500"></div>
+    </div></div>`;
+  const tas = {}, eds = {};
+  let cur = 'html';
+  tabs.forEach(t => { tas[t] = $(`[data-code="${t}"]`, host); tas[t].value = st[t] || ''; eds[t] = codeArea(tas[t], { html: t === 'html', onSave: opts.onSave }); });
+  const pv = $('[data-cpv]', host);
+  let timer = 0, seq = 0;
+  const refresh = async () => {
+    const my = ++seq;
+    try {
+      const r = await fetch('/api/code-preview', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ bg: opts.bg ? opts.bg() : '#ffffff', padding: opts.padding ? opts.padding() : 16, code: { html: st.html, css: st.css || '', js: st.js || '', tailwind: !!st.tailwind, pad: true } }) });
+      const html = await r.text(); if (my !== seq) return;
+      pv.srcdoc = opts.page ? html.replace('</head>', '<script src="https://cdn.tailwindcss.com"></script></head>') : html;
+      const n = (st.html.match(/<[a-z][\w-]*/gi) || []).length;
+      $('[data-cmsg]', host).textContent = `${n} แท็ก · ${(new Blob([st.html + (st.css || '') + (st.js || '')]).size / 1024).toFixed(1)} KB`;
+    } catch (e) { $('[data-cmsg]', host).textContent = 'แสดงตัวอย่างไม่สำเร็จ'; }
+  };
+  const changed = () => { opts.onChange && opts.onChange(); clearTimeout(timer); timer = setTimeout(refresh, 450); };
+  tabs.forEach(t => tas[t].addEventListener('input', () => { st[t] = tas[t].value; changed(); }));
+  $$('[data-ctab]', host).forEach(b => b.onclick = () => { cur = b.dataset.ctab; $$('[data-ctab]', host).forEach(x => x.classList.toggle('on', x === b)); $$('[data-cbox]', host).forEach(x => x.classList.toggle('hidden', x.dataset.cbox !== cur)); tas[cur].focus(); });
+  $$('[data-pvw]', host).forEach(b => b.onclick = () => { $$('[data-pvw]', host).forEach(x => x.classList.toggle('on', x === b)); pv.style.width = b.dataset.pvw; });
+  const tw = $('[data-tw]', host); if (tw) tw.onchange = () => { st.tailwind = tw.checked; changed(); };
+  const menu = $('[data-snipmenu]', host);
+  $('[data-snipbtn]', host).onclick = e => { e.stopPropagation(); menu.classList.toggle('hidden'); };
+  document.addEventListener('click', e => { if (!host.contains(e.target) || !e.target.closest('[data-snipwrap]')) menu.classList.add('hidden'); });
+  const toHtml = () => { if (cur !== 'html') $('[data-ctab="html"]', host).click(); return eds.html; };
+  $$('[data-snip]', host).forEach(b => b.onclick = () => { const [g, i] = b.dataset.snip.split('|'), sn = CODE_SNIPPETS.find(x => x[0] === g)[1][+i]; menu.classList.add('hidden'); toHtml().insert(sn[1]); });
+  $$('[data-cins]', host).forEach(b => b.onclick = async () => {
+    const k = b.dataset.cins;
+    if (k === 'img') { const u = await pickMedia('image'); if (u) toHtml().insert(`<img class="ux-img" src="${u}" alt="">`); }
+    else if (k === 'icon') { const c = await pickIcon(''); if (c) toHtml().insert(`<i class="${c}"></i>`); }
+    else if (k === 'link') {
+      const r = await Swal.fire({ title: 'แทรกลิงก์', html: `<div style="text-align:left;display:grid;gap:8px;font-size:14px"><label>ข้อความ<input id="clT" class="swal2-input" style="margin:4px 0 0;width:100%"></label><label>URL<input id="clU" class="swal2-input" style="margin:4px 0 0;width:100%" placeholder="https://… หรือกดปุ่มด้านล่างเพื่อเลือกไฟล์"></label><button type="button" id="clF" class="swal2-styled" style="margin:0;background:#e2e8f0;color:#1e293b;font-size:13px">📎 เลือกไฟล์จากคลังสื่อ</button><label style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="clB" checked> เปิดในแท็บใหม่</label><label style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="clS"> แสดงเป็นปุ่ม</label></div>`,
+        showCancelButton: true, confirmButtonText: 'แทรก', cancelButtonText: 'ยกเลิก', reverseButtons: true, focusConfirm: false,
+        didOpen: () => { document.getElementById('clF').onclick = async () => { const keep = [document.getElementById('clT').value, document.getElementById('clB').checked, document.getElementById('clS').checked]; Swal.close(); const u = await pickMedia('any'); if (u) toHtml().insert(`<a${keep[2] ? ' class="ux-btn"' : ''} href="${u}"${keep[1] ? ' target="_blank" rel="noopener"' : ''}>${esc(keep[0] || fileTitle(u) || 'ดาวน์โหลด')}</a>`); }; },
+        preConfirm: () => ({ t: document.getElementById('clT').value, u: document.getElementById('clU').value.trim(), b: document.getElementById('clB').checked, s: document.getElementById('clS').checked }) });
+      if (r.isConfirmed && r.value.u) toHtml().insert(`<a${r.value.s ? ' class="ux-btn"' : ''} href="${esc(r.value.u)}"${r.value.b ? ' target="_blank" rel="noopener"' : ''}>${esc(r.value.t || r.value.u)}</a>`);
+    } else if (k === 'widget') {
+      const ws = (await api('GET', '/widgets')).filter(x => !opts.selfId || x.id !== opts.selfId);
+      const r = await Swal.fire({ title: 'ฝังส่วนแสดงผลอื่น', input: 'select', inputOptions: Object.fromEntries(ws.map(x => [x.slug, `${x.name} (${LAYOUT_NAME[x.layout] || x.layout})`])), showCancelButton: true, confirmButtonText: 'แทรก', cancelButtonText: 'ยกเลิก', reverseButtons: true });
+      if (r.isConfirmed && r.value) toHtml().insert(`{{widget:${r.value}}}\n`);
+    }
+  });
+  refresh();
+  return { refresh, setHeight: h => host.style.setProperty('--cbh', h) };
+}
+/** หน้าตัวแก้ไขของส่วนแสดงผลแบบเขียนโค้ด HTML */
+async function viewCodeWidget(w) {
+  w.code = Object.assign({ html: '', css: '', js: '', tailwind: false, pad: true }, w.code || {});
+  const markDirty = () => { state.dirty = true; $('#dirtyDot').classList.remove('hidden'); $('#saveBtn').classList.add('ring-4', 'ring-gold-400/40'); };
+  $('#view').innerHTML = `
+  <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-3 mb-4">
+    <div class="flex items-center gap-3 min-w-0">
+      <a href="#/widgets" class="p-2 rounded-lg hover:bg-white border border-transparent hover:border-slate-200">${icon('back', 'w-5 h-5')}</a>
+      <div class="min-w-0"><div class="text-xs text-slate-500">ส่วนแสดงผล · เขียนโค้ด HTML</div><div class="flex items-center gap-1.5"><h1 class="text-xl font-bold text-slate-900 truncate" id="cwTitle">${esc(w.name)}</h1><button class="p-1.5 rounded-lg text-slate-400 hover:text-navy-700 hover:bg-white" id="cwRen" title="เปลี่ยนชื่อ">${icon('edit', 'w-4 h-4')}</button></div></div>
+      <span id="dirtyDot" class="hidden text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-800">ยังไม่บันทึก</span>
+    </div>
+    <div class="flex flex-wrap items-center gap-2">
+      <label class="flex items-center gap-1.5 text-sm text-slate-600">พื้นหลัง <input type="color" id="cwBg" class="h-8 w-10 rounded border border-slate-300" value="${/^#[0-9a-f]{6}$/i.test(w.bg) ? w.bg : '#ffffff'}"><button class="text-[11px] px-1.5 py-0.5 rounded border ${w.bg === 'transparent' ? 'border-navy-700 bg-navy-50 text-navy-800' : 'border-slate-300 text-slate-500'}" id="cwTr">โปร่งใส</button></label>
+      <label class="flex items-center gap-1.5 text-sm text-slate-600">ระยะขอบ <input type="number" id="cwPad" class="inp !w-20 !py-1.5" min="0" max="80" value="${w.padding ?? 16}"></label>
+      <a href="/embed/${esc(w.slug)}" target="_blank" class="btn btn-light">${icon('ext')} เปิดดู</a>
+      <button class="btn btn-light" id="cwEmbed">${icon('code')} โค้ดฝัง iframe</button>
+      <button class="btn btn-light" id="cwExport">${icon('down')} ส่งออก HTML+CSS</button>
+      <button class="btn btn-primary" id="saveBtn">${icon('save')} บันทึก</button>
+    </div>
+  </div>
+  <div id="cwEd"></div>`;
+  state.dirty = false;
+  const ed = mountCodeEditor($('#cwEd'), w.code, { bg: () => w.bg, padding: () => w.code.pad === false ? 0 : (w.padding ?? 16), onChange: markDirty, onSave: () => $('#saveBtn').onclick(), selfId: w.id });
+  const save = async () => {
+    try { const r = await api('PUT', `/widgets/${w.id}`, { ...w, layout: 'code' }); Object.assign(w, r); w.code = Object.assign(w.code, r.code); state.dirty = false; $('#dirtyDot').classList.add('hidden'); $('#saveBtn').classList.remove('ring-4', 'ring-gold-400/40'); ok('บันทึกเรียบร้อย'); return true; }
+    catch (e) { fail(e.message); return false; }
+  };
+  $('#saveBtn').onclick = save;
+  $('#cwBg').oninput = e => { w.bg = e.target.value; markDirty(); ed.refresh(); };
+  $('#cwTr').onclick = () => { w.bg = 'transparent'; markDirty(); ed.refresh(); };
+  $('#cwPad').oninput = e => { w.padding = Math.max(0, Math.min(80, +e.target.value || 0)); w.code.pad = w.padding > 0; markDirty(); ed.refresh(); };
+  $('#cwRen').onclick = async () => { const r = await Swal.fire({ title: 'เปลี่ยนชื่อ', input: 'text', inputValue: w.name, showCancelButton: true, confirmButtonText: 'บันทึก', cancelButtonText: 'ยกเลิก', reverseButtons: true }); if (r.isConfirmed && r.value.trim()) { w.name = r.value.trim(); $('#cwTitle').textContent = w.name; await save(); } };
+  $('#cwEmbed').onclick = async () => { if (state.dirty) await save(); showEmbed(w); };
+  $('#cwExport').onclick = async () => { if (state.dirty) await save(); if (typeof showExport === 'function') showExport(w); else location.hash = `#/widgets/${w.id}`; };
+}
+/** แก้ไขโค้ด HTML ของรายการ / บล็อก ในหน้าต่างใหญ่ */
+function editHtmlCode(html, onDone, { page = false } = {}) {
+  const st = { html: html || '' };
+  openModal({
+    title: 'ตัวแก้ไขโค้ด HTML', size: 'max-w-[1400px]',
+    body: '<div data-he style="--cbh:62vh"></div>',
+    footer: `<button class="btn btn-light" data-close>ยกเลิก</button><button class="btn btn-primary" data-apply>${icon('check')} ใช้โค้ดนี้</button>`,
+    onMount: (el, close) => { mountCodeEditor($('[data-he]', el), st, { tabs: ['html'], page, onSave: () => $('[data-apply]', el).click() }); $('[data-apply]', el).onclick = () => { onDone(st.html); close(); }; },
   });
 }
 
@@ -1855,6 +2056,7 @@ function itemStatus(i) {
 
 async function viewWidgetEditor(id) {
   const orig = await api('GET', `/widgets/${id}`);
+  if (orig.layout === 'code') return viewCodeWidget(orig);
   const w = clone(orig);
   // ค่าเริ่มต้นของตัวเลือกสไลด์ (ส่วนแสดงผลที่สร้างก่อนมีตัวเลือกเหล่านี้)
   const dflt = { ratioW: 16, ratioH: 9, carWMode: 'auto', carW: 1200, carWPct: 100, carAlign: 'center', carHMode: w.ratio === 'auto' ? 'auto' : 'ratio', carH: 400, carHM: 0, imgPos: 'center', transEffect: 'slide', transMs: 600, transEase: 'smooth', pauseHover: true, carBg: '',
@@ -1876,6 +2078,7 @@ async function viewWidgetEditor(id) {
     <div class="flex flex-wrap gap-2">
       <button class="btn btn-light" id="embedBtn">${icon('code')} โค้ดฝัง (iframe)</button>
       <button class="btn btn-light" id="exportBtn">${icon('html')} ส่งออก HTML + CSS</button>
+      <button class="btn btn-light" id="toCodeBtn" title="สร้างสำเนาเป็นโค้ด HTML เพื่อแก้โครงสร้างด้วยแท็กได้อิสระ">${icon('code')} แปลงเป็นโค้ด HTML</button>
       <a class="btn btn-light" href="/embed/${esc(w.slug)}" target="_blank" id="openBtn">${icon('ext')} เปิดดู</a>
       <button class="btn btn-primary" id="saveBtn">${icon('save')} บันทึก</button>
     </div>
@@ -1953,6 +2156,11 @@ async function viewWidgetEditor(id) {
       ok('บันทึกเรียบร้อย');
       if (tab === 'info') drawPanel();
     } catch (e) { fail(e.message); }
+  };
+  $('#toCodeBtn').onclick = async () => {
+    if (state.dirty && (await confirmBox('ยังไม่ได้บันทึก', 'บันทึกก่อนแปลงหรือไม่?', 'บันทึก', false))) await $('#saveBtn').onclick();
+    if (!(await confirmBox('แปลงเป็นโค้ด HTML?', 'ระบบจะสร้าง “สำเนาใหม่” เป็นส่วนแสดงผลแบบเขียนโค้ด — ส่วนแสดงผลเดิมไม่เปลี่ยนแปลง', 'สร้างสำเนาเป็นโค้ด', false))) return;
+    try { const c = await api('POST', `/widgets/${w.id}/to-code`); state.dirty = false; ok('สร้างสำเนาแบบโค้ด HTML แล้ว'); location.hash = `#/widgets/${c.id}`; } catch (e) { fail(e.message); }
   };
   $('#exportBtn').onclick = async () => {
     if (state.dirty) { if (!(await confirmBox('ยังไม่ได้บันทึก', 'โค้ดจะสร้างจากข้อมูลที่บันทึกล่าสุด ต้องการบันทึกก่อนหรือไม่?', 'บันทึกแล้วส่งออก', false))) return; await $('#saveBtn').onclick(); }
@@ -2382,7 +2590,7 @@ async function viewWidgetEditor(id) {
                 <p class="text-xs text-slate-500 -mt-1">ในผืนผ้าใบอิสระ ความสูงตามกรอบที่ลากปรับขนาด</p>
                 <label class="flex items-center justify-between text-sm text-slate-700">แสดงแถบชื่อไฟล์และปุ่มด้านบน<input type="checkbox" class="tgl" data-pfc="bar" ${it.pdf.bar ? 'checked' : ''}></label>
                 <label class="flex items-center justify-between text-sm text-slate-700">มีปุ่มดาวน์โหลด<input type="checkbox" class="tgl" data-pfc="dl" ${it.pdf.dl ? 'checked' : ''}></label></div>` : ''}
-            ${t === 'html' ? `<div><label class="lbl">โค้ด HTML</label><textarea class="inp font-mono text-xs" rows="8" data-f="html" placeholder="<div>...</div>">${esc(it.html)}</textarea><p class="text-xs text-amber-700 mt-1">⚠ HTML จะแสดงผลตามที่ใส่ ควรใช้โค้ดจากแหล่งที่เชื่อถือได้เท่านั้น</p></div>` : ''}
+            ${t === 'html' ? `<div><div class="flex items-center justify-between mb-1"><label class="lbl !mb-0">โค้ด HTML</label><button class="btn btn-gold btn-sm" data-htmled>${icon('code', 'w-3.5 h-3.5')} เปิดตัวแก้ไขโค้ด + ตัวอย่าง</button></div><textarea class="inp font-mono text-xs" rows="8" data-f="html" placeholder="<div>...</div>">${esc(it.html)}</textarea><p class="text-xs text-amber-700 mt-1">⚠ HTML จะแสดงผลตามที่ใส่ ควรใช้โค้ดจากแหล่งที่เชื่อถือได้เท่านั้น</p></div>` : ''}
             ${TEXTY.includes(t) ? `<div><label class="lbl">ชื่อ (ใช้ภายใน · เว้นว่างได้)</label><input class="inp" data-f="title" value="${esc(it.title)}" placeholder="${esc(textTitle(it))}"></div>` : t !== 'html' ? `<div class="grid gap-3">
 
               <div><label class="lbl">${t === 'button' ? 'ข้อความบนปุ่ม' : 'ชื่อ / หัวข้อ'}</label><input class="inp" data-f="title" value="${esc(it.title)}"></div></div>
@@ -2440,6 +2648,7 @@ async function viewWidgetEditor(id) {
           });
           const pp = $('[data-pp]', F); if (pp) pp.onclick = async () => { const s = await choosePage(); if (s) { it.link = `/p/${s}`; it.newTab = false; draw(); } };
           if (it.type === 'video') bindVideoSection(F, it, draw);
+          const hed = $('[data-htmled]', F); if (hed) hed.onclick = () => editHtmlCode(it.html, h => { it.html = h; draw(); });
           const tbe = $('[data-tbedit]', F); if (tbe) tbe.onclick = () => editTable(it, n => { it.tb = n.tb; draw(); });
           const qre = $('[data-qredit]', F); if (qre) qre.onclick = () => designQr(it, n => { it.qr = n.qr; if (!it.title) it.title = n.title; draw(); });
           $$('[data-pm]', F).forEach(b => b.onclick = () => { it.pdf.mode = b.dataset.pm; draw(); });
@@ -2700,7 +2909,7 @@ async function viewPageEditor(id) {
       case 'notice': return `<div class="seg mb-2">${[['info', 'ข้อมูล'], ['success', 'สำเร็จ'], ['warning', 'เตือน'], ['danger', 'สำคัญ']].map(([v, t]) => `<button data-tone="${v}" class="${b.tone === v ? 'on' : ''}">${t}</button>`).join('')}</div><input class="inp font-semibold" data-b="title" value="${esc(b.title)}" placeholder="หัวข้อประกาศ"><textarea class="inp mt-2" rows="3" data-b="content" placeholder="รายละเอียด">${esc(b.content)}</textarea>`;
       case 'file': return `<div class="flex gap-2"><input class="inp" data-b="src" value="${esc(b.src)}" placeholder="ลิงก์ไฟล์"><button class="btn btn-light btn-sm" data-pk="file">${icon('upload', 'w-3.5 h-3.5')} เลือกไฟล์</button></div>
         <div class="grid sm:grid-cols-2 gap-2 mt-2"><input class="inp" data-b="title" value="${esc(b.title)}" placeholder="ชื่อเอกสาร"><input class="inp" data-b="note" value="${esc(b.note)}" placeholder="รายละเอียด เช่น ประกาศ ณ วันที่..."></div>`;
-      case 'html': return `<textarea class="inp font-mono text-xs" rows="6" data-b="html" placeholder="<div>...</div>">${esc(b.html)}</textarea><p class="text-xs text-amber-700 mt-1">⚠ ใช้โค้ดจากแหล่งที่เชื่อถือได้เท่านั้น</p>`;
+      case 'html': return `<div class="flex justify-end mb-1.5"><button class="btn btn-gold btn-sm" data-bhtml>${icon('code', 'w-3.5 h-3.5')} เปิดตัวแก้ไขโค้ด + ตัวอย่าง</button></div><textarea class="inp font-mono text-xs" rows="6" data-b="html" placeholder="<div>...</div>">${esc(b.html)}</textarea><p class="text-xs text-amber-700 mt-1">⚠ ใช้โค้ดจากแหล่งที่เชื่อถือได้เท่านั้น</p>`;
       case 'divider': return `<hr class="border-slate-300">`;
     }
     return '';
@@ -2731,6 +2940,7 @@ async function viewPageEditor(id) {
         if (await designButton(proxy)) { b.btn = proxy.style; b.iconFa = proxy.iconFa; b.label = proxy.title; markDirty(); drawBlocks(); }
       };
       const bx = $('[data-bdel]', card); if (bx) bx.onclick = () => { b.btn = null; b.iconFa = ''; markDirty(); drawBlocks(); };
+      const bh = $('[data-bhtml]', card); if (bh) bh.onclick = () => editHtmlCode(b.html, h => { b.html = h; markDirty(); drawBlocks(); }, { page: true });
       $$('[data-tone]', card).forEach(x => x.onclick = () => { b.tone = x.dataset.tone; markDirty(); drawBlocks(); });
       $$('[data-pk]', card).forEach(x => x.onclick = async () => {
         const u = await pickMedia(x.dataset.pk === 'file' ? 'any' : x.dataset.pk); if (!u) return;

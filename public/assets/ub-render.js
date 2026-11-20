@@ -603,6 +603,59 @@ a.ub:focus-visible{outline:3px solid var(--glow);outline-offset:2px}
     return '';
   }
 
+  /* ---------------- ชุดคลาสสำเร็จรูป ux-… สำหรับเขียนโค้ด HTML (ใช้ได้ทั้ง iframe และโค้ดส่งออก) ---------------- */
+  const UX_CSS = `
+.uw-code,.ux{--ux-primary:#1e3a5f;--ux-accent:#b8862b;--ux-text:#1e293b;--ux-muted:#64748b;--ux-line:#e2e8f0;--ux-soft:#f1f5f9;--ux-radius:14px}
+.ux-container{max-width:1200px;margin-left:auto;margin-right:auto;padding-left:16px;padding-right:16px}
+.ux-section{padding:32px 0}.ux-section.sm{padding:16px 0}.ux-section.lg{padding:56px 0}
+.ux-title{font-size:clamp(1.3rem,2.5vw,1.9rem);font-weight:700;color:var(--ux-primary);margin:0 0 .4em;line-height:1.3}
+.ux-subtitle{font-size:1.1rem;font-weight:600;color:var(--ux-text);margin:0 0 .4em}
+.ux-head{display:flex;align-items:center;gap:.6em;margin:0 0 18px}.ux-head::before{content:'';width:6px;height:1.4em;border-radius:3px;background:var(--ux-accent)}
+.ux-head h2,.ux-head h3{margin:0;color:var(--ux-primary);font-size:1.35rem;font-weight:700}
+.ux-text{color:var(--ux-text);line-height:1.8;margin:0 0 1em}.ux-muted{color:var(--ux-muted)}.ux-small{font-size:.875rem}
+.ux-center{text-align:center}.ux-right{text-align:right}
+.ux-grid{display:grid;gap:var(--ux-gap,18px);grid-template-columns:repeat(var(--cols,3),minmax(0,1fr))}
+.ux-grid.c2{--cols:2}.ux-grid.c3{--cols:3}.ux-grid.c4{--cols:4}.ux-grid.c5{--cols:5}.ux-grid.c6{--cols:6}
+@media (max-width:900px){.ux-grid.c4,.ux-grid.c5,.ux-grid.c6{--cols:3}}
+@media (max-width:700px){.ux-grid{--cols:2!important}.ux-grid.m1{--cols:1!important}.ux-split{grid-template-columns:1fr!important}}
+@media (max-width:420px){.ux-grid.c3,.ux-grid.c2{--cols:1!important}}
+.ux-row{display:flex;flex-wrap:wrap;gap:var(--ux-gap,12px);align-items:center}.ux-row.center{justify-content:center}.ux-row.between{justify-content:space-between}
+.ux-split{display:grid;grid-template-columns:1fr 1fr;gap:28px;align-items:center}.ux-split.r{grid-template-columns:1.2fr .8fr}
+.ux-card{background:#fff;border:1px solid var(--ux-line);border-radius:var(--ux-radius);overflow:hidden;box-shadow:0 4px 14px rgba(15,23,42,.06);display:flex;flex-direction:column;color:inherit;text-decoration:none;transition:transform .25s,box-shadow .25s}
+a.ux-card:hover,.ux-card.hover:hover{transform:translateY(-4px);box-shadow:0 14px 30px rgba(15,23,42,.14)}
+.ux-card>img,.ux-card .ux-img{width:100%;aspect-ratio:var(--ratio,16/10);object-fit:cover;display:block}
+.ux-card-body{padding:16px;display:flex;flex-direction:column;gap:6px;flex:1}.ux-card-body h3{margin:0;font-size:1.05rem;color:var(--ux-primary);font-weight:700}.ux-card-body p{margin:0;color:var(--ux-muted);font-size:.92rem;line-height:1.6}
+.ux-tile{display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:10px;padding:22px 12px;background:#fff;border:1px solid var(--ux-line);border-radius:var(--ux-radius);color:var(--ux-text);text-decoration:none;font-weight:600;line-height:1.4;transition:transform .25s,box-shadow .25s,border-color .25s}
+a.ux-tile:hover{transform:translateY(-4px);box-shadow:0 12px 26px rgba(15,23,42,.12);border-color:var(--ux-accent)}
+.ux-tile i,.ux-icon{font-size:2rem;color:var(--ux-primary)}.ux-tile img{width:64px;height:64px;object-fit:contain}
+.ux-icon-circle{width:56px;height:56px;border-radius:999px;display:grid;place-items:center;background:var(--ux-primary);color:#fff;font-size:1.4rem;flex:none}
+.ux-btn{display:inline-flex;align-items:center;justify-content:center;gap:.5em;padding:.7em 1.3em;border-radius:10px;font-weight:600;line-height:1.2;text-decoration:none!important;border:2px solid var(--ux-primary);background:var(--ux-primary);color:#fff!important;cursor:pointer;transition:filter .2s,transform .2s,background .2s}
+.ux-btn:hover{filter:brightness(1.12);transform:translateY(-2px)}.ux-btn.gold{background:var(--ux-accent);border-color:var(--ux-accent)}
+.ux-btn.outline{background:transparent;color:var(--ux-primary)!important}.ux-btn.outline:hover{background:var(--ux-primary);color:#fff!important}
+.ux-btn.sm{padding:.45em .9em;font-size:.875rem}.ux-btn.lg{padding:.9em 1.8em;font-size:1.1rem}.ux-btn.block{display:flex;width:100%}
+.ux-badge{display:inline-block;padding:.2em .7em;border-radius:999px;background:var(--ux-soft);color:var(--ux-primary);font-size:.78rem;font-weight:600}.ux-badge.gold{background:var(--ux-accent);color:#fff}.ux-badge.red{background:#dc2626;color:#fff}
+.ux-hero{position:relative;border-radius:var(--ux-radius);overflow:hidden;color:#fff;min-height:var(--h,320px);display:flex;align-items:center;background:var(--ux-primary) center/cover no-repeat}
+.ux-hero::before{content:'';position:absolute;inset:0;background:linear-gradient(90deg,rgba(15,23,42,.75),rgba(15,23,42,.15))}
+.ux-hero>*{position:relative}.ux-hero-in{padding:32px;max-width:640px}.ux-hero h1,.ux-hero h2{margin:0 0 .3em;font-size:clamp(1.6rem,3.5vw,2.6rem);line-height:1.25;color:#fff}.ux-hero p{margin:0 0 1em;opacity:.92;line-height:1.7}
+.ux-img{max-width:100%;height:auto;display:block;border-radius:var(--ux-radius)}.ux-img.cover{width:100%;height:100%;object-fit:cover}.ux-rounded{border-radius:var(--ux-radius)}.ux-shadow{box-shadow:0 10px 30px rgba(15,23,42,.12)}
+.ux-box{background:var(--ux-soft);border-radius:var(--ux-radius);padding:20px}.ux-box.white{background:#fff;border:1px solid var(--ux-line)}
+.ux-notice{display:flex;gap:12px;align-items:flex-start;padding:14px 16px;border-radius:12px;border:1px solid #bae6fd;background:#f0f9ff;color:#0c4a6e;line-height:1.6}
+.ux-notice.warn{border-color:#fde68a;background:#fffbeb;color:#78350f}.ux-notice.danger{border-color:#fecaca;background:#fef2f2;color:#7f1d1d}.ux-notice.ok{border-color:#bbf7d0;background:#f0fdf4;color:#14532d}
+.ux-list{list-style:none;padding:0;margin:0;display:grid;gap:10px}.ux-list li{display:flex;gap:10px;align-items:flex-start;line-height:1.6}
+.ux-list.check li::before{content:'✓';flex:none;width:1.4em;height:1.4em;border-radius:999px;display:grid;place-items:center;background:var(--ux-primary);color:#fff;font-size:.8em;font-weight:700;margin-top:.15em}
+.ux-list.link li a{color:var(--ux-primary);text-decoration:none;font-weight:500}.ux-list.link li a:hover{text-decoration:underline}
+.ux-table{width:100%;border-collapse:collapse;font-size:.95rem;background:#fff;border-radius:12px;overflow:hidden}
+.ux-table th{background:var(--ux-primary);color:#fff;font-weight:600;text-align:left;padding:10px 12px}.ux-table td{padding:10px 12px;border-bottom:1px solid var(--ux-line)}.ux-table tr:nth-child(even) td{background:#f8fafc}
+.ux-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.ux-faq{display:grid;gap:10px}.ux-faq details{background:#fff;border:1px solid var(--ux-line);border-radius:12px;padding:0 16px}
+.ux-faq summary{cursor:pointer;padding:14px 0;font-weight:600;color:var(--ux-primary);list-style:none;display:flex;justify-content:space-between;gap:12px}.ux-faq summary::-webkit-details-marker{display:none}
+.ux-faq summary::after{content:'+';font-size:1.3em;line-height:1;transition:transform .25s}.ux-faq details[open] summary::after{transform:rotate(45deg)}.ux-faq details>div{padding:0 0 14px;color:var(--ux-muted);line-height:1.7}
+.ux-video{position:relative;aspect-ratio:16/9;border-radius:var(--ux-radius);overflow:hidden;background:#000}.ux-video iframe,.ux-video video{position:absolute;inset:0;width:100%;height:100%;border:0}
+.ux-divider{height:1px;background:var(--ux-line);border:0;margin:24px 0}.ux-divider.gold{height:3px;width:80px;background:var(--ux-accent);border-radius:3px;margin:12px 0 20px}.ux-center .ux-divider.gold{margin-left:auto;margin-right:auto}
+.ux-stat{text-align:center;padding:18px;border-radius:var(--ux-radius);background:#fff;border:1px solid var(--ux-line)}.ux-stat b{display:block;font-size:2rem;color:var(--ux-primary);line-height:1.2}.ux-stat span{color:var(--ux-muted);font-size:.9rem}
+.ux-contact{display:grid;gap:12px}.ux-contact>div{display:flex;gap:12px;align-items:center}
+.ux-gap-sm{--ux-gap:10px}.ux-gap-lg{--ux-gap:28px}.ux-mt{margin-top:18px}.ux-mb{margin-bottom:18px}.ux-p{padding:18px}
+`;
   /* ---------------- กรอบวีดีโอ + แถบหัวข้อ (กดยุบ/ขยายได้) ---------------- */
   const VPDEF = { on: false, title: '', sub: '', icon: 'auto', barPos: 'top', barBg: '#1e3a5f', barBg2: '', barFg: '#ffffff', font: '', fs: 17, fw: 700, align: 'left', bpad: 12,
     toggle: true, open: true, chev: 'chevron', ms: 350, bw: 0, bc: '#e2e8f0', radius: 14, shadow: 'soft', bg: '#000000', pad: 0, maxW: 0, falign: 'center', subFg: '' };
@@ -840,7 +893,7 @@ a.ub:focus-visible{outline:3px solid var(--glow);outline-offset:2px}
 a.uqr{transition:transform .25s}a.uqr:hover{transform:translateY(-3px)}
 `;
   const FA_CSS = 'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css';
-  return { DEF, OPT, LABEL, PRESETS, FONTS, fontUrl, norm, fromLegacy, shade, vars, buttonHtml, CSS: CSS + IMG_CSS + TB_CSS + QR_CSS + VP_CSS, FA_CSS, esc,
+  return { DEF, OPT, LABEL, PRESETS, FONTS, fontUrl, norm, fromLegacy, shade, vars, buttonHtml, CSS: CSS + IMG_CSS + TB_CSS + QR_CSS + VP_CSS + UX_CSS, FA_CSS, esc,
     TDEF, TOPT, TPRESETS, normText, richText, textHtml, dividerHtml, spacerHtml,
     IDEF, IOPT, IPRESETS, normImg, imageHtml, TBDEF, TBOPT, TBPRESETS, normTable, tableHtml, tableCover, VPDEF, VPPRESETS, normVPanel, videoPanelHtml, VDEF, VRATIOS, normVideo, videoInfo, videoEmbed, videoRatio, iframeSrc, QDEF, QOPT, QPRESETS, normQr, qrSvg, qrHtml, qrEncode: (t, e) => QRENC.encode(t, e), ENTERS: ['none', 'fade', 'fade-up', 'fade-down', 'slide-left', 'slide-right', 'zoom', 'zoom-out', 'flip', 'blur', 'rotate'] };
 });
