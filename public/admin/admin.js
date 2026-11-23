@@ -51,6 +51,7 @@ const icon = (n, c = 'w-4 h-4') => `<svg class="${c}" viewBox="0 0 24 24" fill="
 const Toast = Swal.mixin({ toast: true, position: 'top-end', showConfirmButton: false, timer: 2200, timerProgressBar: true });
 const ok = msg => Toast.fire({ icon: 'success', title: msg });
 const fail = msg => Swal.fire({ icon: 'error', title: 'เกิดข้อผิดพลาด', text: msg, confirmButtonText: 'ตกลง' });
+const toast = msg => Toast.fire({ icon: 'info', title: msg });
 const confirmBox = (title, text, btn = 'ยืนยัน', danger = true) => Swal.fire({
   icon: danger ? 'warning' : 'question', title, text, showCancelButton: true, confirmButtonText: btn, cancelButtonText: 'ยกเลิก',
   confirmButtonColor: danger ? '#be123c' : '#1e3a5f', reverseButtons: true, focusCancel: danger,
@@ -354,16 +355,56 @@ async function viewDashboard() {
  * Widgets list
  * ================================================================ */
 const LAYOUT_NAME = { grid: 'กริด', carousel: 'สไลด์', list: 'รายการลิงก์', canvas: 'ผืนผ้าใบ', tabs: 'แท็บ (รวมหลายส่วน)', code: 'เขียนโค้ด HTML' };
+/** ลากสลับตำแหน่งการ์ด + ปักดาวรายการโปรด (รายการโปรดอยู่บนสุดเสมอ และลบไม่ได้จนกว่าจะปลดดาว) */
+function favButtons(x, kind) {
+  return `<div class="absolute top-2 right-2 flex gap-1 z-10">
+    <button class="h-8 w-8 grid place-items-center rounded-lg shadow ${x.fav ? 'bg-gold-500 text-white' : 'bg-white/90 text-slate-400 hover:text-gold-500'}" data-fav="${x.id}" title="${x.fav ? 'ปลดดาว (เลิกเป็นรายการโปรด)' : 'ปักดาวเป็นรายการโปรด — แสดงบนสุดและกันการลบโดยไม่ตั้งใจ'}"><span class="text-lg leading-none">${x.fav ? '★' : '☆'}</span></button>
+    <button class="h-8 w-8 grid place-items-center rounded-lg shadow bg-white/90 text-slate-500 hover:text-navy-700 cursor-grab active:cursor-grabbing" data-drag title="ลากเพื่อสลับตำแหน่ง"><svg viewBox="0 0 24 24" class="w-4 h-4" fill="currentColor"><circle cx="9" cy="6" r="1.6"/><circle cx="15" cy="6" r="1.6"/><circle cx="9" cy="12" r="1.6"/><circle cx="15" cy="12" r="1.6"/><circle cx="9" cy="18" r="1.6"/><circle cx="15" cy="18" r="1.6"/></svg></button></div>`;
+}
+function bindOrdering(box, list, base, redraw) {
+  $$('[data-fav]', box).forEach(b => b.onclick = async e => {
+    e.preventDefault(); e.stopPropagation();
+    const x = list.find(y => y.id === b.dataset.fav); x.fav = !x.fav;
+    try { await api('POST', `/${base}/${x.id}/fav`, { fav: x.fav }); } catch (er) { x.fav = !x.fav; return fail(er.message); }
+    list.sort((a, c) => (!!c.fav - !!a.fav)); // stable: คงลำดับเดิมในกลุ่ม
+    ok(x.fav ? 'ปักดาวแล้ว — แสดงบนสุด และกันการลบ' : 'ปลดดาวแล้ว'); redraw();
+  });
+  let dragId = null;
+  $$('[data-card]', box).forEach(card => {
+    const h = $('[data-drag]', card); if (!h) return;
+    h.addEventListener('mousedown', () => { card.draggable = true; });
+    h.addEventListener('click', e => { e.preventDefault(); e.stopPropagation(); });
+    card.addEventListener('dragstart', e => { dragId = card.dataset.card; e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', dragId); card.classList.add('opacity-50'); });
+    card.addEventListener('dragend', () => { card.draggable = false; card.classList.remove('opacity-50'); $$('[data-card]', box).forEach(c => c.classList.remove('ring-4', 'ring-navy-300')); });
+    card.addEventListener('dragover', e => { if (!dragId || dragId === card.dataset.card) return; e.preventDefault(); $$('[data-card]', box).forEach(c => c.classList.toggle('ring-4', c === card)); card.classList.add('ring-navy-300'); });
+    card.addEventListener('drop', async e => {
+      e.preventDefault(); if (!dragId || dragId === card.dataset.card) return;
+      const from = list.findIndex(y => y.id === dragId), item = list[from]; list.splice(from, 1);
+      const r = card.getBoundingClientRect(), after = (e.clientY - r.top) > r.height / 2 || (e.clientX - r.left) > r.width * .66;
+      let to = list.findIndex(y => y.id === card.dataset.card) + (after ? 1 : 0); list.splice(to, 0, item);
+      const before = list.map(y => y.id).join();
+      list.sort((a, c) => (!!c.fav - !!a.fav));
+      if (list.map(y => y.id).join() !== before) toast('รายการโปรดอยู่บนสุดเสมอ — จัดลำดับได้ภายในกลุ่มเดียวกัน');
+      dragId = null; redraw();
+      try { await api('POST', `/${base}/reorder`, { ids: list.map(y => y.id) }); ok('จัดลำดับแล้ว'); } catch (er) { fail(er.message); }
+    });
+  });
+}
+
 async function viewWidgets() {
   const list = await api('GET', '/widgets');
   $('#view').innerHTML = `${pageHead('ส่วนแสดงผล (iframe)', 'แต่ละส่วนมีลิงก์แยก นำไปฝังในเว็บไซต์ด้วย &lt;iframe&gt; ได้', `<button class="btn btn-light" id="demoW">${icon('widget')} เพิ่มชุดตัวอย่าง</button><button class="btn btn-primary" id="newW">${icon('plus')} สร้างส่วนแสดงผล</button>`)}
   <div class="card mb-4 p-3 flex items-center gap-2">${icon('search', 'w-4 h-4 text-slate-400 ml-1')}<input id="q" class="flex-1 outline-none text-sm py-1" placeholder="ค้นหาชื่อ หรือ slug..."></div>
+  <p class="text-xs text-slate-500 -mt-2 mb-3">☆ ปักดาวรายการที่ใช้งานจริง ให้แสดงบนสุดและกันการเผลอลบ · ลากปุ่ม ⠿ ที่มุมภาพเพื่อสลับตำแหน่ง (ลากได้เมื่อไม่ได้ค้นหา)</p>
   <div id="wl" class="grid md:grid-cols-2 2xl:grid-cols-3 gap-4"></div>`;
   const draw = q => {
     const f = list.filter(w => !q || (w.name + w.slug).toLowerCase().includes(q.toLowerCase()));
+    const canDrag = !q;
     $('#wl').innerHTML = f.map(w => `
-    <div class="card overflow-hidden flex flex-col">
+    <div class="card overflow-hidden flex flex-col transition ${w.fav ? 'ring-2 ring-gold-400' : ''}" data-card="${w.id}">
       <div class="h-40 bg-slate-50 border-b border-slate-200 overflow-hidden relative">
+        ${favButtons(w).replace(canDrag ? '' : /<button[^>]*data-drag[\s\S]*?<\/button>/, '')}
+        ${w.fav ? '<span class="absolute top-2 left-2 z-10 text-[11px] px-2 py-0.5 rounded-full bg-gold-500 text-white font-semibold shadow">★ รายการโปรด</span>' : ''}
         <iframe src="/embed/${esc(w.slug)}" class="absolute top-0 left-0 border-0 pointer-events-none origin-top-left" style="width:250%;height:250%;transform:scale(.4)" loading="lazy" tabindex="-1"></iframe>
         <a href="#/widgets/${w.id}" class="absolute inset-0"></a>
       </div>
@@ -384,10 +425,12 @@ async function viewWidgets() {
           <button class="btn btn-light btn-sm" data-export="${w.id}" title="ส่งออก HTML + CSS">${icon('html', 'w-3.5 h-3.5')} HTML</button>
           <a class="btn btn-light btn-sm" href="/embed/${esc(w.slug)}" target="_blank" title="เปิดดู">${icon('ext', 'w-3.5 h-3.5')}</a>
           <button class="btn btn-light btn-sm" data-dup="${w.id}" title="ทำสำเนา">${icon('copy', 'w-3.5 h-3.5')}</button>
-          <button class="btn btn-danger btn-sm" data-del="${w.id}" title="ลบ">${icon('trash', 'w-3.5 h-3.5')}</button>
+          ${w.fav ? `<button class="btn btn-light btn-sm opacity-40 cursor-not-allowed" data-locked title="รายการโปรด — ปลดดาวก่อนจึงลบได้">${icon('trash', 'w-3.5 h-3.5')}</button>` : `<button class="btn btn-danger btn-sm" data-del="${w.id}" title="ลบ">${icon('trash', 'w-3.5 h-3.5')}</button>`}
         </div>
       </div>
     </div>`).join('') || `<div class="col-span-full card p-12 text-center text-slate-500">ยังไม่มีส่วนแสดงผล</div>`;
+    bindOrdering($('#wl'), list, 'widgets', () => draw($('#q').value));
+    $$('[data-locked]').forEach(b => b.onclick = () => toast('รายการนี้ปักดาวไว้ — กด ☆ ที่มุมภาพเพื่อปลดดาวก่อนจึงลบได้'));
     $$('[data-embed]').forEach(b => b.onclick = () => showEmbed(list.find(w => w.id === b.dataset.embed)));
     $$('[data-export]').forEach(b => b.onclick = () => showExport(list.find(w => w.id === b.dataset.export)));
     $$('[data-dup]').forEach(b => b.onclick = async () => { const c = await api('POST', `/widgets/${b.dataset.dup}/duplicate`); ok('ทำสำเนาแล้ว'); location.hash = `#/widgets/${c.id}`; });
@@ -3033,12 +3076,16 @@ const setP = (o, p, v) => { const ks = p.split('.'); const last = ks.pop(); ks.r
 async function viewIntros() {
   const list = await api('GET', '/intros');
   $('#view').innerHTML = `${pageHead('หน้า Intro', 'หน้าแรกเต็มจอก่อนเข้าเว็บไซต์ — เปลี่ยนภาพ ออกแบบปุ่ม เมนูย่อย และแอนิเมชันได้', `<button class="btn btn-light" id="demoI">${icon('widget')} เพิ่มตัวอย่าง</button><button class="btn btn-primary" id="newI">${icon('plus')} สร้างหน้า Intro</button>`)}
-  <div class="grid md:grid-cols-2 2xl:grid-cols-3 gap-4">${list.map(it => `
-    <div class="card overflow-hidden flex flex-col ${it.isMain ? 'ring-2 ring-gold-400' : ''}">
+  <div class="grid md:grid-cols-2 2xl:grid-cols-3 gap-4" id="il"></div>
+  <p class="text-xs text-slate-500 mt-2">☆ ปักดาวรายการที่ใช้งานจริง ให้แสดงบนสุดและกันการเผลอลบ · ลากปุ่ม ⠿ เพื่อสลับตำแหน่ง</p>
+  <p class="text-xs text-slate-500 mt-4">ทำสำเนาหน้า Intro เดิมไว้สำหรับวาระพิเศษ (เช่น วันสำคัญ) แล้วกด “ตั้งเป็นหลัก” เมื่อต้องการสลับ — ลิงก์ <span class="font-mono">/intro</span> จะแสดงหน้าหลักเสมอ</p>`;
+  const drawI = () => { $('#il').innerHTML = `${list.map(it => `
+    <div class="card overflow-hidden flex flex-col transition ${it.fav ? 'ring-2 ring-gold-400' : it.isMain ? 'ring-2 ring-navy-300' : ''}" data-card="${it.id}">
       <div class="aspect-video bg-slate-900 relative overflow-hidden">
+        ${favButtons(it)}
         <iframe src="/intro/${esc(it.slug)}?preview=1" sandbox="allow-scripts allow-same-origin" class="absolute top-0 left-0 border-0 pointer-events-none origin-top-left" style="width:1440px;height:810px;transform:scale(var(--s,.3))" data-thumb loading="lazy" tabindex="-1"></iframe>
         <a href="#/intros/${it.id}" class="absolute inset-0"></a>
-        ${it.isMain ? '<span class="absolute top-2 left-2 text-xs px-2 py-1 rounded-full bg-gold-500 text-white font-semibold">★ หน้า Intro หลัก</span>' : ''}
+        <div class="absolute top-2 left-2 flex flex-col items-start gap-1 z-10">${it.isMain ? '<span class="text-xs px-2 py-1 rounded-full bg-navy-800 text-white font-semibold">หน้า Intro หลัก</span>' : ''}${it.fav ? '<span class="text-[11px] px-2 py-0.5 rounded-full bg-gold-500 text-white font-semibold shadow">★ รายการโปรด</span>' : ''}</div>
       </div>
       <div class="p-4 flex-1 flex flex-col">
         <a href="#/intros/${it.id}" class="font-semibold text-slate-900 hover:text-navy-700">${esc(it.name)}</a>
@@ -3050,11 +3097,14 @@ async function viewIntros() {
           ${it.isMain ? '' : `<button class="btn btn-light btn-sm" data-main="${it.id}" title="ตั้งเป็นหน้า Intro หลัก (/intro)">★ ตั้งเป็นหลัก</button>`}
           <button class="btn btn-light btn-sm" data-reni="${it.id}" title="เปลี่ยนชื่อ">${icon('edit', 'w-3.5 h-3.5')}</button>
           <button class="btn btn-light btn-sm" data-dupi="${it.id}" title="ทำสำเนา">${icon('copy', 'w-3.5 h-3.5')}</button>
-          <button class="btn btn-danger btn-sm" data-deli="${it.id}" title="ลบ">${icon('trash', 'w-3.5 h-3.5')}</button>
+          ${it.fav ? `<button class="btn btn-light btn-sm opacity-40 cursor-not-allowed" data-locked title="รายการโปรด — ปลดดาวก่อนจึงลบได้">${icon('trash', 'w-3.5 h-3.5')}</button>` : `<button class="btn btn-danger btn-sm" data-deli="${it.id}" title="ลบ">${icon('trash', 'w-3.5 h-3.5')}</button>`}
         </div>
       </div>
-    </div>`).join('') || '<div class="col-span-full card p-12 text-center text-slate-500">ยังไม่มีหน้า Intro</div>'}</div>
-  <p class="text-xs text-slate-500 mt-4">ทำสำเนาหน้า Intro เดิมไว้สำหรับวาระพิเศษ (เช่น วันสำคัญ) แล้วกด “ตั้งเป็นหลัก” เมื่อต้องการสลับ — ลิงก์ <span class="font-mono">/intro</span> จะแสดงหน้าหลักเสมอ</p>`;
+    </div>`).join('') || '<div class="col-span-full card p-12 text-center text-slate-500">ยังไม่มีหน้า Intro</div>'}`;
+  bindIntroCards(); };
+  const bindIntroCards = () => {
+  bindOrdering($('#il'), list, 'intros', drawI);
+  $$('[data-locked]').forEach(b => b.onclick = () => toast('รายการนี้ปักดาวไว้ — กด ☆ ที่มุมภาพเพื่อปลดดาวก่อนจึงลบได้'));
   $$('[data-thumb]').forEach(f => { const w = f.parentElement.clientWidth; f.style.setProperty('--s', w / 1440); });
   $('#newI').onclick = async () => {
     const r = await Swal.fire({ title: 'สร้างหน้า Intro', showCancelButton: true, confirmButtonText: 'สร้าง', cancelButtonText: 'ยกเลิก', reverseButtons: true,
@@ -3072,6 +3122,8 @@ async function viewIntros() {
   });
   $$('[data-dupi]').forEach(b => b.onclick = async () => { const c = await api('POST', `/intros/${b.dataset.dupi}/duplicate`); ok('ทำสำเนาแล้ว'); location.hash = `#/intros/${c.id}`; });
   $$('[data-deli]').forEach(b => b.onclick = async () => { const it = list.find(x => x.id === b.dataset.deli); if (!(await confirmBox('ลบหน้า Intro?', it.name, 'ลบ'))) return; await api('DELETE', `/intros/${it.id}`); ok('ลบแล้ว'); viewIntros(); });
+  };
+  drawI();
 }
 
 function introMainNotice(it) {

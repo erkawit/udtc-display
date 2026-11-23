@@ -594,6 +594,14 @@ function normItem(i) {
     active: i.active !== false, start: String(i.start || ''), end: String(i.end || ''),
   };
 }
+/** เรียงรายการ: รายการโปรดอยู่บนสุด แล้วตามลำดับที่ลากจัดไว้ */
+function ordered(arr) { return arr.map((x, i) => [x, i]).sort((a, b) => (!!b[0].fav - !!a[0].fav) || ((a[0].order ?? 1e9 + a[1]) - (b[0].order ?? 1e9 + b[1])) || (a[1] - b[1])).map(p => p[0]); }
+/** POST /reorder {ids} และ POST /:id/fav {fav} ใช้ร่วมกันระหว่างส่วนแสดงผล / หน้า Intro */
+async function listOps(req, res, arr, seg, m) {
+  if (seg[1] === 'reorder' && m === 'POST') { const b = await readJson(req); (Array.isArray(b.ids) ? b.ids : []).forEach((id, i) => { const x = arr.find(y => y.id === id); if (x) x.order = i; }); save(); return json(res, 200, { ok: true }), true; }
+  if (seg[2] === 'fav' && m === 'POST') { const x = arr.find(y => y.id === seg[1]); if (!x) return json(res, 404, { error: 'ไม่พบรายการ' }), true; const b = await readJson(req); x.fav = !!b.fav; save(); return json(res, 200, { ok: true, fav: x.fav }), true; }
+  return false;
+}
 /** ส่วนแสดงผลแบบเขียนโค้ด HTML / CSS / JS */
 function normCode(c) {
   c = c && typeof c === 'object' ? c : {};
@@ -1666,13 +1674,14 @@ async function api(req, res, pathname, query) {
 
   /* widgets */
   if (seg[0] === 'widgets') {
+    if (await listOps(req, res, db.widgets, seg, m)) return;
     if (seg[1] === 'preview' && m === 'POST') {
       const b = await readJson(req);
       const w = normWidget(b);
       return send(res, 200, renderWidgetDoc(w, { full: !!b.__full }), { 'Content-Type': 'text/html; charset=utf-8' });
     }
     if (!seg[1]) {
-      if (m === 'GET') return json(res, 200, db.widgets.map(w => ({ ...w, itemCount: w.items.length, activeCount: w.items.filter(i => isVisible(i)).length })));
+      if (m === 'GET') return json(res, 200, ordered(db.widgets).map(w => ({ ...w, itemCount: w.items.length, activeCount: w.items.filter(i => isVisible(i)).length })));
       if (m === 'POST') {
         const b = await readJson(req);
         const w = normWidget(Object.assign({ showTitle: true, shadow: true, showCaption: true, showArrows: true, showDots: true, columns: 3, mobileColumns: 1, autoplay: 5 }, b));
@@ -1698,7 +1707,7 @@ async function api(req, res, pathname, query) {
     }
     if (seg[2] === 'duplicate' && m === 'POST') {
       const c = JSON.parse(JSON.stringify(w));
-      c.id = uid(); c.name += ' (สำเนา)'; c.slug = uniqueSlug(db.widgets, w.slug + '-copy'); c.createdAt = c.updatedAt = now();
+      c.id = uid(); c.name += ' (สำเนา)'; c.fav = false; delete c.order; c.slug = uniqueSlug(db.widgets, w.slug + '-copy'); c.createdAt = c.updatedAt = now();
       c.items.forEach(i => { i.id = uid(); });
       db.widgets.push(c); save(); return json(res, 201, c);
     }
@@ -1709,7 +1718,7 @@ async function api(req, res, pathname, query) {
       nw.slug = uniqueSlug(db.widgets, b.slug || w.slug, w.id);
       Object.assign(w, nw); save(); return json(res, 200, w);
     }
-    if (m === 'DELETE') { db.widgets = db.widgets.filter(x => x.id !== w.id); save(); return json(res, 200, { ok: true }); }
+    if (m === 'DELETE') { if (w.fav) return json(res, 409, { error: 'รายการนี้ปักดาวเป็นรายการโปรดไว้ — กดปลดดาวก่อนจึงจะลบได้' }); db.widgets = db.widgets.filter(x => x.id !== w.id); save(); return json(res, 200, { ok: true }); }
   }
 
   /* pages */
@@ -1831,10 +1840,11 @@ async function api(req, res, pathname, query) {
 
   /* intro pages */
   if (seg[0] === 'intros') {
+    if (await listOps(req, res, db.intros, seg, m)) return;
     if (seg[1] === 'preview' && m === 'POST') { const b = await readJson(req); return send(res, 200, renderIntro(normIntro(b), { preview: true }), { 'Content-Type': 'text/html; charset=utf-8' }); }
     if (seg[1] === 'demo' && m === 'POST') { const it = demoIntro(db.intros); db.intros.push(it); save(); return json(res, 201, it); }
     if (!seg[1]) {
-      if (m === 'GET') return json(res, 200, db.intros.map(x => ({ ...x, isMain: db.settings.mainIntroId === x.id })));
+      if (m === 'GET') return json(res, 200, ordered(db.intros).map(x => ({ ...x, isMain: db.settings.mainIntroId === x.id })));
       if (m === 'POST') {
         const b = await readJson(req);
         const it = normIntro(Object.assign({ buttons: [{ title: 'เข้าสู่เว็บไซต์', iconFa: 'fa-solid fa-arrow-right-to-bracket', link: '/', style: UB.PRESETS.find(p => p.id === 'gold').style }] }, b));
@@ -1845,7 +1855,7 @@ async function api(req, res, pathname, query) {
     const it = db.intros.find(x => x.id === seg[1]);
     if (!it) return json(res, 404, { error: 'ไม่พบหน้า Intro' });
     if (seg[2] === 'main' && m === 'POST') { db.settings.mainIntroId = it.id; save(); return json(res, 200, { ok: true }); }
-    if (seg[2] === 'duplicate' && m === 'POST') { const c = JSON.parse(JSON.stringify(it)); c.id = uid(); c.name += ' (สำเนา)'; c.slug = uniqueSlug(db.intros, it.slug + '-copy'); c.createdAt = c.updatedAt = now(); db.intros.push(c); save(); return json(res, 201, c); }
+    if (seg[2] === 'duplicate' && m === 'POST') { const c = JSON.parse(JSON.stringify(it)); c.id = uid(); c.name += ' (สำเนา)'; c.fav = false; delete c.order; c.slug = uniqueSlug(db.intros, it.slug + '-copy'); c.createdAt = c.updatedAt = now(); db.intros.push(c); save(); return json(res, 201, c); }
     if (seg[2] === 'export' && m === 'POST') {
       const b = await readJson(req);
       let base = String(b.base || db.settings.publicUrl || `${isHttps(req) ? 'https' : 'http'}://${req.headers.host}`).trim().replace(/\/+$/, '');
@@ -1854,7 +1864,7 @@ async function api(req, res, pathname, query) {
     }
     if (m === 'GET') return json(res, 200, it);
     if (m === 'PUT') { const b = await readJson(req); const n = normIntro(b, it); n.slug = uniqueSlug(db.intros, b.slug || it.slug, it.id); Object.assign(it, n); save(); return json(res, 200, it); }
-    if (m === 'DELETE') { db.intros = db.intros.filter(x => x.id !== it.id); if (db.settings.mainIntroId === it.id) db.settings.mainIntroId = db.intros[0] ? db.intros[0].id : ''; save(); return json(res, 200, { ok: true }); }
+    if (m === 'DELETE') { if (it.fav) return json(res, 409, { error: 'หน้า Intro นี้ปักดาวเป็นรายการโปรดไว้ — กดปลดดาวก่อนจึงจะลบได้' }); db.intros = db.intros.filter(x => x.id !== it.id); if (db.settings.mainIntroId === it.id) db.settings.mainIntroId = db.intros[0] ? db.intros[0].id : ''; save(); return json(res, 200, { ok: true }); }
   }
 
   /* saved button styles */
