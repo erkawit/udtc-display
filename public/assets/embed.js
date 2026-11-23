@@ -16,6 +16,15 @@
     o.addEventListener('click', function (e) { if (e.target !== a) close(); });
     document.addEventListener('keydown', k); document.body.appendChild(o);
   }
+  /* ขอความสูงจาก iframe ทันทีที่สคริปต์นี้พร้อม — แก้กรณีเปิดเว็บครั้งแรก สคริปต์นี้โหลดช้ากว่า iframe
+     ทำให้พลาดข้อความแจ้งความสูง iframe จึงค้างที่ความสูงเริ่มต้น (เช่น 420px) จนกว่าจะ refresh */
+  function ping(f) { try { f.contentWindow && f.contentWindow.postMessage({ type: 'uw-ping' }, '*'); } catch (err) {} }
+  function hook(f) { if (f.__uwHook) return; f.__uwHook = true; f.addEventListener('load', function () { ping(f); }); ping(f); }
+  function scan() { var fr = document.querySelectorAll('iframe[data-uw-embed]'); for (var i = 0; i < fr.length; i++) hook(fr[i]); }
+  scan();
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', scan);
+  window.addEventListener('load', scan);
+  var pend = false; if (window.MutationObserver) new MutationObserver(function () { if (pend) return; pend = true; setTimeout(function () { pend = false; scan(); }, 250); }).observe(document.documentElement, { childList: true, subtree: true });
   window.addEventListener('message', function (e) {
     var d = e.data; if (!d || !d.type) return;
     var fr = document.querySelectorAll('iframe[data-uw-embed]'), f = null;

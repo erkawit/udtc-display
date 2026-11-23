@@ -507,11 +507,29 @@ function showEmbed(w) {
     title: `โค้ดฝัง — ${esc(w.name)}`, size: 'max-w-2xl',
     body: `<div class="space-y-5">
       ${box('ลิงก์ส่วนแสดงผล', c.url)}
-      ${box('แบบปรับความสูงอัตโนมัติ (แนะนำ)', c.auto, 'iframe จะยืด–หดตามเนื้อหาเอง ไม่มีแถบเลื่อน')}
+      <div data-auto>${box('แบบปรับความสูงอัตโนมัติ (แนะนำ)', c.auto, 'iframe จะยืด–หดตามเนื้อหาเอง ไม่มีแถบเลื่อน')}</div>
+      <p class="text-xs -mt-3" data-hmsg><span class="text-slate-400">กำลังวัดความสูงจริงของส่วนแสดงผล…</span></p>
       ${box('แบบกำหนดความสูงตายตัว', c.fixed, 'ใช้เมื่อเว็บไซต์ปลายทางไม่อนุญาตให้ใส่ &lt;script&gt; — ปรับค่า height ตามต้องการ')}
       ${box('ลิงก์แสดงรายการทั้งหมด (ไม่จำกัดจำนวน)', c.full)}
     </div>`,
-    onMount: el => $$('[data-cp]', el).forEach(b => b.onclick = () => copyText(b.dataset.cp)),
+    onMount: el => {
+      $$('[data-cp]', el).forEach(b => b.onclick = () => copyText(b.dataset.cp));
+      // วัดความสูงจริง (จอกว้าง 1200px) แล้วใส่เป็น height เริ่มต้นของ iframe — หน้าเว็บจะไม่กระตุก/ร่นตอนโหลดครั้งแรก
+      const f = document.createElement('iframe'); f.src = `/embed/${w.slug}`; f.style.cssText = 'position:fixed;left:-99999px;top:0;width:1200px;height:600px;border:0;visibility:hidden';
+      let done = false;
+      const onMsg = e => { if (e.source !== f.contentWindow || !e.data || e.data.type !== 'uw-resize') return; const h = Math.max(20, Math.round(e.data.height)); clearTimeout(tm); tm = setTimeout(() => finish(h), 700); };
+      let tm = 0;
+      const finish = h => {
+        if (done) return; done = true; removeEventListener('message', onMsg); f.remove();
+        if (!h || !document.body.contains(el)) return;
+        const code = c.auto.replace(/height="\d+"/, `height="${h}"`);
+        $('[data-auto]', el).innerHTML = box('แบบปรับความสูงอัตโนมัติ (แนะนำ)', code, 'iframe จะยืด–หดตามเนื้อหาเอง ไม่มีแถบเลื่อน');
+        $('[data-hmsg]', el).innerHTML = `<span class="text-emerald-700">✓ ตั้งความสูงเริ่มต้นเป็น ${h}px ตามขนาดจริง (จอกว้าง 1200px) — ตอนเปิดเว็บครั้งแรกจะไม่มีพื้นที่ว่างค้าง · ถ้าแก้เนื้อหาจนสูงต่างจากเดิมมาก ให้คัดลอกโค้ดใหม่</span>`;
+        $$('[data-cp]', el).forEach(b => b.onclick = () => copyText(b.dataset.cp));
+      };
+      addEventListener('message', onMsg); document.body.appendChild(f);
+      setTimeout(() => { if (!done) { done = true; removeEventListener('message', onMsg); f.remove(); const m = $('[data-hmsg]', el); if (m) m.innerHTML = ''; } }, 8000);
+    },
   });
 }
 

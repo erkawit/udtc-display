@@ -1088,11 +1088,14 @@ function runtimeJs(rootExpr, embed) {
     var t=a.getAttribute('data-lbt')||'';
     if(window.parent!==window&&${embed ? 'true' : 'false'}){if(hostLB)parent.postMessage({type:'uw-lightbox',src:a.href,title:t},'*');else window.open(a.href,'_blank');return;}
     showLB(a.href,t);});
-  ${embed ? `addEventListener('message',function(e){if(e.data&&e.data.type==='uw-host')hostLB=true;});
+  ${embed ? `addEventListener('message',function(e){if(!e.data)return;if(e.data.type==='uw-host')hostLB=true;if(e.data.type==='uw-ping')post();});
   function post(){try{var b=document.body,h=Math.ceil(b.getBoundingClientRect().height);if(!h)h=b.scrollHeight;parent.postMessage({type:'uw-resize',height:h},'*');}catch(e){}}
   addEventListener('load',post);addEventListener('resize',post);
   if(window.ResizeObserver)new ResizeObserver(post).observe(document.body);
   [].forEach.call(document.querySelectorAll('img'),function(im){im.addEventListener('load',post);});
+  if(document.fonts&&document.fonts.ready)document.fonts.ready.then(post);
+  /* ส่งความสูงซ้ำช่วงแรก เผื่อสคริปต์ embed.js ของหน้าเว็บหลักโหลดเสร็จช้ากว่า iframe (เปิดเว็บครั้งแรก) */
+  [300,800,1500,3000,6000].forEach(function(t){setTimeout(post,t);});
   post();` : ''}
 })();`;
 }
@@ -1475,6 +1478,7 @@ ${embed ? `<base target="_top"><style>html,body{overflow-x:hidden}${transparent 
 <main>${body}</main>
 <script src="/assets/embed.js"></script>
 <script>(function(){if(window.parent===window)return;var last=0;function post(){var h=Math.ceil(document.body.getBoundingClientRect().height);if(h!==last){last=h;parent.postMessage({type:'uw-resize',height:h},'*');}}
+addEventListener('message',function(e){if(e.data&&e.data.type==='uw-ping'){last=0;post();}});
 if(window.ResizeObserver)new ResizeObserver(post).observe(document.body);addEventListener('load',post);setTimeout(post,300);setInterval(post,1500);})();</script>
 </body></html>` : `<body class="bg-slate-50 text-slate-800 antialiased min-h-screen flex flex-col">
 ${header ? hdr : ''}
