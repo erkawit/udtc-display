@@ -70,32 +70,48 @@ async function api(method, url, body) {
 }
 // โหมดคลาวด์ (Vercel Blob): ย่อภาพก่อนอัปโหลด และส่งไฟล์ใหญ่ตรงจากเบราว์เซอร์ไปที่ Blob
 const BLOB_CLIENT_URL = 'https://esm.sh/@vercel/blob@1/client';
-const IMG_MAX_SIDE = 2400, IMG_KEEP_BYTES = 1.5 * 1048576;
-const cloudStorage = () => !!(state.server && state.server.storage === 'blob');
-async function shrinkImage(file) {
-  if (!cloudStorage() || !/^image\/(jpeg|png|webp)$/.test(file.type) || typeof createImageBitmap !== 'function') return file;
-  let bmp; try { bmp = await createImageBitmap(file); } catch { return file; }
-  const scale = Math.min(1, IMG_MAX_SIDE / Math.max(bmp.width, bmp.height));
-  if (scale === 1 && file.size <= IMG_KEEP_BYTES) { bmp.close && bmp.close(); return file; }
+/* ภาพที่อัปโหลดจะถูกย่อในเบราว์เซอร์ก่อนส่งขึ้นเครื่องแม่ข่าย: ด้านยาวไม่เกิน 1920px เป็น WebP
+   และสร้างภาพย่อ 800px อีกชุด (ใช้กับมือถือ / การ์ดเล็ก ผ่าน srcset) — ลดขนาดข้อมูลที่ผู้ชมต้องโหลดลงมาก */
+const IMG_MAX_SIDE = 1920, IMG_SM_SIDE = 800, IMG_KEEP_BYTES = 300 * 1024, IMG_Q = 0.82;
+async function encodeImg(bmp, side, q) {
+  const scale = Math.min(1, side / Math.max(bmp.width, bmp.height));
   const c = document.createElement('canvas');
-  c.width = Math.round(bmp.width * scale); c.height = Math.round(bmp.height * scale);
-  c.getContext('2d').drawImage(bmp, 0, 0, c.width, c.height); bmp.close && bmp.close();
-  const blob = await new Promise(r => c.toBlob(r, 'image/webp', 0.86));
-  if (!blob || blob.type !== 'image/webp' || (scale === 1 && blob.size >= file.size)) return file;
-  return new File([blob], file.name.replace(/\.[a-z0-9]+$/i, '') + '.webp', { type: 'image/webp' });
+  c.width = Math.max(1, Math.round(bmp.width * scale)); c.height = Math.max(1, Math.round(bmp.height * scale));
+  const g = c.getContext('2d'); g.imageSmoothingQuality = 'high'; g.drawImage(bmp, 0, 0, c.width, c.height);
+  const blob = await new Promise(r => c.toBlob(r, 'image/webp', q));
+  return blob && blob.type === 'image/webp' ? { blob, w: c.width, h: c.height, scale } : null;
 }
-function uploadViaServer(file, onProgress) {
+/** คืน { file: ไฟล์หลักที่ย่อแล้ว, sm: ภาพย่อ 800px (ถ้าภาพกว้างพอ) } */
+async function optimizeImage(file, force = false) {
+  if (!/^image\/(jpeg|png|webp|bmp)$/.test(file.type) || typeof createImageBitmap !== 'function') return { file };
+  let bmp; try { bmp = await createImageBitmap(file); } catch { return { file }; }
+  try {
+    const big = Math.max(bmp.width, bmp.height);
+    let main = file;
+    if (force || big > IMG_MAX_SIDE || file.size > IMG_KEEP_BYTES) {
+      const e = await encodeImg(bmp, IMG_MAX_SIDE, IMG_Q);
+      if (e && e.blob.size < file.size) main = new File([e.blob], file.name.replace(/\.[a-z0-9]+$/i, '') + '.webp', { type: 'image/webp' });
+    }
+    let sm = null;
+    if (big > IMG_SM_SIDE * 1.15) { const e = await encodeImg(bmp, IMG_SM_SIDE, 0.8); if (e && e.blob.size < main.size * 0.8) sm = new File([e.blob], file.name.replace(/\.[a-z0-9]+$/i, '') + '-800.webp', { type: 'image/webp' }); }
+    return { file: main, sm };
+  } finally { bmp.close && bmp.close(); }
+}
+async function shrinkImage(file) { return (await optimizeImage(file)).file; }
+const cloudStorage = () => !!(state.server && state.server.storage === 'blob');
+function uploadViaServer(file, onProgress, hdr = {}) {
   return new Promise((resolve, reject) => {
     const x = new XMLHttpRequest();
     x.open('POST', '/api/media');
     x.setRequestHeader('X-Filename', encodeURIComponent(file.name));
+    for (const k in hdr) x.setRequestHeader(k, hdr[k]);
     x.upload.onprogress = e => e.lengthComputable && onProgress && onProgress(e.loaded / e.total);
     x.onload = () => { let d; try { d = JSON.parse(x.responseText); } catch { d = {}; } x.status < 300 ? resolve(d) : reject(new Error(d.error || (x.status === 413 ? 'ไฟล์ใหญ่เกินไป' : 'อัปโหลดไม่สำเร็จ'))); };
     x.onerror = () => reject(new Error('เชื่อมต่อเซิร์ฟเวอร์ไม่ได้'));
     x.send(file);
   });
 }
-async function uploadDirectToBlob(file, onProgress) {
+async function uploadDirectToBlob(file, onProgress, replaceOf) {
   let mod;
   try { mod = await import(BLOB_CLIENT_URL); } catch { throw new Error('โหลดตัวอัปโหลดไฟล์ใหญ่ไม่ได้ (esm.sh) — ตรวจการเชื่อมต่ออินเทอร์เน็ต'); }
   const ext = ((file.name.match(/\.[a-z0-9]+$/i) || [''])[0]).toLowerCase();
@@ -106,13 +122,17 @@ async function uploadDirectToBlob(file, onProgress) {
     multipart: file.size > 50 * 1048576,
     onUploadProgress: p => onProgress && onProgress((p.percentage || 0) / 100),
   });
-  return api('POST', '/media/register', { url: r.url, name: file.name, size: file.size });
+  return api('POST', '/media/register', { url: r.url, name: file.name, size: file.size, replaceOf: replaceOf || undefined });
 }
-async function uploadFile(file, onProgress) {
-  file = await shrinkImage(file);
+async function uploadFile(file, onProgress, hdr = {}) {
+  const o = await optimizeImage(file, !!hdr['X-Replace-Of']);
+  file = o.file;
   const limit = (state.server && state.server.uploadDirectMax) || Infinity;
-  if (cloudStorage() && file.size > limit) return uploadDirectToBlob(file, onProgress);
-  return uploadViaServer(file, onProgress);
+  let item;
+  if (cloudStorage() && file.size > limit) item = await uploadDirectToBlob(file, onProgress, hdr['X-Replace-Of']);
+  else item = await uploadViaServer(file, onProgress, hdr);
+  if (o.sm && item && item.id) { try { item = { ...item, ...(await uploadViaServer(o.sm, null, { 'X-Variant-Of': item.id })) }; } catch (e) { console.warn('อัปโหลดภาพย่อไม่สำเร็จ', e); } }
+  return item;
 }
 async function uploadMany(files) {
   const out = [];
@@ -3432,6 +3452,32 @@ async function viewIntroEditor(id) {
 /* ================================================================
  * Media library
  * ================================================================ */
+const HEAVY_IMG = 400 * 1024;
+/** ภาพที่ควรลดขนาด: ใหญ่เกิน 400KB หรือยังไม่มีภาพย่อ (ไม่รวม SVG / GIF) */
+function optCandidates(list) { return list.filter(x => x.kind === 'image' && !x.optimized && !x.sm && !/\.(svg|gif)(\?|$)/i.test(x.url) && x.size > 120 * 1024); }
+async function optimizeMedia(items) {
+  if (!items.length) return false;
+  const total = items.reduce((a, x) => a + (x.size || 0), 0);
+  const c = await Swal.fire({ icon: 'question', title: `ลดขนาดภาพ ${items.length} ไฟล์?`, confirmButtonText: 'เริ่มลดขนาด', cancelButtonText: 'ยกเลิก', showCancelButton: true, reverseButtons: true,
+    html: `<div style="text-align:left;font-size:14px;line-height:1.7">ขนาดรวมตอนนี้ <b>${fmtSize(total)}</b><br>• ย่อด้านยาวไม่เกิน 1920px และแปลงเป็น WebP (คุณภาพใกล้เคียงเดิม)<br>• สร้างภาพย่อ 800px สำหรับมือถือ/การ์ดเล็ก<br>• เปลี่ยนลิงก์ภาพทุกจุดที่ใช้งาน (ส่วนแสดงผล หน้าเว็บ Intro) ให้อัตโนมัติ แล้วลบไฟล์เดิม<br><span style="color:#b45309">ภาพที่ฝังไว้ด้วยโค้ดส่งออก HTML ในเว็บอื่นก่อนหน้านี้ ต้องคัดลอกโค้ดใหม่ ส่วน iframe เปลี่ยนตามเอง</span></div>` });
+  if (!c.isConfirmed) return false;
+  let done = 0, saved = 0, failN = 0;
+  Swal.fire({ title: 'กำลังลดขนาดภาพ…', html: '<div id="opst" class="text-sm text-slate-600"></div><div class="mt-3 h-2 bg-slate-100 rounded-full overflow-hidden"><div id="opbar" class="h-full bg-navy-700 transition-all" style="width:0%"></div></div>', allowOutsideClick: false, showConfirmButton: false });
+  for (const it of items) {
+    const st = document.getElementById('opst'); if (st) st.textContent = `${done + 1}/${items.length}: ${it.name}`;
+    try {
+      let blob;
+      try { const r = await fetch(it.url, { mode: 'cors', cache: 'no-store' }); if (!r.ok) throw 0; blob = await r.blob(); } catch { const r = await fetch(`/api/media/${it.id}/raw`); if (!r.ok) throw new Error('อ่านไฟล์เดิมไม่ได้'); blob = await r.blob(); }
+      const file = new File([blob], it.name, { type: blob.type || 'image/jpeg' });
+      const before = it.size || blob.size;
+      const res = await uploadFile(file, null, { 'X-Replace-Of': it.id });
+      saved += Math.max(0, before - (res.size || before));
+    } catch (e) { failN++; console.warn('ลดขนาดไม่สำเร็จ', it.name, e); }
+    done++; const b = document.getElementById('opbar'); if (b) b.style.width = (done / items.length * 100) + '%';
+  }
+  Swal.fire({ icon: failN ? 'warning' : 'success', title: 'ลดขนาดภาพเสร็จแล้ว', confirmButtonText: 'ตกลง', html: `ประหยัดได้ <b>${fmtSize(saved)}</b> จาก ${fmtSize(total)}${failN ? `<br><span style="color:#b91c1c">ไม่สำเร็จ ${failN} ไฟล์ (ลองใหม่ได้)</span>` : ''}` });
+  return true;
+}
 async function viewMedia() {
   let list = await api('GET', '/media');
   let filter = 'all';
@@ -3470,13 +3516,14 @@ async function viewMedia() {
     const totalSize = list.reduce((a, x) => a + (x.size || 0), 0);
     $('#mbar').innerHTML = `<label class="flex items-center gap-2 cursor-pointer select-none"><input type="checkbox" id="mAll" class="w-4 h-4 accent-navy-800" ${allOn ? 'checked' : ''} ${f.length ? '' : 'disabled'}> เลือกทั้งหมดที่แสดง (${f.length})</label>
       <span class="text-slate-400">·</span><span class="text-slate-500">ทั้งหมด ${list.length} ไฟล์ · ${fmtSize(totalSize)}${list.some(x => !x.usedIn.length) ? ` · ไม่ได้ใช้งาน ${list.filter(x => !x.usedIn.length).length} ไฟล์` : ''}</span>
+      ${(() => { const h = optCandidates(list); return h.length ? `<button class="btn btn-gold btn-sm" id="mOpt" title="ย่อภาพที่ใหญ่เกินเป็น WebP ≤1920px + สร้างภาพย่อสำหรับมือถือ แล้วเปลี่ยนทุกจุดที่ใช้ภาพนั้นให้อัตโนมัติ">⚡ ลดขนาดภาพ ${h.length} ไฟล์ (${fmtSize(h.reduce((a, x) => a + (x.size || 0), 0))})</button>` : list.some(x => x.kind === 'image') ? '<span class="text-xs text-emerald-700">✓ ภาพทั้งหมดขนาดเหมาะสมแล้ว</span>' : ''; })()}
       <span class="ml-auto flex items-center gap-2">${sel.size ? `<span class="font-semibold text-navy-800">เลือกแล้ว ${sel.size} ไฟล์</span><button class="btn btn-light btn-sm" id="mClear">ยกเลิกเลือก</button>
         <button class="btn btn-sm !bg-rose-600 !text-white hover:!bg-rose-700" id="mDel">${icon('trash', 'w-3.5 h-3.5')} ลบที่เลือก</button>` : '<span class="text-xs text-slate-400">ติ๊กช่องที่มุมภาพเพื่อเลือกหลายไฟล์</span>'}</span>`;
     $('#mg').innerHTML = f.map(x => `<div class="card overflow-hidden group relative ${sel.has(x.id) ? 'ring-2 ring-navy-600' : ''}">
       <label class="absolute top-2 left-2 z-10 w-7 h-7 rounded-md bg-white/95 shadow grid place-items-center cursor-pointer" title="เลือก"><input type="checkbox" class="w-4 h-4 accent-navy-800" data-ms="${x.id}" ${sel.has(x.id) ? 'checked' : ''}></label>
       ${x.usedIn.length ? `<span class="absolute top-2 right-2 z-10 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-emerald-600 text-white" title="${esc(x.usedIn.join('\n'))}">ใช้อยู่ ${x.usedIn.length}</span>` : `<span class="absolute top-2 right-2 z-10 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-slate-500/80 text-white">ไม่ได้ใช้</span>`}
       <div class="aspect-square chk-pattern grid place-items-center relative overflow-hidden cursor-pointer" data-mt="${x.id}">${x.kind === 'image' ? `<img src="${esc(x.url)}" class="w-full h-full object-cover" loading="lazy">` : x.kind === 'video' ? `<video src="${esc(x.url)}#t=0.5" class="w-full h-full object-cover" preload="metadata" muted></video>` : isPdfUrl(x.url) ? `<div class="absolute inset-0 bg-white" data-pdfthumb="${esc(x.url)}" data-pages><div class="h-full grid place-items-center text-xs text-slate-400">PDF</div></div>` : `<div class="text-center">${icon('file', 'w-10 h-10 text-slate-400 mx-auto')}<div class="text-xs font-bold text-slate-500 mt-1">${esc(x.url.split('.').pop().toUpperCase())}</div></div>`}</div>
-      <div class="p-2.5"><div class="text-xs font-medium truncate" title="${esc(x.name)}">${esc(x.name)}</div><div class="text-[11px] text-slate-400">${fmtSize(x.size)} · ${new Date(x.createdAt).toLocaleDateString('th-TH')}</div>
+      <div class="p-2.5"><div class="text-xs font-medium truncate" title="${esc(x.name)}">${esc(x.name)}</div><div class="text-[11px] ${x.kind === 'image' && x.size > HEAVY_IMG ? 'text-rose-600 font-semibold' : 'text-slate-400'}">${fmtSize(x.size)}${x.kind === 'image' && x.size > HEAVY_IMG ? ' ⚠ ใหญ่' : ''}${x.sm ? ' · <span class="text-emerald-600" title="มีภาพย่อ 800px สำหรับมือถือ">✓ ย่อแล้ว</span>' : ''} · ${new Date(x.createdAt).toLocaleDateString('th-TH')}</div>
         <div class="flex items-center gap-1 mt-2">
           <button class="flex-1 btn btn-light btn-sm !px-1.5" data-cu="${esc(x.url)}" title="คัดลอกลิงก์">${icon('link', 'w-3.5 h-3.5')}</button>
           <a class="flex-1 btn btn-light btn-sm !px-1.5" href="${esc(x.url)}" target="_blank" title="เปิดดู">${icon('ext', 'w-3.5 h-3.5')}</a>
@@ -3490,6 +3537,7 @@ async function viewMedia() {
     const all = $('#mAll'); if (all) all.onchange = () => { f.forEach(x => all.checked ? sel.add(x.id) : sel.delete(x.id)); draw(); };
     const cl = $('#mClear'); if (cl) cl.onclick = () => { sel.clear(); draw(); };
     const dl = $('#mDel'); if (dl) dl.onclick = () => removeMany(list.filter(x => sel.has(x.id)));
+    const mo = $('#mOpt'); if (mo) mo.onclick = async () => { const items = sel.size ? optCandidates(list.filter(x => sel.has(x.id))) : optCandidates(list); if (await optimizeMedia(items.length ? items : optCandidates(list))) { list = await api('GET', '/media'); draw(); } };
   };
   const up = async files => { if (!files.length) return; await uploadMany(files); list = await api('GET', '/media'); draw(); };
   $('#mUp').onchange = e => up([...e.target.files]);

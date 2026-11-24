@@ -966,7 +966,12 @@ function tabsHtml(w) {
 function tabChildren(w) {
   return w.layout === 'tabs' ? (w.tabs || []).flatMap(t => t.blocks.map(b => db.widgets.find(x => x.slug === b.widgetSlug))).filter(c => c && c.layout !== 'tabs') : [];
 }
-function renderWidgetInner(w, { full = false } = {}) {
+function renderWidgetInner(w, opts = {}) {
+  const cols = Math.max(1, w.columns || 1), mc = Math.max(1, w.mobileColumns || 1);
+  const sizes = w.layout === 'list' ? '240px' : (w.layout === 'grid' || w.layout === 'carousel') ? `(max-width:700px) ${Math.round(100 / mc)}vw, ${Math.round(100 / cols)}vw` : '100vw';
+  return addSrcset(renderWidgetInner0(w, opts), sizes);
+}
+function renderWidgetInner0(w, { full = false } = {}) {
   let items = (w.items || []).filter(i => isVisible(i));
   const total = items.length;
   if (!full && w.limit > 0) items = items.slice(0, w.limit);
@@ -1170,6 +1175,7 @@ function exportWidget(w, { base, full = false, font = true, inline = true }) {
     else stat.external.add('img');
     return `${attr}="${base}${p}"`;
   });
+  const absSet = html => inline ? html.replace(/ srcset="[^"]*"| sizes="[^"]*"/g, '') : html.replace(/ srcset="([^"]*)"/g, (m, v) => ` srcset="${v.split(',').map(x => x.trim().replace(/^\/(?!\/)/, base + '/')).join(', ')}"`);
   const bg = w.bg === 'transparent' ? 'transparent' : w.bg;
   const reset = `${scope}{container-name:uwx;container-type:inline-size;display:block;background:${bg};font-family:'Sarabun',system-ui,-apple-system,'Segoe UI',Tahoma,sans-serif;color:#1e293b;line-height:1.5;text-align:left}
 ${scope} :where(div,a,span,h2,img,i,small,b,button,video,iframe){border:0;box-shadow:none;margin:0;outline:0;float:none;text-transform:none;letter-spacing:normal;text-shadow:none;max-width:none;min-height:0}
@@ -1181,7 +1187,7 @@ ${scope} a.uw-l2{color:var(--l2c)!important}${scope} button.ut-tab{margin:0;line
 ${scope} .uw-more a{color:var(--accent)!important}${scope} .uw-more a:hover{color:#fff!important}
 ${scope} h2.uw-title{font-size:1.15rem;font-weight:700;color:var(--accent);padding:0;line-height:1.3}${scope} button{font-family:inherit}`;
   const css = reset + scopeCss(WIDGET_CSS + UB.CSS + '\n' + codeCss(w), scope);
-  const html = abs(renderWidgetInner(w, { full }));
+  const html = abs(absSet(renderWidgetInner(w, { full })));
   let js = '';
   if (/uw-car|ut-bar|data-lb|data-tilt|data-enter|data-pdf|utb-q|data-sort|data-hls|data-uvp/.test(html)) js = `\n<script>${runtimeJs(`document.getElementById('${id}')`, false)}</script>`;
   if (w.layout === 'code' && w.code && w.code.js) js += `\n<script>try{(function(root){${w.code.js}\n})(document.querySelector('#${id} .uw-code'));}catch(e){console.error(e)}</script>`;
@@ -1556,7 +1562,7 @@ function renderPage(p, preview = false, opt = {}) {
   const banner = preview && p.status !== 'published' ? `<div class="bg-amber-100 text-amber-900 text-center text-sm py-2">โหมดดูตัวอย่าง — หน้านี้ยังเป็น "ฉบับร่าง" ผู้เข้าชมทั่วไปจะมองไม่เห็น</div>` : '';
   const body = `${banner}${cover}<div class="max-w-6xl mx-auto px-4 sm:px-6 ${showT || ch.header ? 'py-10' : 'py-6'} space-y-6">${p.blocks.map(renderBlock).join('\n')}
     ${ch.updated ? `<div class="pt-6 text-xs text-slate-400">ปรับปรุงล่าสุด ${new Date(p.updatedAt).toLocaleString('th-TH', { dateStyle: 'long', timeStyle: 'short', timeZone: 'Asia/Bangkok' })}</div>` : ''}</div>`;
-  return layoutPage({ title: p.title, description: p.description, body: opt.embed ? body.replace('px-4 sm:px-6 py-10 space-y-6', 'px-4 sm:px-6 py-6 space-y-6') : body, active: p.slug, embed: !!opt.embed, transparent: !!opt.transparent, header: ch.header, footer: ch.footer });
+  return layoutPage({ title: p.title, description: p.description, body: opt.embed ? addSrcset(body).replace('px-4 sm:px-6 py-10 space-y-6', 'px-4 sm:px-6 py-6 space-y-6') : addSrcset(body), active: p.slug, embed: !!opt.embed, transparent: !!opt.transparent, header: ch.header, footer: ch.footer });
 }
 function renderHome() {
   const s = db.settings;
@@ -1581,8 +1587,52 @@ function renderHome() {
 /* ------------------------------------------------------------------ */
 /** ลบไฟล์จริง (Vercel Blob หรือโฟลเดอร์ uploads/) */
 async function removeMediaFile(it) {
+  if (it.sm) { const sm = it.sm; await removeMediaFile({ url: sm }); }
   if (CLOUD.isBlobUrl(it.url)) { if (BLOB) await CLOUD.blobDel(it.url).catch(e => console.error('ลบไฟล์ใน Blob ไม่ได้:', e.message)); }
   else if (!CLOUD.onVercel && String(it.url).startsWith('/uploads/')) { const f = safeJoin(UPLOAD_DIR, it.url.replace(/^\/uploads\//, '')); if (f) fs.rm(f, () => {}); }
+}
+/** เพิ่ม srcset (ภาพย่อ 800px) ให้ <img> ที่มีภาพย่อในคลังสื่อ — มือถือ/การ์ดเล็กโหลดภาพเล็กแทน */
+function addSrcset(html, sizes = '100vw') {
+  if (!db.media || !db.media.some(x => x.sm)) return html.replace(/<img (?![^>]*decoding=)/g, '<img decoding="async" ');
+  const map = new Map(db.media.filter(x => x.sm).map(x => [x.url, x.sm]));
+  return html.replace(/<img ([^>]*?)src="([^"]+)"([^>]*)>/g, (m, a, src, b) => {
+    const dec = /decoding=/.test(m) ? '' : 'decoding="async" ';
+    const sm = map.get(src.replace(/&amp;/g, '&'));
+    if (!sm || /srcset=/.test(m)) return `<img ${dec}${a}src="${src}"${b}>`;
+    return `<img ${dec}${a}src="${src}" srcset="${esc(sm)} 800w, ${src} 1920w" sizes="${sizes}"${b}>`;
+  });
+}
+/** แทนที่ที่อยู่ไฟล์เดิมด้วยไฟล์ใหม่ ทุกจุดที่ใช้งาน (ส่วนแสดงผล / หน้าเว็บ / Intro / ตั้งค่า) */
+function replaceUrlEverywhere(oldU, newU) {
+  let n = 0;
+  const walk = o => {
+    if (Array.isArray(o)) { o.forEach((v, i) => { if (typeof v === 'string') { if (v.includes(oldU)) { o[i] = v.split(oldU).join(newU); n++; } } else if (v && typeof v === 'object') walk(v); }); return; }
+    for (const k of Object.keys(o)) { const v = o[k]; if (typeof v === 'string') { if (v.includes(oldU)) { o[k] = v.split(oldU).join(newU); n++; } } else if (v && typeof v === 'object') walk(v); }
+  };
+  [db.widgets, db.pages, db.intros, db.settings].forEach(x => x && walk(x));
+  return n;
+}
+/** บันทึกไฟล์ที่อัปโหลด: ไฟล์ใหม่ / ภาพย่อ (X-Variant-Of) / แทนที่ภาพเดิมด้วยภาพที่ลดขนาดแล้ว (X-Replace-Of) */
+async function finishUpload(req, res, orig, url, size, user) {
+  const vOf = String(req.headers['x-variant-of'] || ''), rOf = String(req.headers['x-replace-of'] || '');
+  if (vOf) {
+    const par = db.media.find(x => x.id === vOf);
+    if (!par) { await removeMediaFile({ url }); return json(res, 404, { error: 'ไม่พบไฟล์หลัก' }); }
+    if (par.sm && par.sm !== url) await removeMediaFile({ url: par.sm });
+    par.sm = url; par.smSize = size; save(); return json(res, 200, par);
+  }
+  if (rOf) {
+    const it = db.media.find(x => x.id === rOf);
+    if (!it) { await removeMediaFile({ url }); return json(res, 404, { error: 'ไม่พบไฟล์เดิม' }); }
+    const oldU = it.url, oldSize = it.size;
+    const refs = replaceUrlEverywhere(oldU, url);
+    if (it.sm) { await removeMediaFile({ url: it.sm }); delete it.sm; delete it.smSize; }
+    await removeMediaFile({ url: oldU });
+    it.url = url; it.size = size; it.optimized = now(); it.name = String(it.name).replace(/\.(png|jpe?g|bmp)$/i, '.webp');
+    save(); return json(res, 200, { ...it, refs, oldSize });
+  }
+  const item = mediaItem(orig, url, size, user);
+  db.media.push(item); save(); return json(res, 201, item);
 }
 function newUploadName(ext) {
   const d = new Date();
@@ -1779,8 +1829,8 @@ async function api(req, res, pathname, query) {
       if (!BLOB) return json(res, 400, { error: 'ยังไม่ได้ตั้งค่า Vercel Blob' });
       const b = await readJson(req);
       if (!CLOUD.isBlobUrl(b.url)) return json(res, 400, { error: 'ที่อยู่ไฟล์ไม่ถูกต้อง' });
-      const item = mediaItem(String(b.name || 'file'), String(b.url), Number(b.size) || 0, user);
-      db.media.push(item); save(); return json(res, 201, item);
+      if (b.replaceOf) req.headers['x-replace-of'] = String(b.replaceOf);
+      return finishUpload(req, res, String(b.name || 'file'), String(b.url), Number(b.size) || 0, user);
     }
     if (!seg[1] && m === 'POST') {
       const orig = decodeURIComponent(String(req.headers['x-filename'] || 'file'));
@@ -1795,8 +1845,7 @@ async function api(req, res, pathname, query) {
         if (len > SERVER_PUT_MAX) return json(res, 413, { error: 'ไฟล์ใหญ่กว่า 4 MB ต้องอัปโหลดตรง (รีเฟรชหน้าหลังบ้านแล้วลองใหม่)' });
         const buf = await readBody(req, SERVER_PUT_MAX + 1024);
         const url = await CLOUD.blobPut(`uploads/${sub}/${fname}`, buf, MIME[ext] || 'application/octet-stream');
-        const item = mediaItem(orig, url, buf.length, user);
-        db.media.push(item); save(); return json(res, 201, item);
+        return finishUpload(req, res, orig, url, buf.length, user);
       }
       if (len > MAX_UPLOAD) return json(res, 413, { error: 'ไฟล์มีขนาดเกิน 200MB' });
       fs.mkdirSync(path.join(UPLOAD_DIR, sub), { recursive: true });
@@ -1808,11 +1857,18 @@ async function api(req, res, pathname, query) {
         req.pipe(ws); ws.on('finish', resolve); ws.on('error', reject);
       });
       const st = fs.statSync(dest);
-      const item = mediaItem(orig, `/uploads/${sub}/${fname}`, st.size, user);
-      db.media.push(item); save(); return json(res, 201, item);
+      return finishUpload(req, res, orig, `/uploads/${sub}/${fname}`, st.size, user);
     }
     const it = db.media.find(x => x.id === seg[1]);
     if (!it) return json(res, 404, { error: 'ไม่พบไฟล์' });
+    if (seg[2] === 'raw' && m === 'GET') {
+      try {
+        let buf;
+        if (CLOUD.isBlobUrl(it.url)) { const r = await fetch(it.url); if (!r.ok) throw new Error('HTTP ' + r.status); buf = Buffer.from(await r.arrayBuffer()); }
+        else { const f = localFile(it.url); if (!f || !fs.existsSync(f)) throw new Error('ไม่พบไฟล์'); buf = fs.readFileSync(f); }
+        return send(res, 200, buf, { 'Content-Type': MIME[path.extname(String(it.url).split('?')[0]).toLowerCase()] || 'application/octet-stream', 'Cache-Control': 'no-store' });
+      } catch (e) { return json(res, 502, { error: 'อ่านไฟล์ไม่ได้: ' + e.message }); }
+    }
     if (m === 'DELETE') {
       await removeMediaFile(it);
       db.media = db.media.filter(x => x.id !== it.id); save(); return json(res, 200, { ok: true });
