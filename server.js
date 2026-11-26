@@ -1689,6 +1689,15 @@ async function api(req, res, pathname, query) {
     return json(res, 200, r);
   }
 
+  /* Vercel Cron เรียกทุกวัน 17:00 UTC (= 00:00 น. เวลาประเทศไทย) */
+  if (seg[0] === 'cron' && seg[1] === 'auto-backup' && m === 'GET') {
+    const secret = String(process.env.CRON_SECRET || '');
+    const okAuth = secret ? req.headers.authorization === `Bearer ${secret}` : /vercel-cron/i.test(String(req.headers['user-agent'] || ''));
+    if (!okAuth) return json(res, 401, { error: 'ไม่มีสิทธิ์' });
+    if (!autoOn()) return json(res, 200, { ok: true, skipped: 'ปิดการสำรองข้อมูลอัตโนมัติไว้' });
+    return json(res, 200, await runAutoBackup('cron'));
+  }
+
   const user = currentUser(req, res);
   if (!user) return json(res, 401, { error: 'กรุณาเข้าสู่ระบบ' });
   const isAdmin = user.role === 'admin';
@@ -1980,15 +1989,102 @@ async function api(req, res, pathname, query) {
   }
   if (seg[0] === 'restore' && m === 'POST') {
     if (!isAdmin) return json(res, 403, { error: 'เฉพาะผู้ดูแลระบบ' });
-    const b = JSON.parse((await readBody(req, 50 * 1024 * 1024)).toString('utf8'));
-    if (!Array.isArray(b.widgets) || !Array.isArray(b.pages) || !Array.isArray(b.users) || !b.users.length) return json(res, 400, { error: 'ไฟล์สำรองไม่ถูกต้อง' });
-    if (NEON) await CLOUD.dbBackup(db, 'before-restore');
-    else fs.copyFileSync(DB_FILE, DB_FILE.replace(/\.json$/, `.before-restore-${Date.now()}.json`));
-    db = b; loadDbDefaults(); saveNow();
+    let b; try { b = JSON.parse((await readBody(req, 50 * 1024 * 1024)).toString('utf8')); } catch { return json(res, 400, { error: 'ไฟล์สำรองไม่ถูกต้อง' }); }
+    await restoreData(b);
     return json(res, 200, { ok: true });
   }
 
+  /* สำรองข้อมูลอัตโนมัติ (ผู้ดูแลระบบ) */
+  if (seg[0] === 'auto-backup') {
+    if (!isAdmin) return json(res, 403, { error: 'เฉพาะผู้ดูแลระบบ' });
+    if (!seg[1] && m === 'GET') return json(res, 200, {
+      on: autoOn(), mode: NEON ? 'neon' : 'file', onVercel: CLOUD.onVercel, cronSecret: !!process.env.CRON_SECRET,
+      location: NEON ? 'ฐานข้อมูล Neon ตาราง app_backup (note = auto-daily)' : 'data/backup/auto-backup.json',
+      schedule: CLOUD.onVercel ? 'ทุกวัน 00:00 น. (Vercel Cron แผน Hobby ทำงานภายในช่วง 00:00–00:59 น.)' : 'ทุกวัน 00:00 น. เวลาประเทศไทย',
+      last: await autoBackupInfo(), lastAttempt: autoLast, running: autoRunning,
+    });
+    if (!seg[1] && m === 'PUT') { const b = await readJson(req); db.settings.autoBackupOn = !!b.on; save(); return json(res, 200, { ok: true, on: autoOn() }); }
+    if (seg[1] === 'run' && m === 'POST') return json(res, 200, await runAutoBackup('manual'));
+    if (seg[1] === 'download' && m === 'GET') {
+      const b = await autoBackupLoad(); if (!b) return json(res, 404, { error: 'ยังไม่มีข้อมูลสำรองอัตโนมัติ' });
+      const info = await autoBackupInfo();
+      return send(res, 200, JSON.stringify(b, null, 2), { 'Content-Type': 'application/json', 'Content-Disposition': `attachment; filename="auto-backup-${bkkNow(Date.parse(info.at)).date}.json"` });
+    }
+    if (seg[1] === 'restore' && m === 'POST') {
+      const b = await autoBackupLoad(); if (!b) return json(res, 404, { error: 'ยังไม่มีข้อมูลสำรองอัตโนมัติ' });
+      await restoreData(b); return json(res, 200, { ok: true });
+    }
+  }
+
   return json(res, 404, { error: 'ไม่พบ API' });
+}
+/* ------------------------------------------------------------------ */
+/* สำรองข้อมูลอัตโนมัติ ทุกวัน 00:00 น. (เวลาประเทศไทย) เขียนทับชุดเดิม      */
+/* ------------------------------------------------------------------ */
+const AUTO_FILE = path.join(DATA_DIR, 'backup', 'auto-backup.json');
+const AUTO_LOG = path.join(ROOT, 'logs', 'auto-backup.log');
+let autoRunning = false, autoLast = null; // ผลการสำรองครั้งล่าสุดในอินสแตนซ์นี้
+/** เวลาประเทศไทย (UTC+7 ไม่มีเวลาออมแสง) */
+function bkkNow(ms = Date.now()) { const d = new Date(ms + 7 * 3600e3); return { date: d.toISOString().slice(0, 10), h: d.getUTCHours(), m: d.getUTCMinutes() }; }
+const autoOn = () => !db || !db.settings || db.settings.autoBackupOn !== false;
+async function autoBackupInfo() {
+  if (NEON) return CLOUD.dbAutoBackupInfo();
+  try { const st = fs.statSync(AUTO_FILE); return { at: st.mtime.toISOString(), size: st.size }; } catch { return null; }
+}
+function autoLog(line) {
+  if (CLOUD.onVercel) return console.log('[auto-backup] ' + line);
+  try { fs.mkdirSync(path.dirname(AUTO_LOG), { recursive: true }); fs.appendFileSync(AUTO_LOG, `${new Date().toISOString()} ${line}\n`); } catch {}
+}
+/** สำรองข้อมูลทั้งระบบ เขียนทับไฟล์/แถวข้อมูลสำรองอัตโนมัติชุดเดิม · by = schedule | cron | manual | catch-up */
+async function runAutoBackup(by) {
+  if (autoRunning) { const e = new Error('กำลังสำรองข้อมูลอยู่ กรุณารอสักครู่'); e.status = 409; throw e; }
+  autoRunning = true;
+  try {
+    if (NEON) await ensureDb({ fresh: true });
+    let info;
+    if (NEON) info = await CLOUD.dbAutoBackupSave(db);
+    else {
+      fs.mkdirSync(path.dirname(AUTO_FILE), { recursive: true });
+      const tmp = AUTO_FILE + '.tmp', txt = JSON.stringify(db, null, 2);
+      fs.writeFileSync(tmp, txt); fs.renameSync(tmp, AUTO_FILE); // เขียนไฟล์ชั่วคราวก่อน แล้วเปลี่ยนชื่อทับ ไฟล์เดิมไม่เสียถ้าเขียนไม่สำเร็จ
+      info = { at: new Date().toISOString(), size: Buffer.byteLength(txt) };
+    }
+    autoLast = { ok: true, by, ...info };
+    autoLog(`OK by=${by} size=${info.size}`);
+    return autoLast;
+  } catch (e) {
+    autoLast = { ok: false, by, at: new Date().toISOString(), error: e.message };
+    autoLog(`FAIL by=${by} ${e.message}`);
+    throw e;
+  } finally { autoRunning = false; }
+}
+async function autoBackupLoad() {
+  if (NEON) return CLOUD.dbAutoBackupLoad();
+  try { return JSON.parse(fs.readFileSync(AUTO_FILE, 'utf8')); } catch { return null; }
+}
+/** ตรวจโครงสร้างไฟล์สำรอง แล้วแทนที่ข้อมูลปัจจุบัน (สำรองข้อมูลปัจจุบันไว้ก่อน) */
+async function restoreData(b) {
+  if (!b || !Array.isArray(b.widgets) || !Array.isArray(b.pages) || !Array.isArray(b.users) || !b.users.length) { const e = new Error('ไฟล์สำรองไม่ถูกต้อง'); e.status = 400; throw e; }
+  if (NEON) await CLOUD.dbBackup(db, 'before-restore');
+  else fs.copyFileSync(DB_FILE, DB_FILE.replace(/\.json$/, `.before-restore-${Date.now()}.json`));
+  db = b; loadDbDefaults(); saveNow();
+}
+/** ตัวตั้งเวลาสำหรับเครื่องแม่ข่าย: ตรวจทุก ๒๐ วินาที ถึง 00:00 น. ให้สำรองวันละครั้ง */
+let autoLastDay = null;
+function autoBackupTick(ms = Date.now()) {
+  if (!autoOn()) return false;
+  const n = bkkNow(ms);
+  if (n.h === 0 && n.m === 0 && autoLastDay !== n.date) { autoLastDay = n.date; runAutoBackup('schedule').catch(e => console.error('สำรองข้อมูลอัตโนมัติไม่สำเร็จ:', e.message)); return true; }
+  return false;
+}
+/** เปิดเครื่องหลังเลยเวลา 00:00 น. ไปแล้วและยังไม่ได้สำรองของวันนี้ → สำรองทันที */
+async function autoBackupCatchUp(ms = Date.now()) {
+  if (!autoOn()) return false;
+  const info = await autoBackupInfo().catch(() => null);
+  if (info && bkkNow(Date.parse(info.at)).date === bkkNow(ms).date) return false;
+  autoLastDay = bkkNow(ms).date;
+  await runAutoBackup('catch-up');
+  return true;
 }
 function serverInfo() {
   const mode = { db: CLOUD.dbMode, storage: CLOUD.storage, cloud: CLOUD.onVercel, uploadDirectMax: BLOB ? SERVER_PUT_MAX : MAX_UPLOAD };
@@ -2103,6 +2199,7 @@ function handler(req, res) {
   return p;
 }
 module.exports = { handler };
+module.exports._auto = { bkkNow, autoBackupTick, autoBackupCatchUp, runAutoBackup, autoBackupInfo, get lastDay() { return autoLastDay; } };
 module.exports.default = handler;
 
 function seedDemo() { const d = makeDemo(db.widgets); db.widgets.push(...d); db.pages.push(demoPage(d)); const di = demoIntro(db.intros); db.intros.push(di); db.settings.mainIntroId = di.id; }
@@ -2130,5 +2227,8 @@ server.listen(PORT, HOST, () => {
   console.log(`  ▸ ฐานข้อมูล: ${NEON ? 'Neon (คลาวด์)' : 'data/db.json'} · ไฟล์อัปโหลด: ${BLOB ? 'Vercel Blob (คลาวด์)' : 'โฟลเดอร์ uploads/'}`);
   console.log('  (กด Ctrl+C เพื่อหยุด)\n');
 });
+// สำรองข้อมูลอัตโนมัติ: ตรวจเวลาทุก ๒๐ วินาที และสำรองย้อนหลังถ้าเปิดเครื่องหลัง 00:00 น.
+setInterval(() => autoBackupTick(), 20e3).unref();
+setTimeout(() => autoBackupCatchUp().catch(e => console.error('สำรองข้อมูลอัตโนมัติไม่สำเร็จ:', e.message)), 5e3).unref();
 process.on('SIGINT', () => { clearTimeout(saveTimer); saveNow(); process.exit(0); });
 process.on('SIGTERM', () => { clearTimeout(saveTimer); saveNow(); process.exit(0); });

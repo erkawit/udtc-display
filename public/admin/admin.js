@@ -3610,20 +3610,53 @@ async function viewSettings() {
       <div class="pt-2"><button class="btn btn-primary" id="saveS">${icon('save')} บันทึกการตั้งค่า</button></div>
     </div>
     <div class="space-y-4">
-      <div class="card p-5"><h3 class="font-semibold mb-1">สำรอง / กู้คืนข้อมูล</h3><p class="text-sm text-slate-500 mb-4">ไฟล์ข้อมูลอยู่ที่ <code class="text-xs bg-slate-100 px-1 rounded">data/db.json</code> และไฟล์สื่ออยู่ในโฟลเดอร์ <code class="text-xs bg-slate-100 px-1 rounded">uploads/</code></p>
+      <div class="card p-5"><h3 class="font-semibold mb-1">สำรอง / กู้คืนข้อมูล</h3><p class="text-sm text-slate-500 mb-4">${state.server && state.server.db === 'neon' ? 'ข้อมูลอยู่ในฐานข้อมูล Neon และไฟล์สื่ออยู่ใน Vercel Blob' : 'ไฟล์ข้อมูลอยู่ที่ <code class="text-xs bg-slate-100 px-1 rounded">data/db.json</code> และไฟล์สื่ออยู่ในโฟลเดอร์ <code class="text-xs bg-slate-100 px-1 rounded">uploads/</code>'}</p>
         <a href="/api/backup" class="btn btn-light w-full mb-2">${icon('down')} ดาวน์โหลดไฟล์สำรอง (.json)</a>
         <label class="btn btn-light w-full cursor-pointer">${icon('upload')} กู้คืนจากไฟล์สำรอง<input type="file" accept=".json" class="hidden" id="rest"></label></div>
+      <div class="card p-5" id="abCard"><h3 class="font-semibold mb-1">สำรองข้อมูลอัตโนมัติ</h3><p class="text-sm text-slate-400">กำลังโหลด…</p></div>
     </div>
   </div>`;
   $$('[data-s]').forEach(i => i.addEventListener('input', () => { s[i.dataset.s] = i.value; const m = $(`[data-sm="${i.dataset.s}"]`); if (m) m.value = i.value; }));
   $$('[data-sm]').forEach(i => i.addEventListener('input', () => { if (/^#[0-9a-f]{6}$/i.test(i.value)) { s[i.dataset.sm] = i.value; $(`[data-s="${i.dataset.sm}"]`).value = i.value; } }));
   $('#pickLogo').onclick = async () => { const u = await pickMedia('image'); if (u) { s.logo = u; $('#lg').src = u; } };
   $('#saveS').onclick = async () => { try { state.settings = await api('PUT', '/settings', s); ORIGIN = resolveOrigin(); ok('บันทึกแล้ว'); renderShell(); highlightNav('#/settings'); viewSettings(); } catch (e) { fail(e.message); } };
+  renderAutoBackup();
   $('#rest').onchange = async e => {
     const f = e.target.files[0]; if (!f) return;
     if (!(await confirmBox('กู้คืนข้อมูล?', 'ข้อมูลปัจจุบันทั้งหมดจะถูกแทนที่ด้วยไฟล์สำรอง (ระบบจะเก็บสำเนาข้อมูลเดิมไว้ในโฟลเดอร์ data/)', 'กู้คืน'))) return;
     try { const r = await fetch('/api/restore', { method: 'POST', body: await f.text(), headers: { 'Content-Type': 'application/json' } }); const d = await r.json(); if (!r.ok) throw new Error(d.error); await Swal.fire({ icon: 'success', title: 'กู้คืนสำเร็จ', confirmButtonText: 'ตกลง' }); location.reload(); } catch (err) { fail(err.message); }
   };
+}
+
+/** การ์ดสำรองข้อมูลอัตโนมัติ (ทุกวัน 00:00 น. เขียนทับชุดเดิม) */
+async function renderAutoBackup() {
+  const el = $('#abCard'); if (!el) return;
+  if (state.user.role !== 'admin') { el.innerHTML = '<h3 class="font-semibold mb-1">สำรองข้อมูลอัตโนมัติ</h3><p class="text-sm text-slate-500">เฉพาะผู้ดูแลระบบ</p>'; return; }
+  let d; try { d = await api('GET', '/auto-backup'); } catch (e) { el.innerHTML = `<h3 class="font-semibold mb-1">สำรองข้อมูลอัตโนมัติ</h3><p class="text-sm text-red-600">${esc(e.message)}</p>`; return; }
+  const when = t => new Date(t).toLocaleString('th-TH', { timeZone: 'Asia/Bangkok', dateStyle: 'medium', timeStyle: 'short' }) + ' น.';
+  const kb = n => n >= 1048576 ? (n / 1048576).toFixed(2) + ' MB' : (n / 1024).toFixed(1) + ' KB';
+  const by = { schedule: 'ตามเวลา', cron: 'ตามเวลา (Vercel Cron)', manual: 'กดสำรองเอง', 'catch-up': 'สำรองย้อนหลังเมื่อเปิดเครื่อง' };
+  const failHtml = d.lastAttempt && !d.lastAttempt.ok ? `<div class="mt-2 p-2 rounded-lg bg-red-50 text-red-700 text-xs">ครั้งล่าสุดไม่สำเร็จ (${when(d.lastAttempt.at)}): ${esc(d.lastAttempt.error)}</div>` : '';
+  const warn = d.onVercel && !d.cronSecret ? `<div class="mt-2 p-2 rounded-lg bg-amber-50 text-amber-800 text-xs">แนะนำให้ตั้งค่าตัวแปร <b>CRON_SECRET</b> ใน Vercel → Settings → Environment Variables เพื่อป้องกันผู้อื่นเรียกคำสั่งสำรองข้อมูล</div>` : '';
+  el.innerHTML = `<div class="flex items-start justify-between gap-3 mb-1"><h3 class="font-semibold">สำรองข้อมูลอัตโนมัติ</h3>
+      <label class="inline-flex items-center gap-2 text-sm cursor-pointer select-none"><input type="checkbox" id="abOn" class="w-4 h-4 accent-navy-600" ${d.on ? 'checked' : ''}> เปิดใช้งาน</label></div>
+    <p class="text-sm text-slate-500">${esc(d.schedule)} · เก็บไว้ชุดเดียว เขียนทับชุดเดิมทุกครั้ง</p>
+    <p class="text-xs text-slate-500 mt-1">ที่เก็บ: <span class="font-mono">${esc(d.location)}</span></p>
+    <div class="mt-3 p-3 rounded-xl ${d.last ? 'bg-emerald-50 border border-emerald-100' : 'bg-slate-50 border border-slate-200'} text-sm">
+      ${d.last ? `<div class="font-medium text-emerald-800">สำรองล่าสุด ${when(d.last.at)}</div><div class="text-xs text-emerald-700 mt-0.5">ขนาด ${kb(d.last.size)}${d.lastAttempt && d.lastAttempt.ok ? ' · ' + (by[d.lastAttempt.by] || '') : ''}</div>` : '<div class="text-slate-500">ยังไม่มีข้อมูลสำรองอัตโนมัติ</div>'}
+    </div>${failHtml}${warn}
+    <div class="grid gap-2 mt-3">
+      <button class="btn btn-primary" id="abRun">${icon('save')} สำรองตอนนี้ (ทับชุดเดิม)</button>
+      <a class="btn btn-light ${d.last ? '' : 'pointer-events-none opacity-50'}" href="/api/auto-backup/download">${icon('down')} ดาวน์โหลดข้อมูลสำรองอัตโนมัติ</a>
+      <button class="btn btn-light" id="abRestore" ${d.last ? '' : 'disabled'}>${icon('upload')} กู้คืนจากข้อมูลสำรองอัตโนมัติ</button>
+    </div>`;
+  $('#abOn').onchange = async e => { try { await api('PUT', '/auto-backup', { on: e.target.checked }); ok(e.target.checked ? 'เปิดการสำรองข้อมูลอัตโนมัติแล้ว' : 'ปิดการสำรองข้อมูลอัตโนมัติแล้ว'); } catch (err) { fail2(err); } renderAutoBackup(); };
+  $('#abRun').onclick = async () => { const b = $('#abRun'); b.disabled = true; b.textContent = 'กำลังสำรองข้อมูล…'; try { await api('POST', '/auto-backup/run'); ok('สำรองข้อมูลแล้ว'); } catch (err) { fail2(err); } renderAutoBackup(); };
+  $('#abRestore').onclick = async () => {
+    if (!d.last || !(await confirmBox('กู้คืนจากข้อมูลสำรองอัตโนมัติ?', `ข้อมูลปัจจุบันทั้งหมดจะถูกแทนที่ด้วยข้อมูลสำรองเมื่อ ${when(d.last.at)} (ระบบจะเก็บสำเนาข้อมูลปัจจุบันไว้ก่อน)`, 'กู้คืน'))) return;
+    try { await api('POST', '/auto-backup/restore'); await Swal.fire({ icon: 'success', title: 'กู้คืนสำเร็จ', confirmButtonText: 'ตกลง' }); location.reload(); } catch (err) { fail2(err); }
+  };
+  function fail2(err) { fail(err.message); }
 }
 
 /* ================================================================
