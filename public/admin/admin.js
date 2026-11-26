@@ -51,6 +51,10 @@ const icon = (n, c = 'w-4 h-4') => `<svg class="${c}" viewBox="0 0 24 24" fill="
 const Toast = Swal.mixin({ toast: true, position: 'top-end', showConfirmButton: false, timer: 2200, timerProgressBar: true });
 const ok = msg => Toast.fire({ icon: 'success', title: msg });
 const fail = msg => Swal.fire({ icon: 'error', title: 'เกิดข้อผิดพลาด', text: msg, confirmButtonText: 'ตกลง' });
+/* เวลาประเทศไทย (UTC+7) ↔ ISO สำหรับช่อง datetime-local */
+const bkkLocal = iso => { const t = Date.parse(iso); return Number.isFinite(t) ? new Date(t + 7 * 3600e3).toISOString().slice(0, 16) : ''; };
+const bkkIso = v => v ? new Date(v + ':00+07:00').toISOString() : '';
+const bkkText = iso => new Date(iso).toLocaleString('th-TH', { timeZone: 'Asia/Bangkok', day: 'numeric', month: 'short', year: '2-digit', hour: '2-digit', minute: '2-digit' }) + ' น.';
 const toast = msg => Toast.fire({ icon: 'info', title: msg });
 const confirmBox = (title, text, btn = 'ยืนยัน', danger = true) => Swal.fire({
   icon: danger ? 'warning' : 'question', title, text, showCancelButton: true, confirmButtonText: btn, cancelButtonText: 'ยกเลิก',
@@ -3096,20 +3100,28 @@ const setP = (o, p, v) => { const ks = p.split('.'); const last = ks.pop(); ks.r
 async function viewIntros() {
   const list = await api('GET', '/intros');
   $('#view').innerHTML = `${pageHead('หน้า Intro', 'หน้าแรกเต็มจอก่อนเข้าเว็บไซต์ — เปลี่ยนภาพ ออกแบบปุ่ม เมนูย่อย และแอนิเมชันได้', `<button class="btn btn-light" id="demoI">${icon('widget')} เพิ่มตัวอย่าง</button><button class="btn btn-primary" id="newI">${icon('plus')} สร้างหน้า Intro</button>`)}
+  <div class="card p-4 mb-4 text-sm" id="itl"><span class="text-slate-400">กำลังโหลดตารางเวลา…</span></div>
   <div class="grid md:grid-cols-2 2xl:grid-cols-3 gap-4" id="il"></div>
   <p class="text-xs text-slate-500 mt-2">☆ ปักดาวรายการที่ใช้งานจริง ให้แสดงบนสุดและกันการเผลอลบ · ลากปุ่ม ⠿ เพื่อสลับตำแหน่ง</p>
-  <p class="text-xs text-slate-500 mt-4">ทำสำเนาหน้า Intro เดิมไว้สำหรับวาระพิเศษ (เช่น วันสำคัญ) แล้วกด “ตั้งเป็นหลัก” เมื่อต้องการสลับ — ลิงก์ <span class="font-mono">/intro</span> จะแสดงหน้าหลักเสมอ</p>`;
+  <p class="text-xs text-slate-500 mt-4">ลิงก์กลาง <span class="font-mono">/intro</span> (ใช้ฝังด้วย iframe ในเว็บไซต์ศาล) แสดงหน้า Intro ที่อยู่ในช่วงเวลาที่ตั้งไว้ก่อน ถ้าไม่มี จะแสดงหน้า Intro หลัก — สร้างหน้าสำหรับวาระพิเศษไว้ล่วงหน้า แล้วตั้งเวลาที่แท็บ “ตั้งเวลาแสดง” ในหน้าแก้ไข</p>`;
+  api('GET', '/intros/active').then(d => {
+    const lab = { live: ['bg-emerald-100 text-emerald-800', 'กำลังแสดง'], wait: ['bg-sky-100 text-sky-800', 'รอแสดง'], done: ['bg-slate-200 text-slate-600', 'หมดเวลา'] };
+    const tl = d.timeline.filter(x => x.state !== 'done');
+    $('#itl').innerHTML = `<div class="flex flex-wrap items-center gap-x-4 gap-y-1"><span class="font-semibold text-slate-800">${icon('eye', 'w-4 h-4 inline')} ขณะนี้ลิงก์ /intro แสดง: ${esc(d.name || '-')}</span><span class="text-xs text-slate-500">${d.by === 'schedule' ? 'ตามเวลาที่ตั้งไว้' : 'หน้า Intro หลัก'}${d.next ? ' · เปลี่ยนครั้งถัดไป ' + bkkText(d.next) : ''}</span></div>` +
+      (tl.length ? `<div class="mt-2 flex flex-wrap gap-2">${tl.map(x => `<span class="text-xs px-2 py-1 rounded-lg ${lab[x.state][0]}">${lab[x.state][1]} · ${esc(x.name)} · ${x.start ? bkkText(x.start) : 'ไม่กำหนด'} – ${x.end ? bkkText(x.end) : 'ไม่กำหนด'}</span>`).join('')}</div>` : '<div class="text-xs text-slate-500 mt-1">ไม่มีหน้า Intro ที่รอแสดงตามเวลา</div>');
+  }).catch(() => { $('#itl').remove(); });
   const drawI = () => { $('#il').innerHTML = `${list.map(it => `
     <div class="card overflow-hidden flex flex-col transition ${it.fav ? 'ring-2 ring-gold-400' : it.isMain ? 'ring-2 ring-navy-300' : ''}" data-card="${it.id}">
       <div class="aspect-video bg-slate-900 relative overflow-hidden">
         ${favButtons(it)}
         <iframe src="/intro/${esc(it.slug)}?preview=1" sandbox="allow-scripts allow-same-origin" class="absolute top-0 left-0 border-0 pointer-events-none origin-top-left" style="width:1440px;height:810px;transform:scale(var(--s,.3))" data-thumb loading="lazy" tabindex="-1"></iframe>
         <a href="#/intros/${it.id}" class="absolute inset-0"></a>
-        <div class="absolute top-2 left-2 flex flex-col items-start gap-1 z-10">${it.isMain ? '<span class="text-xs px-2 py-1 rounded-full bg-navy-800 text-white font-semibold">หน้า Intro หลัก</span>' : ''}${it.fav ? '<span class="text-[11px] px-2 py-0.5 rounded-full bg-gold-500 text-white font-semibold shadow">★ รายการโปรด</span>' : ''}</div>
+        <div class="absolute top-2 left-2 flex flex-col items-start gap-1 z-10">${it.isActive ? '<span class="text-xs px-2 py-1 rounded-full bg-emerald-600 text-white font-semibold shadow">● กำลังแสดงที่ /intro</span>' : ''}${it.isMain ? '<span class="text-xs px-2 py-1 rounded-full bg-navy-800 text-white font-semibold">หน้า Intro หลัก</span>' : ''}${it.schedState === 'wait' ? '<span class="text-[11px] px-2 py-0.5 rounded-full bg-sky-600 text-white font-semibold shadow">⏱ รอแสดง</span>' : it.schedState === 'done' ? '<span class="text-[11px] px-2 py-0.5 rounded-full bg-slate-500 text-white font-semibold shadow">หมดเวลา</span>' : ''}${it.fav ? '<span class="text-[11px] px-2 py-0.5 rounded-full bg-gold-500 text-white font-semibold shadow">★ รายการโปรด</span>' : ''}</div>
       </div>
       <div class="p-4 flex-1 flex flex-col">
         <a href="#/intros/${it.id}" class="font-semibold text-slate-900 hover:text-navy-700">${esc(it.name)}</a>
         <div class="text-xs text-slate-500 font-mono mt-1">/intro/${esc(it.slug)}</div>
+        ${it.schedule && it.schedule.on ? `<div class="text-xs mt-2 px-2 py-1 rounded-lg bg-sky-50 text-sky-900 border border-sky-100">⏱ ${it.schedule.start ? bkkText(it.schedule.start) : 'ไม่กำหนด'} – ${it.schedule.end ? bkkText(it.schedule.end) : 'ไม่กำหนด'}${it.schedule.note ? ' · ' + esc(it.schedule.note) : ''}</div>` : ''}
         <div class="text-xs text-slate-500 mt-2">${it.buttons.length} ปุ่ม · แก้ไขล่าสุด ${fmtDate(it.updatedAt)}</div>
         <div class="flex flex-wrap gap-1.5 mt-4 pt-3 border-t border-slate-100">
           <a href="#/intros/${it.id}" class="btn btn-primary btn-sm flex-1">${icon('edit', 'w-3.5 h-3.5')} แก้ไข</a>
@@ -3218,7 +3230,7 @@ async function viewIntroEditor(id) {
   </div>
   <div class="grid xl:grid-cols-[440px_1fr] gap-5 items-start">
     <div class="card overflow-hidden">
-      <div class="flex border-b border-slate-200 bg-slate-50/60 overflow-x-auto" id="itabs">${[['buttons', 'ปุ่ม'], ['bg', 'ภาพพื้นหลัง'], ['bar', 'แถบปุ่ม'], ['anim', 'แอนิเมชัน'], ['general', 'ทั่วไป']].map(([k, t]) => `<button data-t="${k}" class="flex-1 px-3 py-3 text-sm font-semibold border-b-2 -mb-px whitespace-nowrap">${t}</button>`).join('')}</div>
+      <div class="flex border-b border-slate-200 bg-slate-50/60 overflow-x-auto" id="itabs">${[['buttons', 'ปุ่ม'], ['bg', 'ภาพพื้นหลัง'], ['bar', 'แถบปุ่ม'], ['anim', 'แอนิเมชัน'], ['sched', 'ตั้งเวลาแสดง'], ['general', 'ทั่วไป']].map(([k, t]) => `<button data-t="${k}" class="flex-1 px-3 py-3 text-sm font-semibold border-b-2 -mb-px whitespace-nowrap">${t}</button>`).join('')}</div>
       <div id="ipanel" class="p-4"></div>
     </div>
     <div class="xl:sticky xl:top-20 space-y-3 min-w-0">
@@ -3341,6 +3353,7 @@ async function viewIntroEditor(id) {
       ${H('จังหวะ')}
       ${rng('anim.delay', 'รอก่อนเริ่ม', 0, 3000, ' ms')}${rng('anim.duration', 'ความเร็ว (ระยะเวลา)', 200, 2000, ' ms')}${rng('anim.stagger', 'ระยะห่างระหว่างปุ่ม', 0, 600, ' ms')}
     </div>`;
+    if (tab === 'sched') { drawSched(P); return; }
     if (tab === 'general') P.innerHTML = `<div class="space-y-4">
       ${txt('name', 'ชื่อ (ใช้ภายใน)')}
       <div><label class="lbl">Slug</label><div class="flex"><span class="px-2.5 py-2 text-sm bg-slate-100 border border-r-0 border-slate-300 rounded-l-lg text-slate-500">/intro/</span><input class="inp !rounded-l-none font-mono" data-p="slug" value="${esc(it.slug)}"></div></div>
@@ -3355,6 +3368,48 @@ async function viewIntroEditor(id) {
     </div>`;
     bind(P);
     const sl = $('[data-p="slug"]', P); if (sl) sl.addEventListener('input', () => { sl.value = sl.value.toLowerCase().replace(/[^a-z0-9\-_]/g, '-'); it.slug = sl.value; });
+  }
+
+  /* ตั้งเวลาแสดงผล: เก็บเป็น ISO (UTC) แสดงผลเป็นเวลาประเทศไทย */
+  function drawSched(P) {
+    it.schedule = it.schedule || { on: false, start: '', end: '', note: '' };
+    const sc = it.schedule;
+    const day = (d, h, m) => { const x = new Date(Date.now() + 7 * 3600e3); x.setUTCDate(x.getUTCDate() + d); return x.toISOString().slice(0, 10) + `T${h}:${m}`; };
+    P.innerHTML = `<div class="space-y-4">
+      <div class="p-3 rounded-xl bg-navy-50 border border-navy-100 text-xs text-slate-700 leading-relaxed">ลิงก์กลาง <span class="font-mono font-semibold">/intro</span> จะแสดงหน้านี้แทนหน้า Intro หลักโดยอัตโนมัติเมื่อถึงช่วงเวลาที่กำหนด และกลับไปแสดงหน้า Intro หลักเมื่อหมดเวลา · เวลาเป็นเวลาประเทศไทย · ถ้ามีหลายหน้าซ้อนช่วงเวลากัน ระบบเลือกหน้าที่เริ่มแสดงล่าสุด</div>
+      ${tg('schedule.on', 'เปิดการตั้งเวลาแสดงผล', true)}
+      <div class="grid sm:grid-cols-2 gap-3 ${sc.on ? '' : 'opacity-50 pointer-events-none'}">
+        <div><label class="lbl">เริ่มแสดง</label><input type="datetime-local" class="inp" data-sch="start" value="${bkkLocal(sc.start)}"></div>
+        <div><label class="lbl">สิ้นสุด</label><input type="datetime-local" class="inp" data-sch="end" value="${bkkLocal(sc.end)}"></div>
+      </div>
+      <div class="flex flex-wrap gap-1.5 ${sc.on ? '' : 'opacity-50 pointer-events-none'}">
+        <button class="btn btn-light btn-sm" data-qs="${day(0, '00', '00')}|${day(1, '00', '00')}">วันนี้ทั้งวัน</button>
+        <button class="btn btn-light btn-sm" data-qs="${day(1, '00', '00')}|${day(2, '00', '00')}">พรุ่งนี้ทั้งวัน</button>
+        <button class="btn btn-light btn-sm" data-qs="${day(0, '00', '00')}|${day(7, '00', '00')}">๗ วันนับจากวันนี้</button>
+        <button class="btn btn-light btn-sm" data-qs="|">ล้างเวลา</button>
+      </div>
+      ${txt('schedule.note', 'หมายเหตุ (เช่น วาระ/โอกาส)', 'เช่น วันพ่อแห่งชาติ')}
+      <div id="schState" class="text-sm"></div>
+      ${H('ตารางเวลาแสดงผลที่ลิงก์ /intro')}
+      <div id="schTl" class="text-sm text-slate-500">กำลังโหลด…</div>
+      <p class="text-xs text-slate-500">ช่วงเวลาที่ตั้งจะมีผลเมื่อกดบันทึก · หน้าเว็บที่เปิดค้างไว้จะโหลดหน้าใหม่เองเมื่อถึงเวลาเปลี่ยน · ใช้ได้กับลิงก์ /intro (iframe กลาง) เท่านั้น โค้ด HTML ที่ส่งออกไม่เปลี่ยนตามเวลา</p>
+    </div>`;
+    bind(P);
+    const st = () => { const t = Date.now(), s0 = Date.parse(sc.start), e0 = Date.parse(sc.end); let h;
+      if (!sc.on) h = '<span class="text-slate-500">ไม่ได้ตั้งเวลา — แสดงเมื่อเป็นหน้า Intro หลัก หรือเปิดด้วยลิงก์ /intro/' + esc(it.slug) + '</span>';
+      else if (!sc.start && !sc.end) h = '<span class="text-amber-700">กรุณากำหนดเวลาเริ่มหรือสิ้นสุดอย่างน้อยหนึ่งค่า</span>';
+      else if (sc.start && sc.end && e0 <= s0) h = '<span class="text-red-600">เวลาสิ้นสุดต้องอยู่หลังเวลาเริ่ม</span>';
+      else if (s0 && t < s0) h = `<span class="px-2 py-0.5 rounded-full bg-sky-100 text-sky-800 font-semibold">รอแสดง</span> เริ่ม ${bkkText(sc.start)}`;
+      else if (e0 && t >= e0) h = `<span class="px-2 py-0.5 rounded-full bg-slate-200 text-slate-700 font-semibold">หมดเวลาแล้ว</span> เมื่อ ${bkkText(sc.end)}`;
+      else h = `<span class="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-semibold">อยู่ในช่วงเวลาแสดง</span>${sc.end ? ' ถึง ' + bkkText(sc.end) : ''}`;
+      $('#schState', P).innerHTML = h; };
+    st();
+    $$('[data-sch]', P).forEach(i => i.addEventListener('change', () => { sc[i.dataset.sch] = bkkIso(i.value); markDirty(); st(); }));
+    $$('[data-qs]', P).forEach(b => b.onclick = () => { const [a, z] = b.dataset.qs.split('|'); sc.start = bkkIso(a); sc.end = bkkIso(z); markDirty(); draw(); });
+    api('GET', '/intros/active').then(d => { const el = $('#schTl', P); if (!el) return;
+      const lab = { live: ['bg-emerald-100 text-emerald-800', 'กำลังแสดง'], wait: ['bg-sky-100 text-sky-800', 'รอแสดง'], done: ['bg-slate-200 text-slate-600', 'หมดเวลา'] };
+      el.innerHTML = `<div class="mb-2">ขณะนี้ /intro แสดง: <b class="text-slate-800">${esc(d.name || '-')}</b> ${d.by === 'schedule' ? '(ตามเวลาที่ตั้ง)' : '(หน้า Intro หลัก)'}${d.next ? ` · เปลี่ยนครั้งถัดไป ${bkkText(d.next)}` : ''}</div>` +
+        (d.timeline.length ? `<div class="divide-y divide-slate-100 border border-slate-200 rounded-lg">${d.timeline.map(x => `<div class="px-3 py-2 flex flex-wrap items-center gap-2"><span class="text-[11px] px-2 py-0.5 rounded-full font-semibold ${lab[x.state][0]}">${lab[x.state][1]}</span><span class="font-medium text-slate-800">${esc(x.name)}</span><span class="text-xs text-slate-500">${x.start ? bkkText(x.start) : 'ไม่กำหนด'} – ${x.end ? bkkText(x.end) : 'ไม่กำหนด'}</span></div>`).join('')}</div>` : '<div class="text-xs">ยังไม่มีหน้า Intro ที่ตั้งเวลาไว้ (ที่บันทึกแล้ว)</div>'); }).catch(() => {});
   }
 
   function drawButtons(P) {

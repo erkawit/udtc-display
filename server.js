@@ -1242,6 +1242,37 @@ function normIntroBtn(b) {
     })) : [],
   };
 }
+/** ช่วงเวลาแสดงหน้า Intro: เก็บเป็นเวลา ISO (UTC) · ค่าว่าง = ไม่จำกัด */
+function normSchedule(sc) {
+  sc = sc || {};
+  const t = v => { const n = Date.parse(v); return v && Number.isFinite(n) ? new Date(n).toISOString() : ''; };
+  let start = t(sc.start), end = t(sc.end);
+  if (start && end && Date.parse(end) <= Date.parse(start)) end = '';
+  return { on: !!sc.on && !!(start || end), start, end, note: String(sc.note || '').slice(0, 200) };
+}
+/** สถานะของหน้า Intro ตามเวลา: live = อยู่ในช่วงเวลา, wait = รอแสดง, done = หมดเวลา, '' = ไม่ได้ตั้งเวลา */
+function introSchedState(it, ms = Date.now()) {
+  const sc = it.schedule; if (!sc || !sc.on) return '';
+  if (sc.start && ms < Date.parse(sc.start)) return 'wait';
+  if (sc.end && ms >= Date.parse(sc.end)) return 'done';
+  return 'live';
+}
+/** เลือกหน้า Intro ที่จะแสดงที่ /intro: หน้าที่ตั้งเวลาไว้และอยู่ในช่วงเวลา (เริ่มล่าสุดก่อน) ถ้าไม่มี ใช้หน้า Intro หลัก */
+function activeIntro(ms = Date.now()) {
+  const live = ordered(db.intros).filter(x => introSchedState(x, ms) === 'live');
+  if (live.length) {
+    live.sort((a, b) => (Date.parse(b.schedule.start) || 0) - (Date.parse(a.schedule.start) || 0));
+    return { it: live[0], by: 'schedule' };
+  }
+  const main = db.intros.find(x => x.id === db.settings.mainIntroId) || db.intros[0];
+  return { it: main, by: 'main' };
+}
+/** เวลาเปลี่ยนหน้า Intro ครั้งถัดไป (มีหน้าใดเริ่มหรือหมดเวลา) */
+function nextIntroChange(ms = Date.now()) {
+  let n = Infinity;
+  db.intros.forEach(x => { const sc = x.schedule; if (!sc || !sc.on) return; [sc.start, sc.end].forEach(v => { const t = Date.parse(v); if (t > ms && t < n) n = t; }); });
+  return Number.isFinite(n) ? n : null;
+}
 function normIntro(x, existing) {
   const bg = x.bg || {}, bar = x.bar || {}, an = x.anim || {}, hd = x.head || {}, ag = x.autoGo || {};
   return Object.assign({}, existing || {}, {
@@ -1269,6 +1300,7 @@ function normIntro(x, existing) {
       delay: clamp(an.delay, 0, 5000, 400), duration: clamp(an.duration, 100, 3000, 700), stagger: clamp(an.stagger, 0, 1000, 120),
     },
     autoGo: { on: !!ag.on, seconds: clamp(ag.seconds, 3, 120, 15), link: safeUrl(ag.link) },
+    schedule: normSchedule(x.schedule),
     buttons: Array.isArray(x.buttons) ? x.buttons.slice(0, 30).map(normIntroBtn) : (existing ? existing.buttons : []),
     updatedAt: now(),
   });
@@ -1378,7 +1410,7 @@ function introButtonHtml(b, i, it) {
   return `<div class="in-btn" style="--i:${i}">${UB.buttonHtml(b, { target: '_top' })}</div>`;
 }
 function introFonts(it) { return [it.font, ...it.buttons.map(b => b.style && b.style.font)]; }
-function renderIntro(it, { preview = false } = {}) {
+function renderIntro(it, { preview = false, reloadIn = 0 } = {}) {
   const bg = it.bg, bar = it.bar, an = it.anim, hd = it.head;
   const btns = it.buttons.filter(b => b.active);
   const needFa = btns.some(b => b.iconFa || b.children.some(c => c.iconFa));
@@ -1404,7 +1436,7 @@ ${bg.fit === 'contain' && bg.blurBack && bg.image ? `<div class="in-back" style=
 <div class="in-bg fit-${bg.fit}${bg.blur ? ' blur' : ''}${bg.kenburns ? ' kb' : ''}">${img}</div>
 ${bg.overlayOpacity ? `<div class="in-ov" style="background:${bg.overlay};opacity:${bg.overlayOpacity / 100}"></div>` : ''}
 ${head}${barHtml}${auto}
-</div><script>${INTRO_JS}</script></body></html>`;
+</div><script>${INTRO_JS}</script>${reloadIn > 0 && reloadIn < 2147483000 ? `<script>setTimeout(function(){location.reload()},${Math.round(reloadIn) + 1500})</script>` : ''}</body></html>`;
 }
 function exportIntro(it, base) {
   let html = renderIntro(it);
@@ -1907,9 +1939,16 @@ async function api(req, res, pathname, query) {
   if (seg[0] === 'intros') {
     if (await listOps(req, res, db.intros, seg, m)) return;
     if (seg[1] === 'preview' && m === 'POST') { const b = await readJson(req); return send(res, 200, renderIntro(normIntro(b), { preview: true }), { 'Content-Type': 'text/html; charset=utf-8' }); }
+    if (seg[1] === 'active' && m === 'GET') {
+      const at = Date.parse(new URL(req.url, 'http://x').searchParams.get('at') || '') || Date.now();
+      const a = activeIntro(at), nx = nextIntroChange(at);
+      return json(res, 200, { at: new Date(at).toISOString(), id: a.it ? a.it.id : '', name: a.it ? a.it.name : '', by: a.by, next: nx ? new Date(nx).toISOString() : '',
+        timeline: ordered(db.intros).filter(x => x.schedule && x.schedule.on).map(x => ({ id: x.id, name: x.name, start: x.schedule.start, end: x.schedule.end, state: introSchedState(x, at) }))
+          .sort((a, b) => (Date.parse(a.start) || 0) - (Date.parse(b.start) || 0)) });
+    }
     if (seg[1] === 'demo' && m === 'POST') { const it = demoIntro(db.intros); db.intros.push(it); save(); return json(res, 201, it); }
     if (!seg[1]) {
-      if (m === 'GET') return json(res, 200, ordered(db.intros).map(x => ({ ...x, isMain: db.settings.mainIntroId === x.id })));
+      if (m === 'GET') { const t = Date.now(), act = activeIntro(t); return json(res, 200, ordered(db.intros).map(x => ({ ...x, isMain: db.settings.mainIntroId === x.id, schedState: introSchedState(x, t), isActive: !!act.it && act.it.id === x.id }))); }
       if (m === 'POST') {
         const b = await readJson(req);
         const it = normIntro(Object.assign({ buttons: [{ title: 'เข้าสู่เว็บไซต์', iconFa: 'fa-solid fa-arrow-right-to-bracket', link: '/', style: UB.PRESETS.find(p => p.id === 'gold').style }] }, b));
@@ -2139,10 +2178,14 @@ async function route(req, res) {
     }
     if (pathname === '/intro' || pathname === '/intro/' || pathname.startsWith('/intro/')) {
       const slug = pathname.split('/')[2];
-      const it = slug ? db.intros.find(x => x.slug === slug) : (db.intros.find(x => x.id === db.settings.mainIntroId) || db.intros[0]);
-      if (!it) return notFound(res, 'ยังไม่มีหน้า Intro');
       const pv = /[?&]preview=1\b/.test(req.url || '');
-      return send(res, 200, renderIntro(it, { preview: pv }), { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache' });
+      // ?at= จำลองเวลา ใช้ได้เฉพาะผู้ที่เข้าสู่ระบบ (ตรวจสอบตารางเวลา)
+      const atQ = Date.parse(u.searchParams.get('at') || ''); const sim = Number.isFinite(atQ) && !!currentUser(req); const at = sim ? atQ : Date.now();
+      const it = slug ? db.intros.find(x => x.slug === slug) : activeIntro(at).it;
+      if (!it) return notFound(res, 'ยังไม่มีหน้า Intro');
+      // ลิงก์กลาง /intro: เปิดค้างไว้ถึงเวลาเปลี่ยนหน้า → โหลดใหม่เอง
+      const nx = !slug && !pv && !sim ? nextIntroChange(at) : null;
+      return send(res, 200, renderIntro(it, { preview: pv, reloadIn: nx ? nx - at : 0 }), { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' });
     }
     if (pathname.startsWith('/p/')) {
       const slug = pathname.split('/')[2];
