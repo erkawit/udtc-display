@@ -1661,7 +1661,7 @@ async function api(req, res, pathname, query) {
     const { username, password } = await readJson(req);
     const u = db.users.find(x => x.username === String(username || '').trim());
     if (!u || !verifyPassword(password, u.password)) {
-      const c = (la && la.until < Date.now() ? 0 : (la ? la.count : 0)) + 1;
+      const c = (la && la.until && la.until < Date.now() ? 0 : (la ? la.count : 0)) + 1; // นับต่อเนื่องจนกว่าจะพ้นช่วงระงับ
       loginAttempts.set(ip, { count: c, until: c >= 5 ? Date.now() + 5 * 60e3 : 0 });
       return json(res, 401, { error: 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง' });
     }

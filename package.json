@@ -1,6 +1,6 @@
 {
   "name": "udtc-display-manager",
-  "version": "2.0.0",
+  "version": "2.0.9",
   "description": "ระบบจัดการส่วนแสดงผล (iframe / HTML+CSS) และหน้าเว็บเผยแพร่ข้อมูล — รันบนเครื่องแม่ข่ายหรือ Vercel + Neon + Vercel Blob",
   "main": "server.js",
   "scripts": {
